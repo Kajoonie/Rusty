@@ -5,34 +5,29 @@ use commands::general::{
     ping::*,
     file::*,
 };
+use commands::audio::{
+    clip::*,
+};
 use commands::admins::{
     slow_mode::*,
 };
-
-mod listeners;
-use listeners::{
-    test::*,
-};
-
 
 use std::{collections::{HashMap, HashSet}, env, sync::Arc};
 use serenity::{
     async_trait,
     client::bridge::gateway::ShardManager,
     framework::standard::{
-        Args, CommandOptions, CommandResult, CommandGroup,
-        DispatchError, HelpOptions, help_commands, Reason, StandardFramework,
-        buckets::{RevertBucket, LimitedFor},
-        macros::{command, group, help, check, hook},
+        Args, CommandResult, CommandGroup,
+        DispatchError, HelpOptions, help_commands, StandardFramework,
+        buckets::LimitedFor,
+        macros::{group, help, hook},
     },
     http::Http,
     model::{
         channel::Message,
         gateway::Ready,
         id::UserId,
-        permissions::Permissions,
     },
-    utils::{content_safe, ContentSafeOptions},
 };
 
 use tracing_subscriber::{FmtSubscriber, EnvFilter};
@@ -66,46 +61,18 @@ impl EventHandler for Handler {
 
 #[group]
 #[commands(commands, ping, file)]
-struct Commands;
-
-/*#[group]
-#[prefixes("image, img, images")]
-#[description = "Fuck around with images"]
-#[default_command(image)]
-#[commands(add, remove, update)]
-struct Image;*/
+struct General;
 
 #[group]
-// Sets multiple prefixes for a group.
-// This requires us to call commands in this group
-// via `~emoji` (or `~em`) instead of just `~`.
-#[prefixes("emoji", "em")]
-// Set a description to appear if a user wants to display a single group
-// e.g. via help using the group-name or one of its prefixes.
-#[description = "A group with commands providing an emoji as response."]
-// Summary only appears when listing multiple groups.
-#[summary = "Do emoji fun!"]
-// Sets a command that will be executed if only a group-prefix was passed.
-#[default_command(bird)]
-#[commands(cat, dog)]
-struct Emoji;
+#[commands(clip)]
+struct Audio;
 
 #[group]
-// Sets a single prefix for this group.
-// So one has to call commands in this group
-// via `~math` instead of just `~`.
-#[prefix = "math"]
-#[commands(multiply)]
-struct Math;
-
-#[group]
-#[owners_only]
-// Limit all commands to be guild-restricted.
 #[only_in(guilds)]
-// Summary only appears when listing multiple groups.
-#[summary = "Commands for server owners"]
+#[required_permissions(ADMINISTRATOR)]
+#[summary = "Commands for admins"]
 #[commands(slow_mode)]
-struct Owner;
+struct Admin;
 
 // The framework provides two built-in help commands for you to use.
 // But you can also make your own customized help command that forwards
@@ -205,8 +172,6 @@ async fn dispatch_error(ctx: &Context, msg: &Message, error: DispatchError) {
     }
 }
 
-
-
 #[tokio::main]
 async fn main() {
     // This will load the environment variables located at `./.env`, relative to
@@ -301,10 +266,9 @@ async fn main() {
         // They're made in the pattern: `#name_GROUP` for the group instance and `#name_GROUP_OPTIONS`.
         // #name is turned all uppercase
         .help(&MY_HELP)
-        .group(&COMMANDS_GROUP)
-        .group(&EMOJI_GROUP)
-        .group(&MATH_GROUP)
-        .group(&OWNER_GROUP);
+        .group(&GENERAL_GROUP)
+        .group(&AUDIO_GROUP)
+        .group(&ADMIN_GROUP);
 
     let mut client = Client::builder(&token)
         .event_handler(Handler)
@@ -321,187 +285,4 @@ async fn main() {
     if let Err(why) = client.start().await {
         println!("Client error: {:?}", why);
     }
-}
-
-// Repeats what the user passed as argument but ensures that user and role
-// mentions are replaced with a safe textual alternative.
-// In this example channel mentions are excluded via the `ContentSafeOptions`.
-#[command]
-async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let settings = if let Some(guild_id) = msg.guild_id {
-        // By default roles, users, and channel mentions are cleaned.
-        ContentSafeOptions::default()
-            // We do not want to clean channel mentions as they
-            // do not ping users.
-            .clean_channel(false)
-            // If it's a guild channel, we want mentioned users to be displayed
-            // as their display name.
-            .display_as_member_from(guild_id)
-    } else {
-        ContentSafeOptions::default()
-            .clean_channel(false)
-            .clean_role(false)
-    };
-
-    let content = content_safe(&ctx.cache, &args.rest(), &settings).await;
-
-    msg.channel_id.say(&ctx.http, &content).await?;
-
-    Ok(())
-}
-
-// A function which acts as a "check", to determine whether to call a command.
-//
-// In this case, this command checks to ensure you are the owner of the message
-// in order for the command to be executed. If the check fails, the command is
-// not called.
-#[check]
-#[name = "Owner"]
-async fn owner_check(_: &Context, msg: &Message, _: &mut Args, _: &CommandOptions) -> Result<(), Reason> {
-    // Replace 7 with your ID to make this check pass.
-    //
-    // 1. If you want to pass a reason alongside failure you can do:
-    // `Reason::User("Lacked admin permission.".to_string())`,
-    //
-    // 2. If you want to mark it as something you want to log only:
-    // `Reason::Log("User lacked admin permission.".to_string())`,
-    //
-    // 3. If the check's failure origin is unknown you can mark it as such:
-    // `Reason::Unknown`
-    //
-    // 4. If you want log for your system and for the user, use:
-    // `Reason::UserAndLog { user, log }`
-    if msg.author.id == 7 {
-        return Err(Reason::User("Lacked owner permission".to_string()));
-    }
-
-    Ok(())
-}
-
-#[command]
-async fn some_long_command(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    msg.channel_id.say(&ctx.http, &format!("Arguments: {:?}", args.rest())).await?;
-
-    Ok(())
-}
-
-#[command]
-// Limits the usage of this command to roles named:
-#[allowed_roles("mods", "ultimate neko")]
-async fn about_role(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let potential_role_name = args.rest();
-
-    if let Some(guild) = msg.guild(&ctx.cache).await {
-        // `role_by_name()` allows us to attempt attaining a reference to a role
-        // via its name.
-        if let Some(role) = guild.role_by_name(&potential_role_name) {
-            if let Err(why) = msg.channel_id.say(&ctx.http, &format!("Role-ID: {}", role.id)).await {
-                println!("Error sending message: {:?}", why);
-            }
-
-            return Ok(());
-        }
-    }
-
-    msg.channel_id.say(&ctx.http, format!("Could not find role named: {:?}", potential_role_name)).await?;
-
-    Ok(())
-}
-
-#[command]
-// Lets us also call `~math *` instead of just `~math multiply`.
-#[aliases("*")]
-async fn multiply(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-    let first = args.single::<f64>()?;
-    let second = args.single::<f64>()?;
-
-    let res = first * second;
-
-    msg.channel_id.say(&ctx.http, &res.to_string()).await?;
-
-    Ok(())
-}
-
-#[command]
-async fn about(ctx: &Context, msg: &Message) -> CommandResult {
-    msg.channel_id.say(&ctx.http, "This is a small test-bot! : )").await?;
-
-    Ok(())
-}
-
-#[command]
-// Adds multiple aliases
-#[aliases("kitty", "neko")]
-// Make this command use the "emoji" bucket.
-#[bucket = "emoji"]
-// Allow only administrators to call this:
-#[required_permissions("ADMINISTRATOR")]
-async fn cat(ctx: &Context, msg: &Message) -> CommandResult {
-    msg.channel_id.say(&ctx.http, ":cat:").await?;
-
-    // We can return one ticket to the bucket undoing the ratelimit.
-    Err(RevertBucket.into())
-}
-
-#[command]
-#[description = "Sends an emoji with a dog."]
-#[bucket = "emoji"]
-async fn dog(ctx: &Context, msg: &Message) -> CommandResult {
-    msg.channel_id.say(&ctx.http, ":dog:").await?;
-
-    Ok(())
-}
-
-#[command]
-async fn bird(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let say_content = if args.is_empty() {
-        ":bird: can find animals for you.".to_string()
-    } else {
-        format!(":bird: could not find animal named: `{}`.", args.rest())
-    };
-
-    msg.channel_id.say(&ctx.http, say_content).await?;
-
-    Ok(())
-}
-
-// We could also use
-// #[required_permissions(ADMINISTRATOR)]
-// but that would not let us reply when it fails.
-#[command]
-async fn am_i_admin(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
-    if let Some(member) = &msg.member {
-
-        for role in &member.roles {
-            if role.to_role_cached(&ctx.cache).await.map_or(false, |r| r.has_permission(Permissions::ADMINISTRATOR)) {
-                msg.channel_id.say(&ctx.http, "Yes, you are.").await?;
-
-                return Ok(());
-            }
-        }
-    }
-
-    msg.channel_id.say(&ctx.http, "No, you are not.").await?;
-
-    Ok(())
-}
-
-// A command can have sub-commands, just like in command lines tools.
-// Imagine `cargo help` and `cargo help run`.
-#[command("upper")]
-#[sub_commands(sub)]
-async fn upper_command(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
-    msg.reply(&ctx.http, "This is the main function!").await?;
-
-    Ok(())
-}
-
-// This will only be called if preceded by the `upper`-command.
-#[command]
-#[aliases("sub-command", "secret")]
-#[description("This is `upper`'s sub-command.")]
-async fn sub(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
-    msg.reply(&ctx.http, "This is a sub function!").await?;
-
-    Ok(())
 }
