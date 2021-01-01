@@ -3,7 +3,7 @@ mod commands;
 use commands::commands::*;
 use commands::general::{
     ping::*,
-    image::*,
+    file::*,
 };
 use commands::admins::{
     slow_mode::*,
@@ -65,7 +65,7 @@ impl EventHandler for Handler {
 }
 
 #[group]
-#[commands(commands, ping, image)]
+#[commands(commands, ping, file)]
 struct Commands;
 
 /*#[group]

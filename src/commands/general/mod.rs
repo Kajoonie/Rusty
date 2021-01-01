@@ -1,2 +1,2 @@
 pub(crate) mod ping;
-pub(crate) mod image;
+pub(crate) mod file;

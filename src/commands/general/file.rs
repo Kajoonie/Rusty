@@ -14,21 +14,23 @@ use std::ffi::OsString;
 use std::path::{PathBuf, Path};
 use tokio::io::AsyncWriteExt;
 
+const FILE_DIR: &str = "src/files";
+
 #[command]
 #[only_in(guilds)]
 #[sub_commands(list, add, remove, update)]
-#[aliases("img", "images")]
-#[description = "Post images by name! Add, remove, or update them as you please"]
-async fn image(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-    let mut path = env::current_dir()?.join("src/img");
+#[aliases("f", "files")]
+#[description = "Post files by name! Add, remove, or update them as you please"]
+async fn file(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+    let mut path = env::current_dir()?.join(FILE_DIR);
 
-    let image_name = args.single::<OsString>()?;
+    let file_name = args.single::<OsString>()?;
 
-    if find_exact_file_match(&mut path, &image_name).unwrap() {
+    if find_exact_file_match(&mut path, &file_name).unwrap() {
         return send_attachment(ctx, msg, &path).await;
     }
 
-    let close_matches = get_similar_files(&path, &image_name).ok_or("Failed finding similar files")?;
+    let close_matches = get_similar_files(&path, &file_name).ok_or("Failed finding similar files")?;
 
     if !response_for_zero_or_multiple_similar_files(&ctx, &msg, &close_matches).await.ok_or("Unable to send response")? {
         let matched_path = close_matches.get(0);
@@ -41,12 +43,12 @@ async fn image(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     Ok(())
 }
 
-fn find_exact_file_match(path: &mut PathBuf, image_name: &OsString) -> Option<bool> {
+fn find_exact_file_match(path: &mut PathBuf, file_name: &OsString) -> Option<bool> {
     for entry in fs::read_dir(&path).ok()? {
         let entry = entry.ok()?;
 
         if let Some(stem) = entry.path().file_stem() {
-            if stem.eq(image_name) {
+            if stem.eq(file_name) {
                 path.push(entry.path());
                 return Option::from(true);
             }
@@ -74,16 +76,16 @@ async fn send_attachment(ctx: &Context, msg: &Message, path: &PathBuf) -> Comman
     Ok(())
 }
 
-fn get_similar_files(path: &PathBuf, image_name: &OsString) -> Option<Vec<PathBuf>> {
+fn get_similar_files(path: &PathBuf, file_name: &OsString) -> Option<Vec<PathBuf>> {
     let mut close_matches = vec![];
 
-    let image_name_str = image_name.clone().into_string().ok()?;
+    let file_name_str = file_name.clone().into_string().ok()?;
 
     for entry in fs::read_dir(&path).ok()? {
         let entry = entry.ok()?;
         if let Some(file_stem) = entry.path().file_stem() {
             if let Some(file_stem_str) = file_stem.to_str() {
-                if levenshtein(&image_name_str, file_stem_str) < 3 {
+                if levenshtein(&file_name_str, file_stem_str) < 3 {
                     close_matches.push(entry.path());
                 }
             }
@@ -126,18 +128,18 @@ async fn response_for_zero_or_multiple_similar_files(ctx: &Context, msg: &Messag
     return Option::from(false);
 }
 
-struct Image {
+struct RustyFile {
     name_with_ext: OsString,
     path: PathBuf,
     bytes: Vec<u8>,
 }
 
-async fn get_image_from_message(msg: &Message, mut args: Args) -> Option<Image> {
+async fn get_file_from_message(msg: &Message, mut args: Args) -> Option<RustyFile> {
     let attachment = msg.attachments.get(0);
 
-    if let Some(image_attachment) = attachment {
+    if let Some(file_attachment) = attachment {
         let name = args.single::<OsString>().ok()?;
-        let ext_opt = Path::new(&image_attachment.filename).extension();
+        let ext_opt = Path::new(&file_attachment.filename).extension();
 
         if let Some(ext) = ext_opt {
             let mut filename = OsString::new();
@@ -145,11 +147,11 @@ async fn get_image_from_message(msg: &Message, mut args: Args) -> Option<Image> 
             filename.push(".");
             filename.push(&ext);
 
-            let bytes = image_attachment.download().await.ok()?;
+            let bytes = file_attachment.download().await.ok()?;
 
-            let path = env::current_dir().ok()?.join("src/img").join(&filename);
+            let path = env::current_dir().ok()?.join(FILE_DIR).join(&filename);
 
-            return Some(Image {
+            return Some(RustyFile {
                 name_with_ext: filename,
                 path,
                 bytes,
@@ -160,7 +162,7 @@ async fn get_image_from_message(msg: &Message, mut args: Args) -> Option<Image> 
     None
 }
 
-async fn save_image_with_response(ctx: &Context, msg: &Message, img: &Image) -> CommandResult {
+async fn save_file_with_response(ctx: &Context, msg: &Message, img: &RustyFile) -> CommandResult {
     let mut file = File::create(&img.path).await?;
 
     let file_write_result = file.write_all(&img.bytes).await;
@@ -168,9 +170,9 @@ async fn save_image_with_response(ctx: &Context, msg: &Message, img: &Image) -> 
     let msg_send_result;
 
     if file_write_result.is_ok() {
-        msg_send_result = msg.reply(&ctx.http, "Image successfully saved.").await;
+        msg_send_result = msg.reply(&ctx.http, "File successfully saved.").await;
     } else {
-        msg_send_result = msg.reply(&ctx.http, "Something went wrong while attempting to save that image.").await;
+        msg_send_result = msg.reply(&ctx.http, "Something went wrong while attempting to save that file.").await;
     }
 
     if let Err(why) = msg_send_result {
@@ -178,7 +180,7 @@ async fn save_image_with_response(ctx: &Context, msg: &Message, img: &Image) -> 
     }
 
     if let Err(why) = file_write_result {
-        println!("Error saving image: {:?}", why);
+        println!("Error saving file: {:?}", why);
     }
 
     Ok(())
@@ -187,24 +189,24 @@ async fn save_image_with_response(ctx: &Context, msg: &Message, img: &Image) -> 
 #[command]
 async fn add(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
-    let image_opt = get_image_from_message(&msg, args).await;
+    let file_opt = get_file_from_message(&msg, args).await;
 
-    if let Some(image) = image_opt {
-        if !image.path.exists() {
-            let result = save_image_with_response(&ctx, &msg, &image).await;
+    if let Some(file) = file_opt {
+        if !file.path.exists() {
+            let result = save_file_with_response(&ctx, &msg, &file).await;
 
             if let Err(why) = result {
                 println!("Unable to send message: {:?}", why);
             }
         } else {
-            let result = msg.reply(&ctx.http, format!("An image named {:?} already exists", image.name_with_ext)).await;
+            let result = msg.reply(&ctx.http, format!("An file named {:?} already exists", file.name_with_ext)).await;
 
             if let Err(why) = result {
                 println!("Unable to send message: {:?}", why);
             }
         }
     } else {
-        let result = msg.reply(&ctx.http, "You've gotta include an image.").await;
+        let result = msg.reply(&ctx.http, "You've gotta include an file.").await;
 
         if let Err(why) = result {
             println!("Unable to send message: {:?}", why);
@@ -218,7 +220,7 @@ async fn add(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 async fn remove(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 
     let name = args.single::<OsString>()?;
-    let mut path = env::current_dir()?.join("src/img");
+    let mut path = env::current_dir()?.join(FILE_DIR);
 
     let msg_send_result;
 
@@ -232,9 +234,9 @@ async fn remove(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
         }
 
         if result.is_ok() {
-            msg_send_result = msg.reply(&ctx.http, "Image successfully deleted.").await;
+            msg_send_result = msg.reply(&ctx.http, "File successfully deleted.").await;
         } else {
-            msg_send_result = msg.reply(&ctx.http, "Something went wrong while attempting to delete that image.").await;
+            msg_send_result = msg.reply(&ctx.http, "Something went wrong while attempting to delete that file.").await;
         }
 
         if let Err(why) = msg_send_result {
@@ -265,17 +267,17 @@ async fn remove(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 #[command]
 async fn update(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
-    let image_opt = get_image_from_message(&msg, args).await;
+    let file_opt = get_file_from_message(&msg, args).await;
 
-    if let Some(image) = image_opt {
-        if image.path.exists() {
-            let result = save_image_with_response(&ctx, &msg, &image).await;
+    if let Some(file) = file_opt {
+        if file.path.exists() {
+            let result = save_file_with_response(&ctx, &msg, &file).await;
 
             if let Err(why) = result {
                 println!("Unable to send message: {:?}", why);
             }
         } else {
-            let result = msg.reply(&ctx.http, format!("No image named {:?} exists.", &image.name_with_ext)).await;
+            let result = msg.reply(&ctx.http, format!("No file named {:?} exists.", &file.name_with_ext)).await;
 
             if let Err(why) = result {
                 println!("Unable to send message: {:?}", why);
@@ -289,7 +291,7 @@ async fn update(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 #[command]
 async fn list(ctx: &Context, msg: &Message) -> CommandResult {
 
-    let path = env::current_dir()?.join("src/img");
+    let path = env::current_dir()?.join(FILE_DIR);
 
     let mut files = vec![];
 
