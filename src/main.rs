@@ -4,10 +4,9 @@ use commands::commands::*;
 use commands::general::{
     ping::*,
     file::*,
+    timer::*,
 };
-use commands::audio::{
-    clip::*,
-};
+
 use commands::admins::{
     slow_mode::*,
 };
@@ -60,12 +59,8 @@ impl EventHandler for Handler {
 }
 
 #[group]
-#[commands(commands, ping, file)]
+#[commands(commands, ping, file, timer)]
 struct General;
-
-#[group]
-#[commands(clip)]
-struct Audio;
 
 #[group]
 #[only_in(guilds)]
@@ -267,7 +262,6 @@ async fn main() {
         // #name is turned all uppercase
         .help(&MY_HELP)
         .group(&GENERAL_GROUP)
-        .group(&AUDIO_GROUP)
         .group(&ADMIN_GROUP);
 
     let mut client = Client::builder(&token)

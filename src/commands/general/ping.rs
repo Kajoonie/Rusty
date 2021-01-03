@@ -23,7 +23,7 @@ async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
             .thumbnail("attachment://pong.png")
             .field("API Latency", &format!("{} ms", latency), false));
 
-        path.push("src/img/pong.png");
+        path.push("src/files/pong.png");
         m.add_file(AttachmentType::Path(&*path));
 
         m

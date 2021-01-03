@@ -19,7 +19,7 @@ const FILE_DIR: &str = "src/files";
 #[command]
 #[only_in(guilds)]
 #[sub_commands(list, add, remove, update)]
-#[aliases("f", "files")]
+#[aliases("files", "images", "image", "img", "gifs", "gif")]
 #[description = "Post files by name! Add, remove, or update them as you please"]
 async fn file(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let mut path = env::current_dir()?.join(FILE_DIR);
