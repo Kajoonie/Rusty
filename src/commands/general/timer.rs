@@ -7,47 +7,22 @@ use std::time::Duration;
 use futures::executor::block_on;
 use chrono::{NaiveDateTime, Local, TimeZone, Offset};
 
+struct Timer<'a> {
+    name: &'a str,
+    time: &'a str,
+}
+
 #[command]
 #[aliases("time", "remind", "reminder")]
-#[description = "Start a timer (ex. '!timer name: making coffee time: 5 minutes')"]
+#[description = "Start a timer (ex. '!timer name: making coffee time: 5 minutes' or '!timer 30 minutes until game time)"]
 async fn timer(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
     let arg_str = args.rest();
-    let name_label = arg_str.find("name:");
-    if name_label.is_none() {
-        let result = msg.reply(&ctx.http, "Please include a \"name:\" label for your timer.").await;
 
-        if let Err(why) = result {
-            println!("Unable to send message {:?}", why);
-        }
+    let timer = parse_name_and_duration_from_args(&ctx, &msg, &arg_str).await.unwrap();
 
-        return Ok(());
-    }
-
-    let time_label = arg_str.find("time:");
-    if time_label.is_none() {
-        let result = msg.reply(&ctx.http, "Please include a \"time:\" label for your timer.").await;
-
-        if let Err(why) = result {
-            println!("Unable to send message {:?}", why);
-        }
-
-        return Ok(());
-    }
-
-    let name_label_start = name_label.unwrap();
-    let time_label_start = time_label.unwrap();
-
-    let name;
-    let time;
-
-    if name_label_start < time_label_start {
-        name = arg_str[name_label_start+5..time_label_start].trim();
-        time = arg_str[time_label_start+5..].trim();
-    } else {
-        time = arg_str[time_label_start+5..name_label_start].trim();
-        name = arg_str[name_label_start+5..].trim();
-    }
+    let name = timer.name;
+    let time = timer.time;
 
     let mut duration = attempt_parse_duration(time);
 
@@ -80,6 +55,46 @@ async fn timer(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     thread::spawn(move || block_on(notify_on_expiry(ctx_clone, msg_clone, duration, name_clone)));
 
     Ok(())
+}
+
+async fn parse_name_and_duration_from_args<'a>(ctx: &Context, msg: &Message, arg_str: &'a str) -> Option<Timer<'a>> {
+    let name_label = arg_str.find("name:");
+    if name_label.is_none() {
+        let result = msg.reply(&ctx.http, "Please include a \"name:\" label for your timer.").await;
+
+        if let Err(why) = result {
+            println!("Unable to send message {:?}", why);
+        }
+
+        return None;
+    }
+
+    let time_label = arg_str.find("time:");
+    if time_label.is_none() {
+        let result = msg.reply(&ctx.http, "Please include a \"time:\" label for your timer.").await;
+
+        if let Err(why) = result {
+            println!("Unable to send message {:?}", why);
+        }
+
+        return None;
+    }
+
+    let name_label_start = name_label.unwrap();
+    let time_label_start = time_label.unwrap();
+
+    let name;
+    let time;
+
+    if name_label_start < time_label_start {
+        name = arg_str[name_label_start+5..time_label_start].trim();
+        time = arg_str[time_label_start+5..].trim();
+    } else {
+        time = arg_str[time_label_start+5..name_label_start].trim();
+        name = arg_str[name_label_start+5..].trim();
+    }
+
+    Some(Timer {name, time})
 }
 
 fn attempt_parse_duration(time: &str) -> Duration {
