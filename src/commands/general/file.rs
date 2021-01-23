@@ -19,7 +19,7 @@ const FILE_DIR: &str = "src/files";
 #[command]
 #[only_in(guilds)]
 #[sub_commands(list, add, remove, update)]
-#[aliases("f", "files")]
+#[aliases("files", "images", "image", "img", "gifs", "gif")]
 #[description = "Post files by name! Add, remove, or update them as you please"]
 async fn file(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let mut path = env::current_dir()?.join(FILE_DIR);
@@ -129,9 +129,15 @@ async fn response_for_zero_or_multiple_similar_files(ctx: &Context, msg: &Messag
 }
 
 struct RustyFile {
-    name_with_ext: OsString,
+    filename: OsString,
     path: PathBuf,
     bytes: Vec<u8>,
+}
+
+impl RustyFile {
+    fn new(filename: OsString, path: PathBuf, bytes: Vec<u8>) -> RustyFile {
+        RustyFile { filename, path, bytes }
+    }
 }
 
 async fn get_file_from_message(msg: &Message, mut args: Args) -> Option<RustyFile> {
@@ -151,11 +157,7 @@ async fn get_file_from_message(msg: &Message, mut args: Args) -> Option<RustyFil
 
             let path = env::current_dir().ok()?.join(FILE_DIR).join(&filename);
 
-            return Some(RustyFile {
-                name_with_ext: filename,
-                path,
-                bytes,
-            });
+            return Some(RustyFile::new(filename, path, bytes));
         }
     }
 
@@ -199,7 +201,7 @@ async fn add(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                 println!("Unable to send message: {:?}", why);
             }
         } else {
-            let result = msg.reply(&ctx.http, format!("An file named {:?} already exists", file.name_with_ext)).await;
+            let result = msg.reply(&ctx.http, format!("An file named {:?} already exists", file.filename)).await;
 
             if let Err(why) = result {
                 println!("Unable to send message: {:?}", why);
@@ -277,7 +279,7 @@ async fn update(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                 println!("Unable to send message: {:?}", why);
             }
         } else {
-            let result = msg.reply(&ctx.http, format!("No file named {:?} exists.", &file.name_with_ext)).await;
+            let result = msg.reply(&ctx.http, format!("No file named {:?} exists.", &file.filename)).await;
 
             if let Err(why) = result {
                 println!("Unable to send message: {:?}", why);
