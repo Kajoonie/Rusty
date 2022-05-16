@@ -10,7 +10,7 @@ use serenity::{client::Context, framework::standard::{
 #[description = "Ask OpenAI's GPT-3 DaVinci model a question"]
 async fn question(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
-    const API_KEY: &str = "Bearer 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";
+    const API_KEY: &str = "Bearer {your_api_key_here}";
     const CONTENT_TYPE: &str = "application/json";
 
     let mut headers = HeaderMap::new();
