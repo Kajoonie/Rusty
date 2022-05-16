@@ -3,7 +3,7 @@ mod commands;
 use commands::commands::*;
 use commands::general::{
     ping::*,
-    // file::*,
+    file::*,
     timer::*,
     question::*,
 };
@@ -59,7 +59,7 @@ impl EventHandler for Handler {
 }
 
 #[group]
-#[commands(commands, ping, timer, question)]
+#[commands(commands, ping, timer, file, question)]
 struct General;
 
 #[group]
