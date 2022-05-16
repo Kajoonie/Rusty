@@ -1,6 +1,6 @@
 use std::env;
 use reqwest::{header, header::HeaderMap};
-use serde_json::Value;
+use serde_json::{json, Value};
 use serenity::{client::Context, framework::standard::{
     Args, CommandResult,
     macros::command,
@@ -11,24 +11,21 @@ use serenity::{client::Context, framework::standard::{
 #[description = "Ask OpenAI's GPT-3 DaVinci model a question"]
 async fn question(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
-    const API_KEY: String = env::var("OPENAI_AUTH").expect("Unable to obtain OpenAI Auth");
-    const CONTENT_TYPE: &str = "application/json";
+    let api_auth = "Bearer ".to_owned() + &env::var("OPENAI_AUTH")
+        .expect("Unable to obtain OpenAI Auth");
 
     let mut headers = HeaderMap::new();
-    headers.insert(header::AUTHORIZATION, API_KEY.parse().unwrap());
-    headers.insert(header::CONTENT_TYPE, CONTENT_TYPE.parse().unwrap());
+    headers.insert(header::AUTHORIZATION, api_auth.parse().unwrap());
 
-    let body = format!["{{\
-        \"prompt\": \"{}\", \
-        \"max_tokens\": 512\
-    }}", args.rest()];
-
-    let v: Value = serde_json::from_str(&body)?;
+    let body = json!({
+        "prompt": format!("{}", args.rest()),
+        "max_tokens": 512
+    });
 
     let client = reqwest::Client::new();
     let request_builder = client.post("https://api.openai.com/v1/engines/text-davinci-002/completions")
         .headers(headers)
-        .json(&v);
+        .json(&body);
 
     if let Ok(response) = request_builder.send().await {
         if let Ok(text) = response.text().await {
