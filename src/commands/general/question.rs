@@ -17,10 +17,19 @@ async fn question(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let mut headers = HeaderMap::new();
     headers.insert(header::AUTHORIZATION, api_auth.parse().unwrap());
 
-    let body = json!({
-        "prompt": format!("{}", args.rest()),
-        "max_tokens": 512
-    });
+    let body: Value;
+    if let Some(question) = args.remains() {
+        body = json!({
+            "prompt": format!("{}", question),
+            "max_tokens": 512
+        });
+    } else {
+        let default_question = "Please think of a good question to ask an AI, then provide me an answer to that question.";
+        body = json!({
+            "prompt": format!("{}", default_question),
+            "max_tokens": 512
+        });
+    }
 
     let client = reqwest::Client::new();
     let request_builder = client.post("https://api.openai.com/v1/engines/text-davinci-002/completions")
