@@ -1,2 +1,4 @@
 /target/
-/src/img/*
+/.env
+/Cargo.lock
+/src/files/*

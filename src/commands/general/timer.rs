@@ -5,7 +5,7 @@ use serenity::{framework::standard::{
 use std::thread;
 use std::time::Duration;
 use futures::executor::block_on;
-use chrono::{NaiveDateTime, Local, TimeZone, Offset, Utc, DateTime};
+use chrono::{NaiveDateTime, TimeZone, Offset, Utc, DateTime};
 use serenity::model::user::User;
 use chrono_tz::Tz;
 use redis::Commands;

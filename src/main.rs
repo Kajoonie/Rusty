@@ -3,8 +3,9 @@ mod commands;
 use commands::commands::*;
 use commands::general::{
     ping::*,
-    file::*,
+    // file::*,
     timer::*,
+    question::*,
 };
 
 use commands::admins::{
@@ -32,7 +33,6 @@ use serenity::{
 use tracing_subscriber::{FmtSubscriber, EnvFilter};
 
 use serenity::prelude::*;
-use tokio::sync::Mutex;
 
 // A container type is created for inserting into the Client's `data`, which
 // allows for data to be accessible across all events and framework commands, or
@@ -59,7 +59,7 @@ impl EventHandler for Handler {
 }
 
 #[group]
-#[commands(commands, ping, file, timer)]
+#[commands(commands, ping, timer, question)]
 struct General;
 
 #[group]
