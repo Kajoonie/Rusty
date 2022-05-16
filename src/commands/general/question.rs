@@ -1,3 +1,4 @@
+use std::env;
 use reqwest::{header, header::HeaderMap};
 use serde_json::Value;
 use serenity::{client::Context, framework::standard::{
@@ -10,7 +11,7 @@ use serenity::{client::Context, framework::standard::{
 #[description = "Ask OpenAI's GPT-3 DaVinci model a question"]
 async fn question(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
-    const API_KEY: &str = "Bearer {your_api_key_here}";
+    const API_KEY: String = env::var("OPENAI_AUTH").expect("Unable to obtain OpenAI Auth");
     const CONTENT_TYPE: &str = "application/json";
 
     let mut headers = HeaderMap::new();
