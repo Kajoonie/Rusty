@@ -1,14 +1,15 @@
-use serenity::{framework::standard::{
-    CommandResult, Args,
-    macros::command,
-}, model::channel::Message, client::Context};
 use std::thread;
 use std::time::Duration;
-use futures::executor::block_on;
-use chrono::{NaiveDateTime, TimeZone, Offset, Utc, DateTime};
-use serenity::model::user::User;
+
+use chrono::{DateTime, NaiveDateTime, Offset, TimeZone, Utc};
 use chrono_tz::Tz;
+use futures::executor::block_on;
 use redis::Commands;
+use serenity::{client::Context, framework::standard::{
+    Args, CommandResult,
+    macros::command,
+}, model::channel::Message};
+use serenity::model::user::User;
 
 struct Timer {
     name: String,
@@ -36,7 +37,7 @@ async fn timer(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         let minutes = (duration.as_secs() / 60) % 60;
         let hours = (duration.as_secs() / 60) / 60;
         let result = msg.channel_id.send_message(&ctx.http, |m| m
-            .content(format!("Okay, I've set a timer for **{:0>2}:{:0>2}:{:0>2}**.", hours, minutes, seconds))
+            .content(format!("Okay, I've set a timer for **{:0>2}:{:0>2}:{:0>2}**.", hours, minutes, seconds)),
         ).await;
 
         if let Err(why) = result {
@@ -67,7 +68,7 @@ async fn get_timer_from_args(msg: Message, arg_str: String) -> Option<Timer> {
         if i > 0 && !arg_str.chars().nth(i).unwrap().is_whitespace() {
             continue;
         }
-        for j in (i..len+1).rev() {
+        for j in (i..len + 1).rev() {
             if j < len && !arg_str.chars().nth(j).unwrap().is_whitespace() {
                 continue;
             }
@@ -95,7 +96,6 @@ fn parse_duration(msg: &Message, time: &str) -> Option<Duration> {
     } else {
         parse_relative_result
     }
-
 }
 
 fn parse_relative_duration(time: &str) -> Option<Duration> {
@@ -104,7 +104,7 @@ fn parse_relative_duration(time: &str) -> Option<Duration> {
         Err(_e) => {
             //println!("Failed to parse duration from {}: {:?}", time, e);
             None
-        },
+        }
     }
 }
 
@@ -114,7 +114,7 @@ fn parse_explicit_duration(msg: &Message, time: &str) -> Option<Duration> {
         Err(_e) => {
             //println!("Failed to parse duration from {}: {:?}", time, e);
             NaiveDateTime::from_timestamp(0, 0)
-        },
+        }
     };
 
     let redis = redis::Client::open(REDIS_IP).ok()?;
@@ -123,7 +123,6 @@ fn parse_explicit_duration(msg: &Message, time: &str) -> Option<Duration> {
     let user_timezone: Option<String> = con.get(&msg.author.to_string()).ok()?;
 
     if let Some(tz_str) = user_timezone {
-
         let tz: Tz = match tz_str.parse() {
             Ok(timezone) => timezone,
             Err(_) => Tz::UTC,
@@ -138,12 +137,12 @@ fn parse_explicit_duration(msg: &Message, time: &str) -> Option<Duration> {
         let res = timer_stop_ms - tz_time.timestamp_millis();
 
         if res < 0 {
-            // For some reason typical time statements such as "8:30pm" are interpreted as the most
-            // recent _past_ occurrence of that time, rather than the closest future occurrence.
-            // As such, we'll try to add one days worth of milliseconds to the result to see if we get
-            // a valid duration from it.
-            // This means someone intentionally trying to set a timer for a point in time "yesterday"
-            // will instead set a timer for today's equivalent time instead of failing.
+            /* For some reason typical time statements such as "8:30pm" are interpreted as the most
+            recent _past_ occurrence of that time, rather than the closest future occurrence.
+            As such, we'll try to add one days worth of milliseconds to the result to see if we get
+            a valid duration from it.
+            This means someone intentionally trying to set a timer for a point in time "yesterday"
+            will instead set a timer for today's equivalent time instead of failing. */
             let res_2 = timer_stop_ms + (1000 * 60 * 60 * 24) - tz_time.timestamp_millis();
             if res_2 >= 0 {
                 return Some(Duration::from_millis(res_2 as u64));
@@ -172,7 +171,6 @@ async fn notify_on_expiry(ctx: Context, msg: Message, timer: Timer) {
 #[command]
 #[aliases("tz")]
 async fn timezone(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-
     let redis = redis::Client::open(REDIS_IP)?;
     let mut con = redis.get_connection()?;
 
