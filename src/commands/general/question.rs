@@ -11,7 +11,7 @@ use serenity::{client::Context, framework::standard::{
 #[description = "Ask OpenAI's GPT-3 DaVinci model a question"]
 async fn question(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
-    let api_auth = "Bearer ".to_owned() + &env::var("OPENAI_AUTH")
+    let api_auth = "Bearer ".to_owned() + &env::var("OPENAI_API_KEY")
         .expect("Unable to obtain OpenAI Auth");
 
     let mut headers = HeaderMap::new();
