@@ -1,26 +1,13 @@
-mod commands;
-
-use commands::commands::*;
-use commands::general::{
-    ping::*,
-    file::*,
-    timer::*,
-    question::*,
-};
-
-use commands::admins::{
-    slow_mode::*,
-};
-
 use std::{collections::{HashMap, HashSet}, env, sync::Arc};
+
 use serenity::{
     async_trait,
     client::bridge::gateway::ShardManager,
     framework::standard::{
-        Args, CommandResult, CommandGroup,
-        DispatchError, HelpOptions, help_commands, StandardFramework,
-        buckets::LimitedFor,
+        Args, buckets::LimitedFor, CommandGroup,
+        CommandResult, DispatchError, help_commands, HelpOptions,
         macros::{group, help, hook},
+        StandardFramework,
     },
     http::Http,
     model::{
@@ -29,10 +16,33 @@ use serenity::{
         id::UserId,
     },
 };
-
-use tracing_subscriber::{FmtSubscriber, EnvFilter};
-
 use serenity::prelude::*;
+use tracing_subscriber::{EnvFilter, FmtSubscriber};
+
+use commands::admins::{
+    slow_mode::*,
+};
+use commands::commands::*;
+use commands::general::{
+    file::*,
+    ping::*,
+    question::*,
+    timer::*,
+};
+
+mod commands;
+
+fn file_dir() -> String {
+    env::var("FILE_DIR").expect("File directory not specified")
+}
+
+fn redis_ip() -> String {
+    env::var("REDIS_IP").expect("Redis IP not specified")
+}
+
+fn openai_api_key() -> String {
+    env::var("OPENAI_API_KEY").expect("OpenAI API Key not specified")
+}
 
 // A container type is created for inserting into the Client's `data`, which
 // allows for data to be accessible across all events and framework commands, or
@@ -172,6 +182,7 @@ async fn main() {
     // This will load the environment variables located at `./.env`, relative to
     // the CWD. See `./.env.example` for an example on how to structure this.
     dotenv::dotenv().expect("Failed to load .env file");
+
 
     // Initialize the logger to use environment variables.
     //

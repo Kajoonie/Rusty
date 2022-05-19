@@ -1,5 +1,3 @@
-use std::env;
-
 use reqwest::{header, header::HeaderMap};
 use serde_json::{Error, json, Value};
 use serenity::{client::Context, framework::standard::{
@@ -7,12 +5,13 @@ use serenity::{client::Context, framework::standard::{
     macros::command,
 }, model::channel::Message};
 
+use crate::openai_api_key;
+
 #[command]
 #[aliases("question", "q")]
 #[sub_commands(sarcastic, neato)]
 #[description = "Ask OpenAI's GPT-3 DaVinci model a question"]
 async fn question(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-
     let answer;
     if let Some(question) = args.remains() {
         answer = send_request(question).await;
@@ -48,9 +47,7 @@ async fn neato(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 }
 
 async fn build_api_auth_header() -> HeaderMap {
-    let api_key = env::var("OPENAI_API_KEY").expect("Unable to obtain OpenAI Auth");
-    let api_auth = ["Bearer ", &api_key].concat();
-
+    let api_auth = ["Bearer ", openai_api_key().as_str()].concat();
 
     let mut headers = HeaderMap::new();
     headers.insert(header::AUTHORIZATION, api_auth.parse().unwrap());

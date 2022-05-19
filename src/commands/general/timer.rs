@@ -11,13 +11,13 @@ use serenity::{client::Context, framework::standard::{
 }, model::channel::Message};
 use serenity::model::user::User;
 
+use crate::redis_ip;
+
 struct Timer {
     name: String,
     time: Duration,
     mentions: Vec<User>,
 }
-
-pub const REDIS_IP: &str = "redis://127.0.0.1/";
 
 #[command]
 #[aliases("time", "remind", "reminder")]
@@ -117,7 +117,7 @@ fn parse_explicit_duration(msg: &Message, time: &str) -> Option<Duration> {
         }
     };
 
-    let redis = redis::Client::open(REDIS_IP).ok()?;
+    let redis = redis::Client::open(redis_ip()).ok()?;
     let mut con = redis.get_connection().ok()?;
 
     let user_timezone: Option<String> = con.get(&msg.author.to_string()).ok()?;
@@ -171,7 +171,7 @@ async fn notify_on_expiry(ctx: Context, msg: Message, timer: Timer) {
 #[command]
 #[aliases("tz")]
 async fn timezone(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let redis = redis::Client::open(REDIS_IP)?;
+    let redis = redis::Client::open(redis_ip())?;
     let mut con = redis.get_connection()?;
 
     if args.len() == 0 {

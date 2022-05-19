@@ -14,7 +14,7 @@ use strsim::levenshtein;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 
-const FILE_DIR: &str = "src/files";
+use crate::file_dir;
 
 #[command]
 #[only_in(guilds)]
@@ -22,7 +22,7 @@ const FILE_DIR: &str = "src/files";
 #[aliases("f", "files", "images", "image", "img", "gifs", "gif")]
 #[description = "Post files by name! Add, remove, or update them as you please"]
 async fn file(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-    let mut path = env::current_dir()?.join(FILE_DIR);
+    let mut path = env::current_dir()?.join(file_dir());
 
     let file_name = args.single::<OsString>()?;
 
@@ -155,7 +155,7 @@ async fn get_file_from_message(msg: &Message, mut args: Args) -> Option<RustyFil
 
             let bytes = file_attachment.download().await.ok()?;
 
-            let path = env::current_dir().ok()?.join(FILE_DIR).join(&filename);
+            let path = env::current_dir().ok()?.join(file_dir()).join(&filename);
 
             return Some(RustyFile::new(filename, path, bytes));
         }
@@ -220,9 +220,8 @@ async fn add(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
 #[command]
 async fn remove(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-
     let name = args.single::<OsString>()?;
-    let mut path = env::current_dir()?.join(FILE_DIR);
+    let mut path = env::current_dir()?.join(file_dir());
 
     let msg_send_result;
 
@@ -292,8 +291,7 @@ async fn update(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
 #[command]
 async fn list(ctx: &Context, msg: &Message) -> CommandResult {
-
-    let path = env::current_dir()?.join(FILE_DIR);
+    let path = env::current_dir()?.join(file_dir());
 
     let mut files = vec![];
 
