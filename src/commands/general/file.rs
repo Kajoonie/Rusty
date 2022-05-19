@@ -1,17 +1,17 @@
+use std::{env, fs};
+use std::ffi::OsString;
+use std::path::{Path, PathBuf};
+
 use serenity::{
+    client::Context,
     framework::standard::{
-        CommandResult, Args,
+        Args, CommandResult,
         macros::command,
     },
     model::channel::Message,
-    client::Context,
 };
-use std::{env, fs};
-
 use strsim::levenshtein;
 use tokio::fs::File;
-use std::ffi::OsString;
-use std::path::{PathBuf, Path};
 use tokio::io::AsyncWriteExt;
 
 const FILE_DIR: &str = "src/files";
@@ -19,7 +19,7 @@ const FILE_DIR: &str = "src/files";
 #[command]
 #[only_in(guilds)]
 #[sub_commands(list, add, remove, update)]
-#[aliases("files", "images", "image", "img", "gifs", "gif")]
+#[aliases("f", "files", "images", "image", "img", "gifs", "gif")]
 #[description = "Post files by name! Add, remove, or update them as you please"]
 async fn file(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let mut path = env::current_dir()?.join(FILE_DIR);
