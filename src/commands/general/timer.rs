@@ -24,7 +24,7 @@ pub const REDIS_IP: &str = "redis://127.0.0.1/";
 #[sub_commands("timezone")]
 #[description = "Start a timer (ex. '!timer zombie murder simulator at 8:30pm @Rusty')"]
 async fn timer(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let arg_str = String::new() + args.rest();
+    let arg_str = String::from(args.rest());
 
     let t = get_timer_from_args(msg.clone(), arg_str).await;
 
