@@ -1,4 +1,5 @@
 use std::env;
+
 use reqwest::{header, header::HeaderMap};
 use serde_json::{Error, json, Value};
 use serenity::{client::Context, framework::standard::{
@@ -8,7 +9,7 @@ use serenity::{client::Context, framework::standard::{
 
 #[command]
 #[aliases("question", "q")]
-#[sub_commands(sarcastic)]
+#[sub_commands(sarcastic, neato)]
 #[description = "Ask OpenAI's GPT-3 DaVinci model a question"]
 async fn question(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
@@ -29,6 +30,18 @@ async fn sarcastic(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         answer = send_request(["Give me a sarcastic answer: ", question].concat().as_str()).await;
     } else {
         answer = send_request("Tell me something sarcastic.").await;
+    }
+
+    reply(ctx, msg, answer).await
+}
+
+#[command]
+async fn neato(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let answer;
+    if let Some(question) = args.remains() {
+        answer = send_request(["Incorporate the word 'neato' into your answer: ", question].concat().as_str()).await;
+    } else {
+        answer = send_request("Tell me something neato.").await;
     }
 
     reply(ctx, msg, answer).await
