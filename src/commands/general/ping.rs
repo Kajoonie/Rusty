@@ -51,5 +51,5 @@ async fn get_shard_latency(ctx: &Context) -> Option<Duration> {
     // the shard this command was sent over.
     let runner = runners.get(&ShardId(ctx.shard_id))?;
 
-    return runner.latency;
+    runner.latency
 }

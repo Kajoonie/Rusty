@@ -79,7 +79,7 @@ async fn get_timer_from_args(msg: Message, arg_str: String) -> Option<Timer> {
                 return Some(Timer {
                     name: arg_str,
                     time,
-                    mentions: msg.clone().mentions,
+                    mentions: msg.mentions,
                 });
             }
         }
@@ -91,7 +91,7 @@ async fn get_timer_from_args(msg: Message, arg_str: String) -> Option<Timer> {
 fn parse_duration(msg: &Message, time: &str) -> Option<Duration> {
     let parse_relative_result = parse_relative_duration(time);
 
-    if let None = parse_relative_result {
+    if parse_relative_result.is_none() {
         parse_explicit_duration(msg, time)
     } else {
         parse_relative_result
@@ -174,14 +174,14 @@ async fn timezone(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let redis = redis::Client::open(redis_ip())?;
     let mut con = redis.get_connection()?;
 
-    if args.len() == 0 {
+    if args.is_empty() {
         let current_tz: Option<String> = con.get(&msg.author.to_string())?;
-        let result;
-        if let Some(tz) = current_tz {
-            result = msg.reply(&ctx.http, format!("Your timezone is currently set to {}", tz)).await;
+        
+        let result = if let Some(tz) = current_tz {
+            msg.reply(&ctx.http, format!("Your timezone is currently set to {}", tz)).await
         } else {
-            result = msg.reply(&ctx.http, format!("Your timezone has not yet been set!")).await;
-        }
+            msg.reply(&ctx.http, "Your timezone has not yet been set!".to_string()).await
+        };
 
         if let Err(why) = result {
             println!("Unable to send message: {:?}", why);

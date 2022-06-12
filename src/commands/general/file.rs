@@ -32,7 +32,7 @@ async fn file(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 
     let close_matches = get_similar_files(&path, &file_name).ok_or("Failed finding similar files")?;
 
-    if !response_for_zero_or_multiple_similar_files(&ctx, &msg, &close_matches).await.ok_or("Unable to send response")? {
+    if !response_for_zero_or_multiple_similar_files(ctx, msg, &close_matches).await.ok_or("Unable to send response")? {
         let matched_path = close_matches.get(0);
 
         if let Some(attachment) = matched_path {
@@ -55,7 +55,7 @@ fn find_exact_file_match(path: &mut PathBuf, file_name: &OsString) -> Option<boo
         }
     }
 
-    return Option::from(false);
+    Option::from(false)
 }
 
 async fn send_attachment(ctx: &Context, msg: &Message, path: &PathBuf) -> CommandResult {
@@ -92,10 +92,10 @@ fn get_similar_files(path: &PathBuf, file_name: &OsString) -> Option<Vec<PathBuf
         }
     }
 
-    return Option::from(close_matches);
+    Option::from(close_matches)
 }
 
-async fn response_for_zero_or_multiple_similar_files(ctx: &Context, msg: &Message, close_matches: &Vec<PathBuf>) -> Option<bool> {
+async fn response_for_zero_or_multiple_similar_files(ctx: &Context, msg: &Message, close_matches: &[PathBuf]) -> Option<bool> {
     // Case 1 : Multiple similar files found
     if close_matches.len() > 1 {
         let close_filenames: Vec<_> = close_matches.iter().map(|f| f
@@ -115,7 +115,7 @@ async fn response_for_zero_or_multiple_similar_files(ctx: &Context, msg: &Messag
     }
 
     // Case 2 : No similar files found
-    if close_matches.len() == 0 {
+    if close_matches.is_empty() {
         let result = msg.reply(&ctx.http, "No file with that name was found").await;
 
         if let Err(why) = result {
@@ -125,7 +125,7 @@ async fn response_for_zero_or_multiple_similar_files(ctx: &Context, msg: &Messag
         return Option::from(true);
     }
 
-    return Option::from(false);
+    Option::from(false)
 }
 
 struct RustyFile {
@@ -169,13 +169,13 @@ async fn save_file_with_response(ctx: &Context, msg: &Message, img: &RustyFile) 
 
     let file_write_result = file.write_all(&img.bytes).await;
 
-    let msg_send_result;
+    
 
-    if file_write_result.is_ok() {
-        msg_send_result = msg.reply(&ctx.http, "File successfully saved.").await;
+    let msg_send_result = if file_write_result.is_ok() {
+        msg.reply(&ctx.http, "File successfully saved.").await
     } else {
-        msg_send_result = msg.reply(&ctx.http, "Something went wrong while attempting to save that file.").await;
-    }
+        msg.reply(&ctx.http, "Something went wrong while attempting to save that file.").await
+    };
 
     if let Err(why) = msg_send_result {
         println!("Error sending message: {:?}", why);
@@ -191,11 +191,11 @@ async fn save_file_with_response(ctx: &Context, msg: &Message, img: &RustyFile) 
 #[command]
 async fn add(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
-    let file_opt = get_file_from_message(&msg, args).await;
+    let file_opt = get_file_from_message(msg, args).await;
 
     if let Some(file) = file_opt {
         if !file.path.exists() {
-            let result = save_file_with_response(&ctx, &msg, &file).await;
+            let result = save_file_with_response(ctx, msg, &file).await;
 
             if let Err(why) = result {
                 println!("Unable to send message: {:?}", why);
@@ -249,7 +249,7 @@ async fn remove(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 
         if let Some(close_matches) = close_matches_opt {
 
-            let response_sent_opt = response_for_zero_or_multiple_similar_files(&ctx, &msg, &close_matches).await;
+            let response_sent_opt = response_for_zero_or_multiple_similar_files(ctx, msg, &close_matches).await;
 
             if let Some(response_sent) = response_sent_opt {
                 if !response_sent {
@@ -268,11 +268,11 @@ async fn remove(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 #[command]
 async fn update(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
-    let file_opt = get_file_from_message(&msg, args).await;
+    let file_opt = get_file_from_message(msg, args).await;
 
     if let Some(file) = file_opt {
         if file.path.exists() {
-            let result = save_file_with_response(&ctx, &msg, &file).await;
+            let result = save_file_with_response(ctx, msg, &file).await;
 
             if let Err(why) = result {
                 println!("Unable to send message: {:?}", why);

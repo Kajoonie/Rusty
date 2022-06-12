@@ -12,36 +12,36 @@ use crate::openai_api_key;
 #[sub_commands(sarcastic, neato)]
 #[description = "Ask OpenAI's GPT-3 DaVinci model a question"]
 async fn question(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let answer;
-    if let Some(question) = args.remains() {
-        answer = send_request(question).await;
+    
+    let answer = if let Some(question) = args.remains() {
+        send_request(question).await
     } else {
-        answer = send_request("Please think of a good question to ask an AI, then provide me an answer to that question.").await;
-    }
+        send_request("Please think of a good question to ask an AI, then provide me an answer to that question.").await
+    };
 
     reply(ctx, msg, answer).await
 }
 
 #[command]
 async fn sarcastic(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let answer;
-    if let Some(question) = args.remains() {
-        answer = send_request(["Give me a sarcastic answer: ", question].concat().as_str()).await;
+    
+    let answer = if let Some(question) = args.remains() {
+        send_request(["Give me a sarcastic answer: ", question].concat().as_str()).await
     } else {
-        answer = send_request("Tell me something sarcastic.").await;
-    }
+        send_request("Tell me something sarcastic.").await
+    };
 
     reply(ctx, msg, answer).await
 }
 
 #[command]
 async fn neato(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let answer;
-    if let Some(question) = args.remains() {
-        answer = send_request(["Incorporate the word 'neato' into your answer: ", question].concat().as_str()).await;
+    
+    let answer = if let Some(question) = args.remains() {
+        send_request(["Incorporate the word 'neato' into your answer: ", question].concat().as_str()).await
     } else {
-        answer = send_request("Tell me something neato.").await;
-    }
+        send_request("Tell me something neato.").await
+    };
 
     reply(ctx, msg, answer).await
 }
