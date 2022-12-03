@@ -46,7 +46,7 @@ async fn neato(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     reply(ctx, msg, answer).await
 }
 
-async fn build_api_auth_header() -> HeaderMap {
+fn build_api_auth_header() -> HeaderMap {
     let api_auth = ["Bearer ", openai_api_key().as_str()].concat();
 
     let mut headers = HeaderMap::new();
@@ -55,7 +55,7 @@ async fn build_api_auth_header() -> HeaderMap {
     headers
 }
 
-async fn build_request_body(prompt: &str) -> Value {
+fn build_request_body(prompt: &str) -> Value {
     json!({
         "prompt": format!("{}", prompt),
         "max_tokens": 250
@@ -63,11 +63,11 @@ async fn build_request_body(prompt: &str) -> Value {
 }
 
 async fn send_request(question: &str) -> Option<String> {
-    let body = build_request_body(question).await;
+    let body = build_request_body(question);
 
     let client = reqwest::Client::new();
-    let request_builder = client.post("https://api.openai.com/v1/engines/text-davinci-002/completions")
-        .headers(build_api_auth_header().await)
+    let request_builder = client.post("https://api.openai.com/v1/engines/text-davinci-003/completions")
+        .headers(build_api_auth_header())
         .json(&body);
 
     if let Ok(response) = request_builder.send().await {

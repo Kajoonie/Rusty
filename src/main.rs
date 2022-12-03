@@ -1,34 +1,27 @@
-use std::{collections::{HashMap, HashSet}, env, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    env,
+    sync::Arc,
+};
 
+use serenity::prelude::*;
 use serenity::{
     async_trait,
     client::bridge::gateway::ShardManager,
     framework::standard::{
-        Args, buckets::LimitedFor, CommandGroup,
-        CommandResult, DispatchError, help_commands, HelpOptions,
+        buckets::LimitedFor,
+        help_commands,
         macros::{group, help, hook},
-        StandardFramework,
+        Args, CommandGroup, CommandResult, DispatchError, HelpOptions, StandardFramework,
     },
     http::Http,
-    model::{
-        channel::Message,
-        gateway::Ready,
-        id::UserId,
-    },
+    model::{channel::Message, gateway::Ready, id::UserId},
 };
-use serenity::prelude::*;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
-use commands::admins::{
-    slow_mode::*,
-};
+use commands::admins::slow_mode::*;
 use commands::commands::*;
-use commands::general::{
-    file::*,
-    ping::*,
-    question::*,
-    timer::*,
-};
+use commands::general::{file::*, ping::*, question::*, timer::*, imgen::*};
 
 mod commands;
 
@@ -69,7 +62,7 @@ impl EventHandler for Handler {
 }
 
 #[group]
-#[commands(commands, ping, timer, file, question)]
+#[commands(commands, ping, timer, file, question, imgen)]
 struct General;
 
 #[group]
@@ -85,8 +78,7 @@ struct Admin;
 #[help]
 // This replaces the information that a user can pass
 // a command-name as argument to gain specific information about it.
-#[individual_command_tip =
-"Hello! こんにちは！Hola! Bonjour! 您好! 안녕하세요~\n\n\
+#[individual_command_tip = "Hello! こんにちは！Hola! Bonjour! 您好! 안녕하세요~\n\n\
 If you want more information about a specific command, just pass the command as argument."]
 // Some arguments require a `{}` in order to replace it with contextual information.
 // In this case our `{}` refers to a command's name.
@@ -118,7 +110,7 @@ async fn my_help(
     args: Args,
     help_options: &'static HelpOptions,
     groups: &[&'static CommandGroup],
-    owners: HashSet<UserId>
+    owners: HashSet<UserId>,
 ) -> CommandResult {
     let _ = help_commands::with_embeds(context, msg, args, help_options, groups, owners).await;
     Ok(())
@@ -126,13 +118,18 @@ async fn my_help(
 
 #[hook]
 async fn before(ctx: &Context, msg: &Message, command_name: &str) -> bool {
-    println!("Got command '{}' from user '{}'", command_name, msg.author.name);
+    println!(
+        "Got command '{}' from user '{}'",
+        command_name, msg.author.name
+    );
 
     // Increment the number of times this command has been run once. If
     // the command's name does not exist in the counter, add a default
     // value of 0.
     let mut data = ctx.data.write().await;
-    let counter = data.get_mut::<CommandCounter>().expect("Expected CommandCounter in TypeMap.");
+    let counter = data
+        .get_mut::<CommandCounter>()
+        .expect("Expected CommandCounter in TypeMap.");
     let entry = counter.entry(command_name.to_string()).or_insert(0);
     *entry += 1;
 
@@ -166,12 +163,14 @@ async fn delay_action(ctx: &Context, msg: &Message) {
 #[hook]
 async fn dispatch_error(ctx: &Context, msg: &Message, error: DispatchError) {
     if let DispatchError::Ratelimited(info) = error {
-
         // We notify them only once.
         if info.is_first_try {
             let _ = msg
                 .channel_id
-                .say(&ctx.http, &format!("Try this again in {} seconds.", info.as_secs()))
+                .say(
+                    &ctx.http,
+                    &format!("Try this again in {} seconds.", info.as_secs()),
+                )
                 .await;
         }
     }
@@ -182,7 +181,6 @@ async fn main() {
     // This will load the environment variables located at `./.env`, relative to
     // the CWD. See `./.env.example` for an example on how to structure this.
     dotenv::dotenv().expect("Failed to load .env file");
-
 
     // Initialize the logger to use environment variables.
     //
@@ -195,9 +193,7 @@ async fn main() {
     tracing::subscriber::set_global_default(subscriber).expect("Failed to start the logger");
 
     // Configure the client with your Discord bot token in the environment.
-    let token = env::var("DISCORD_TOKEN").expect(
-        "Expected a token in the environment",
-    );
+    let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
 
     let http = Http::new_with_token(&token);
 
@@ -214,23 +210,23 @@ async fn main() {
                 Ok(bot_id) => (owners, bot_id.id),
                 Err(why) => panic!("Could not access the bot id: {:?}", why),
             }
-        },
+        }
         Err(why) => panic!("Could not access application info: {:?}", why),
     };
 
     let framework = StandardFramework::new()
-        .configure(|c| c
-            .with_whitespace(true)
-            .on_mention(Some(bot_id))
-            .prefix("!")
-            // In this case, if "," would be first, a message would never
-            // be delimited at ", ", forcing you to trim your arguments if you
-            // want to avoid whitespaces at the start of each.
-            .delimiters(vec![", ", ","])
-            // Sets the bot's owners. These will be used for commands that
-            // are owners only.
-            .owners(owners))
-
+        .configure(|c| {
+            c.with_whitespace(true)
+                .on_mention(Some(bot_id))
+                .prefix("!")
+                // In this case, if "," would be first, a message would never
+                // be delimited at ", ", forcing you to trim your arguments if you
+                // want to avoid whitespaces at the start of each.
+                .delimiters(vec![", ", ","])
+                // Sets the bot's owners. These will be used for commands that
+                // are owners only.
+                .owners(owners)
+        })
         // Set a function to be called prior to each command execution. This
         // provides the context of the command, the message that was received,
         // and the full name of the command that will be called.
@@ -256,18 +252,24 @@ async fn main() {
         // can only be performed by the bot owner.
         .on_dispatch_error(dispatch_error)
         // Can't be used more than once per 5 seconds:
-        .bucket("emoji", |b| b.delay(5)).await
+        .bucket("emoji", |b| b.delay(5))
+        .await
         // Can't be used more than 2 times per 30 seconds, with a 5 second delay applying per channel.
         // Optionally `await_ratelimits` will delay until the command can be executed instead of
         // cancelling the command invocation.
-        .bucket("complicated", |b| b.limit(2).time_span(30).delay(5)
-            // The target each bucket will apply to.
-            .limit_for(LimitedFor::Channel)
-            // The maximum amount of command invocations that can be delayed per target.
-            // Setting this to 0 (default) will never await/delay commands and cancel the invocation.
-            .await_ratelimits(1)
-            // A function to call when a rate limit leads to a delay.
-            .delay_action(delay_action)).await
+        .bucket("complicated", |b| {
+            b.limit(2)
+                .time_span(30)
+                .delay(5)
+                // The target each bucket will apply to.
+                .limit_for(LimitedFor::Channel)
+                // The maximum amount of command invocations that can be delayed per target.
+                // Setting this to 0 (default) will never await/delay commands and cancel the invocation.
+                .await_ratelimits(1)
+                // A function to call when a rate limit leads to a delay.
+                .delay_action(delay_action)
+        })
+        .await
         // The `#[group]` macro generates `static` instances of the options set for the group.
         // They're made in the pattern: `#name_GROUP` for the group instance and `#name_GROUP_OPTIONS`.
         // #name is turned all uppercase
