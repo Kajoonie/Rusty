@@ -1,3 +1,4 @@
+pub(crate) mod code;
 pub(crate) mod file;
 pub(crate) mod imgen;
 pub(crate) mod ping;

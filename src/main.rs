@@ -21,7 +21,7 @@ use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 use commands::admins::slow_mode::*;
 use commands::commands::*;
-use commands::general::{file::*, ping::*, question::*, timer::*, imgen::*};
+use commands::general::{code::*, file::*, imgen::*, ping::*, question::*, timer::*};
 
 mod commands;
 
@@ -62,7 +62,7 @@ impl EventHandler for Handler {
 }
 
 #[group]
-#[commands(commands, ping, timer, file, question, imgen)]
+#[commands(commands, ping, timer, file, question, imgen, code)]
 struct General;
 
 #[group]
