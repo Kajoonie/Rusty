@@ -5,11 +5,12 @@ use chrono::{DateTime, NaiveDateTime, Offset, TimeZone, Utc};
 use chrono_tz::Tz;
 use futures::executor::block_on;
 use redis::Commands;
-use serenity::{client::Context, framework::standard::{
-    Args, CommandResult,
-    macros::command,
-}, model::channel::Message};
 use serenity::model::user::User;
+use serenity::{
+    client::Context,
+    framework::standard::{macros::command, Args, CommandResult},
+    model::channel::Message,
+};
 
 use crate::redis_ip;
 
@@ -36,9 +37,15 @@ async fn timer(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         let seconds = duration.as_secs() % 60;
         let minutes = (duration.as_secs() / 60) % 60;
         let hours = (duration.as_secs() / 60) / 60;
-        let result = msg.channel_id.send_message(&ctx.http, |m| m
-            .content(format!("Okay, I've set a timer for **{:0>2}:{:0>2}:{:0>2}**.", hours, minutes, seconds)),
-        ).await;
+        let result = msg
+            .channel_id
+            .send_message(&ctx.http, |m| {
+                m.content(format!(
+                    "Okay, I've set a timer for **{:0>2}:{:0>2}:{:0>2}**.",
+                    hours, minutes, seconds
+                ))
+            })
+            .await;
 
         if let Err(why) = result {
             println!("Unable to send message: {:?}", why);
@@ -74,7 +81,11 @@ async fn get_timer_from_args(msg: Message, arg_str: String) -> Option<Timer> {
             }
             let slice_duration = parse_duration(&msg, &arg_str[i..j]);
             if let Some(time) = slice_duration {
-                println!("Got a valid duration of {:?} from the string {:?}", time, &arg_str[i..j]);
+                println!(
+                    "Got a valid duration of {:?} from the string {:?}",
+                    time,
+                    &arg_str[i..j]
+                );
 
                 return Some(Timer {
                     name: arg_str,
@@ -101,20 +112,14 @@ fn parse_duration(msg: &Message, time: &str) -> Option<Duration> {
 fn parse_relative_duration(time: &str) -> Option<Duration> {
     match parse_duration::parse(time) {
         Ok(duration) => Some(duration),
-        Err(_e) => {
-            //println!("Failed to parse duration from {}: {:?}", time, e);
-            None
-        }
+        Err(_e) => None,
     }
 }
 
 fn parse_explicit_duration(msg: &Message, time: &str) -> Option<Duration> {
     let timer_stop_parsed = match two_timer::parse(time, None) {
         Ok((d1, _, _)) => d1,
-        Err(_e) => {
-            //println!("Failed to parse duration from {}: {:?}", time, e);
-            NaiveDateTime::from_timestamp(0, 0)
-        }
+        Err(_e) => NaiveDateTime::from_timestamp_opt(0, 0).unwrap(),
     };
 
     let redis = redis::Client::open(redis_ip()).ok()?;
@@ -161,7 +166,9 @@ async fn notify_on_expiry(ctx: Context, msg: Message, timer: Timer) {
     timer.mentions.iter().for_each(|f| {
         mentions += &*format!("{}", f);
     });
-    let result = msg.reply(ctx.http, format!("Your timer has expired.\n{}", mentions)).await;
+    let result = msg
+        .reply(ctx.http, format!("Your timer has expired.\n{}", mentions))
+        .await;
 
     if let Err(why) = result {
         println!("Unable to send message: {:?}", why);
@@ -176,11 +183,16 @@ async fn timezone(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
     if args.is_empty() {
         let current_tz: Option<String> = con.get(&msg.author.to_string())?;
-        
+
         let result = if let Some(tz) = current_tz {
-            msg.reply(&ctx.http, format!("Your timezone is currently set to {}", tz)).await
+            msg.reply(
+                &ctx.http,
+                format!("Your timezone is currently set to {}", tz),
+            )
+            .await
         } else {
-            msg.reply(&ctx.http, "Your timezone has not yet been set!".to_string()).await
+            msg.reply(&ctx.http, "Your timezone has not yet been set!".to_string())
+                .await
         };
 
         if let Err(why) = result {
@@ -198,7 +210,9 @@ async fn timezone(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
     con.set(&msg.author.to_string(), tz.to_string())?;
 
-    let result = msg.reply(&ctx.http, format!("Your timezone has been set to {}", tz)).await;
+    let result = msg
+        .reply(&ctx.http, format!("Your timezone has been set to {}", tz))
+        .await;
 
     if let Err(why) = result {
         println!("Unable to send message: {:?}", why);

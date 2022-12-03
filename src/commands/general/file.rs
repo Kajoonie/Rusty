@@ -81,7 +81,7 @@ fn get_similar_files(path: &PathBuf, file_name: &OsString) -> Option<Vec<PathBuf
 
     let file_name_str = file_name.clone().into_string().ok()?;
 
-    for entry in fs::read_dir(&path).ok()? {
+    for entry in fs::read_dir(path).ok()? {
         let entry = entry.ok()?;
         if let Some(file_stem) = entry.path().file_stem() {
             if let Some(file_stem_str) = file_stem.to_str() {
@@ -151,7 +151,7 @@ async fn get_file_from_message(msg: &Message, mut args: Args) -> Option<RustyFil
             let mut filename = OsString::new();
             filename.push(&name);
             filename.push(".");
-            filename.push(&ext);
+            filename.push(ext);
 
             let bytes = file_attachment.download().await.ok()?;
 
