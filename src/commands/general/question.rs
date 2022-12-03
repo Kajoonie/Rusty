@@ -1,9 +1,10 @@
 use reqwest::{header, header::HeaderMap};
-use serde_json::{Error, json, Value};
-use serenity::{client::Context, framework::standard::{
-    Args, CommandResult,
-    macros::command,
-}, model::channel::Message};
+use serde_json::{json, Error, Value};
+use serenity::{
+    client::Context,
+    framework::standard::{macros::command, Args, CommandResult},
+    model::channel::Message,
+};
 
 use crate::openai_api_key;
 
@@ -12,7 +13,6 @@ use crate::openai_api_key;
 #[sub_commands(sarcastic, neato)]
 #[description = "Ask OpenAI's GPT-3 DaVinci model a question"]
 async fn question(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    
     let answer = if let Some(question) = args.remains() {
         send_request(question).await
     } else {
@@ -24,7 +24,6 @@ async fn question(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
 #[command]
 async fn sarcastic(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    
     let answer = if let Some(question) = args.remains() {
         send_request(["Give me a sarcastic answer: ", question].concat().as_str()).await
     } else {
@@ -36,9 +35,13 @@ async fn sarcastic(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
 #[command]
 async fn neato(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    
     let answer = if let Some(question) = args.remains() {
-        send_request(["Incorporate the word 'neato' into your answer: ", question].concat().as_str()).await
+        send_request(
+            ["Incorporate the word 'neato' into your answer: ", question]
+                .concat()
+                .as_str(),
+        )
+        .await
     } else {
         send_request("Tell me something neato.").await
     };
@@ -66,21 +69,24 @@ async fn send_request(question: &str) -> Option<String> {
     let body = build_request_body(question);
 
     let client = reqwest::Client::new();
-    let request_builder = client.post("https://api.openai.com/v1/engines/text-davinci-003/completions")
+    let request_builder = client
+        .post("https://api.openai.com/v1/engines/text-davinci-003/completions")
         .headers(build_api_auth_header())
         .json(&body);
 
     if let Ok(response) = request_builder.send().await {
         if let Ok(text) = response.text().await {
-
             let result: Result<Value, Error> = serde_json::from_str(&text);
 
             return match result {
-                Ok(json) => {
-                    let json_str = json["choices"][0]["text"].as_str().to_owned();
-                    json_str.map(String::from)
+                Ok(json) => match &json["choices"][0]["text"] {
+                    Value::String(text) => Some(text.to_owned()),
+                    _ => match &json["error"]["message"] {
+                        Value::String(error_message) => Some(error_message.to_owned()),
+                        _ => None,
+                    },
                 },
-                _ => None
+                _ => None,
             };
         }
     }

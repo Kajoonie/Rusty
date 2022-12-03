@@ -59,10 +59,13 @@ async fn send_request(question: &str) -> Option<String> {
             let result: Result<Value, Error> = serde_json::from_str(&text);
 
             return match result {
-                Ok(json) => {
-                    let json_str = json["data"][0]["url"].as_str().to_owned();
-                    json_str.map(String::from)
-                }
+                Ok(json) => match &json["data"][0]["url"] {
+                    Value::String(img_url) => Some(img_url.to_owned()),
+                    _ => match &json["error"]["message"] {
+                        Value::String(error_message) => Some(error_message.to_owned()),
+                        _ => None,
+                    },
+                },
                 _ => None,
             };
         }
