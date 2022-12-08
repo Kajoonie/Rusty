@@ -21,7 +21,7 @@ use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 use commands::admins::slow_mode::*;
 use commands::commands::*;
-use commands::general::{file::*, ping::*, question::*, timer::*, imgen::*};
+use commands::general::{file::*, imgen::*, ping::*, question::*, timer::*};
 
 mod commands;
 

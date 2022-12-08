@@ -1,25 +1,28 @@
-use reqwest::{header, header::HeaderMap};
-use serde_json::{json, Error, Value};
+use rusty::reply;
+use serde_json::{json, Value};
 use serenity::{
     client::Context,
     framework::standard::{macros::command, Args, CommandResult},
     model::channel::Message,
 };
 
-use crate::openai_api_key;
+use super::openai::{OpenAiError, OpenAiRequest};
+
+const ENDPOINT: &str = "https://api.openai.com/v1/engines/text-davinci-003/completions";
 
 #[command]
 #[aliases("question", "q")]
 #[sub_commands(sarcastic, neato)]
 #[description = "Ask OpenAI's GPT-3 DaVinci model a question"]
 async fn question(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let answer = if let Some(question) = args.remains() {
-        send_request(question).await
-    } else {
-        send_request("Please think of a good question to ask an AI, then provide me an answer to that question.").await
-    };
+    let question = args.remains().unwrap_or(
+        "Please think of a good question to ask an AI, then provide me an answer to that question.",
+    );
 
-    reply(ctx, msg, answer).await
+    match send_request(question).await {
+        Ok(answer) => reply(ctx, msg, answer).await,
+        Err(e) => reply(ctx, msg, e).await,
+    }
 }
 
 #[command]
@@ -30,7 +33,10 @@ async fn sarcastic(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         send_request("Tell me something sarcastic.").await
     };
 
-    reply(ctx, msg, answer).await
+    match answer {
+        Ok(answer) => reply(ctx, msg, answer).await,
+        Err(e) => reply(ctx, msg, e).await,
+    }
 }
 
 #[command]
@@ -46,62 +52,26 @@ async fn neato(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         send_request("Tell me something neato.").await
     };
 
-    reply(ctx, msg, answer).await
+    match answer {
+        Ok(answer) => reply(ctx, msg, answer).await,
+        Err(e) => reply(ctx, msg, e).await,
+    }
 }
 
-fn build_api_auth_header() -> HeaderMap {
-    let api_auth = ["Bearer ", openai_api_key().as_str()].concat();
-
-    let mut headers = HeaderMap::new();
-    headers.insert(header::AUTHORIZATION, api_auth.parse().unwrap());
-
-    headers
-}
-
-fn build_request_body(prompt: &str) -> Value {
-    json!({
-        "prompt": format!("{}", prompt),
+async fn send_request(question: &str) -> Result<String, OpenAiError> {
+    let body = json!({
+        "prompt": format!("{question}"),
         "max_tokens": 250
-    })
+    });
+
+    let request = OpenAiRequest::new(valid_json_path, error_json_path);
+    request.send_request(ENDPOINT, body).await
 }
 
-async fn send_request(question: &str) -> Option<String> {
-    let body = build_request_body(question);
-
-    let client = reqwest::Client::new();
-    let request_builder = client
-        .post("https://api.openai.com/v1/engines/text-davinci-003/completions")
-        .headers(build_api_auth_header())
-        .json(&body);
-
-    if let Ok(response) = request_builder.send().await {
-        if let Ok(text) = response.text().await {
-            let result: Result<Value, Error> = serde_json::from_str(&text);
-
-            return match result {
-                Ok(json) => match &json["choices"][0]["text"] {
-                    Value::String(text) => Some(text.to_owned()),
-                    _ => match &json["error"]["message"] {
-                        Value::String(error_message) => Some(error_message.to_owned()),
-                        _ => None,
-                    },
-                },
-                _ => None,
-            };
-        }
-    }
-
-    None
+fn valid_json_path(json: &Value) -> &Value {
+    &json["choices"][0]["text"]
 }
 
-async fn reply(ctx: &Context, msg: &Message, answer: Option<String>) -> CommandResult {
-    if let Some(answer_text) = answer {
-        let result = msg.reply(&ctx.http, answer_text).await;
-
-        if let Err(why) = result {
-            println!("Unable to send message: {:?}", why);
-        }
-    }
-
-    Ok(())
+fn error_json_path(json: &Value) -> &Value {
+    &json["error"]["message"]
 }
