@@ -35,6 +35,17 @@ async fn imgen(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                     println!("Unable to send message: {why:?}");
                 }
             }
+            ImageResult::Base64(b64) => {
+                let decoded = base64::decode(b64);
+                if let Ok(decoded_b64) = decoded {
+                    let files = vec![(&decoded_b64[..], "image.png")];
+                    let result = msg.channel_id.send_files(&ctx.http, files, |m| m).await;
+
+                    if let Err(why) = result {
+                        println!("Unable to send message: {why:?}");
+                    }
+                }
+            }
             ImageResult::Error(error) => {
                 let result = msg.reply(&ctx.http, error).await;
 
@@ -61,12 +72,14 @@ fn build_request_body(prompt: &str) -> Value {
     json!({
         "prompt": format!("{prompt}"),
         "n": 1,
-        "size": "1024x1024"
+        "size": "1024x1024",
+        "response_format": "b64_json",
     })
 }
 
 enum ImageResult {
     Url(String),
+    Base64(String),
     Error(String),
 }
 
@@ -81,20 +94,17 @@ async fn send_request(question: &str) -> Option<ImageResult> {
 
     if let Ok(response) = request_builder.send().await {
         if let Ok(text) = response.text().await {
-            let result: Result<Value, Error> = serde_json::from_str(&text);
-
-            return match result {
-                Ok(json) => match &json["data"][0]["url"] {
-                    Value::String(img_url) => Some(ImageResult::Url(img_url.to_owned())),
-                    _ => match &json["error"]["message"] {
-                        Value::String(error_message) => {
-                            Some(ImageResult::Error(error_message.to_owned()))
-                        }
-                        _ => None,
-                    },
-                },
-                _ => None,
-            };
+            let json_result: Result<Value, Error> = serde_json::from_str(&text);
+            if let Ok(json) = json_result {
+                let data = &json["data"][0];
+                if let Some(Value::String(b64)) = data.get("b64_json") {
+                    return Some(ImageResult::Base64(b64.to_owned()));
+                } else if let Some(Value::String(url)) = data.get("url") {
+                    return Some(ImageResult::Url(url.to_owned()));
+                } else if let Value::String(error_message) = &json["error"]["message"] {
+                    return Some(ImageResult::Error(error_message.to_owned()));
+                }
+            }
         }
     }
 
