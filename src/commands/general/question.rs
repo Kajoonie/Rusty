@@ -1,52 +1,31 @@
 use reqwest::{header, header::HeaderMap};
 use serde_json::{json, Error, Value};
-use serenity::{
-    client::Context,
-    framework::standard::{macros::command, Args, CommandResult},
-    model::channel::Message,
-};
 
-use crate::openai_api_key;
+use crate::{openai_api_key, CommandResult, Context};
 
-#[command]
-#[aliases("question", "q")]
-#[sub_commands(sarcastic, neato)]
-#[description = "Ask OpenAI's GPT-3 DaVinci model a question"]
-async fn question(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let answer = if let Some(question) = args.remains() {
-        send_request(question).await
-    } else {
-        send_request("Please think of a good question to ask an AI, then provide me an answer to that question.").await
-    };
+#[poise::command(
+    slash_command,
+    prefix_command,
+    aliases("q", "Rusty,", "Hey Rusty,"),
+    category = "General"
+)]
+pub async fn question(
+    ctx: Context<'_>,
+    #[description = "question"]
+    #[rest]
+    question: String,
+) -> CommandResult {
+    ctx.defer().await?;
+    let answer = send_request(&question).await;
+    if let Some(answer_text) = answer {
+        let result = ctx.say(answer_text).await;
 
-    reply(ctx, msg, answer).await
-}
+        if let Err(why) = result {
+            println!("Unable to send message: {:?}", why);
+        }
+    }
 
-#[command]
-async fn sarcastic(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let answer = if let Some(question) = args.remains() {
-        send_request(["Give me a sarcastic answer: ", question].concat().as_str()).await
-    } else {
-        send_request("Tell me something sarcastic.").await
-    };
-
-    reply(ctx, msg, answer).await
-}
-
-#[command]
-async fn neato(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let answer = if let Some(question) = args.remains() {
-        send_request(
-            ["Incorporate the word 'neato' into your answer: ", question]
-                .concat()
-                .as_str(),
-        )
-        .await
-    } else {
-        send_request("Tell me something neato.").await
-    };
-
-    reply(ctx, msg, answer).await
+    Ok(())
 }
 
 fn build_api_auth_header() -> HeaderMap {
@@ -92,16 +71,4 @@ async fn send_request(question: &str) -> Option<String> {
     }
 
     None
-}
-
-async fn reply(ctx: &Context, msg: &Message, answer: Option<String>) -> CommandResult {
-    if let Some(answer_text) = answer {
-        let result = msg.reply(&ctx.http, answer_text).await;
-
-        if let Err(why) = result {
-            println!("Unable to send message: {:?}", why);
-        }
-    }
-
-    Ok(())
 }
