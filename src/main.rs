@@ -14,7 +14,7 @@ type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 type CommandResult = Result<(), Error>;
 
-#[poise::command(prefix_command, track_edits, slash_command)]
+#[poise::command(slash_command, category = "General")]
 async fn help(
     ctx: Context<'_>,
     #[description = "Specific command to show help about"]
