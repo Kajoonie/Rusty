@@ -7,6 +7,7 @@ use commands::{
 };
 
 mod commands;
+mod openai;
 
 type Data = ();
 type Error = Box<dyn std::error::Error + Send + Sync>;

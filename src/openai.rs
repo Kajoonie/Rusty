@@ -4,10 +4,6 @@ use reqwest::header::{self, HeaderMap};
 use serde_json::Value;
 use thiserror::Error;
 
-fn openai_api_key() -> String {
-    env::var("OPENAI_API_KEY").expect("OpenAI API Key not specified")
-}
-
 #[derive(Error, Debug)]
 pub enum OpenAiError {
     #[error("API communication failure")]
@@ -20,7 +16,7 @@ pub enum OpenAiError {
     Refusal(String),
 
     #[error("Unknown response from OpenAI API")]
-    Unknown
+    Unknown,
 }
 
 pub struct OpenAiRequest {
@@ -30,14 +26,15 @@ pub struct OpenAiRequest {
 
 impl OpenAiRequest {
     pub fn new(valid: fn(&Value) -> &Value, error: fn(&Value) -> &Value) -> Self {
-        Self {
-            valid,
-            error
-        }
+        Self { valid, error }
+    }
+
+    fn openai_api_key() -> String {
+        env::var("OPENAI_API_KEY").expect("OpenAI API Key not specified")
     }
 
     fn build_api_auth_header() -> HeaderMap {
-        let api_auth = ["Bearer", openai_api_key().as_str()].concat();
+        let api_auth = ["Bearer ", Self::openai_api_key().as_str()].concat();
 
         let mut headers = HeaderMap::new();
         headers.insert(header::AUTHORIZATION, api_auth.parse().unwrap());
@@ -60,7 +57,7 @@ impl OpenAiRequest {
             Value::String(str_val) => Ok(str_val.to_owned()),
             _ => match (self.error)(&result) {
                 Value::String(err_val) => Err(OpenAiError::Refusal(err_val.to_owned())),
-                _ => Err(OpenAiError::Unknown)
+                _ => Err(OpenAiError::Unknown),
             },
         }
     }

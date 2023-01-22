@@ -1,26 +1,23 @@
-use rusty::{OpenAiRequest, OpenAiError};
 use serde_json::{json, Value};
 
-use crate::{CommandResult, Context};
+use crate::{
+    openai::{OpenAiError, OpenAiRequest},
+    CommandResult, Context,
+};
 
 const ENDPOINT: &str = "https://api.openai.com/v1/engines/text-davinci-003/completions";
 
-#[poise::command(
-    slash_command,
-    prefix_command,
-    aliases("q", "Rusty,", "Hey Rusty,"),
-    category = "General"
-)]
+#[poise::command(slash_command, category = "General")]
 pub async fn question(
     ctx: Context<'_>,
-    #[description = "question"]
+    #[description = "Your Question"]
     #[rest]
     question: String,
 ) -> CommandResult {
     ctx.defer().await?;
 
-    let answer: String = send_request(&question).await?;
-    ctx.say(answer).await?;
+    let answer = send_request(&question).await?;
+    ctx.say([question, answer].concat()).await?;
 
     Ok(())
 }
