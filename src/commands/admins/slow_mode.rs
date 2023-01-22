@@ -1,24 +1,37 @@
-use serenity::client::Context;
-use serenity::model::channel::{Message, Channel};
-use serenity::framework::standard::{Args, CommandResult, macros::command};
+use crate::{CommandResult, Context, is_admin};
+use poise::serenity_prelude as serenity;
 
-#[command]
-async fn slow_mode(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-    let say_content = if let Ok(slow_mode_rate_seconds) = args.single::<u64>() {
-        if let Err(why) = msg.channel_id.edit(&ctx.http, |c| c.rate_limit_per_user(slow_mode_rate_seconds)).await {
-            println!("Error setting channel's slow mode rate: {:?}", why);
-
-            format!("Failed to set slow mode to `{}` seconds.", slow_mode_rate_seconds)
+#[poise::command(
+    slash_command,
+    check = "is_admin",
+    category = "Admin",
+)]
+pub async fn slow_mode(
+    ctx: Context<'_>,
+    #[description = "Minimum time between sending messages per user"] rate_limit: Option<u64>,
+) -> CommandResult {
+    let say_content = if let Some(rate_limit) = rate_limit {
+        if let Err(why) = ctx
+            .channel_id()
+            .edit(ctx, |c| c.rate_limit_per_user(rate_limit))
+            .await
+        {
+            println!("Error setting channel's slow mode rate {why:?}");
+            format!("Failed to set the slow mode to `{rate_limit}` seconds.")
         } else {
-            format!("Successfully set slow mode rate to `{}` seconds.", slow_mode_rate_seconds)
+            format!("Successfully set slow mode rate to `{rate_limit}` seconds.")
         }
-    } else if let Some(Channel::Guild(channel)) = msg.channel_id.to_channel_cached(&ctx.cache).await {
-        format!("Current slow mode rate is `{}` seconds.", channel.slow_mode_rate.unwrap_or(0))
+    } else if let Some(serenity::Channel::Guild(channel)) = ctx.channel_id().to_channel_cached(ctx)
+    {
+        format!(
+            "Current slow mode rate is `{}` seconds.",
+            channel.rate_limit_per_user.unwrap_or(0)
+        )
     } else {
-        "Failed to find channel in cache.".to_string()
+        "Failed to find channel in cache.".into()
     };
 
-    msg.channel_id.say(&ctx.http, say_content).await?;
+    ctx.say(say_content).await?;
 
     Ok(())
 }

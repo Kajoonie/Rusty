@@ -1,37 +1,67 @@
-use std::fmt::Display;
+use std::env;
 
-use serenity::{
-    client::Context,
-    framework::standard::CommandResult,
-    model::channel::Message, builder::CreateMessage,
-};
+use reqwest::header::{self, HeaderMap};
+use serde_json::Value;
+use thiserror::Error;
 
-pub async fn send_message<'a, F>(ctx: &Context, msg: &Message, f: F) -> CommandResult
-    where
-        for<'b> F: FnOnce(&'b mut CreateMessage<'a>) -> &'b mut CreateMessage<'a>,
-        {
-            msg.channel_id
-                .send_message(&ctx.http, f)
-                .await
-                .into_command_result()
+fn openai_api_key() -> String {
+    env::var("OPENAI_API_KEY").expect("OpenAI API Key not specified")
+}
+
+#[derive(Error, Debug)]
+pub enum OpenAiError {
+    #[error("API communication failure")]
+    Api(#[from] reqwest::Error),
+
+    #[error("Unable to parse text from JSON")]
+    Json(#[from] serde_json::Error),
+
+    #[error("Refused to complete request")]
+    Refusal(String),
+
+    #[error("Unknown response from OpenAI API")]
+    Unknown
+}
+
+pub struct OpenAiRequest {
+    valid: fn(&Value) -> &Value,
+    error: fn(&Value) -> &Value,
+}
+
+impl OpenAiRequest {
+    pub fn new(valid: fn(&Value) -> &Value, error: fn(&Value) -> &Value) -> Self {
+        Self {
+            valid,
+            error
         }
+    }
 
-pub async fn reply(ctx: &Context, msg: &Message, reply: impl Display) -> CommandResult {
-    msg
-        .reply(&ctx.http, reply)
-        .await
-        .into_command_result()
-}
+    fn build_api_auth_header() -> HeaderMap {
+        let api_auth = ["Bearer", openai_api_key().as_str()].concat();
 
-trait IntoCommandResult {
-    fn into_command_result(self) -> CommandResult;
-}
+        let mut headers = HeaderMap::new();
+        headers.insert(header::AUTHORIZATION, api_auth.parse().unwrap());
 
-impl IntoCommandResult for Result<Message, serenity::Error> {
-    fn into_command_result(self) -> CommandResult {
-        match self {
-            Ok(_) => Ok(()),
-            Err(e) => Err(Box::new(e))
+        headers
+    }
+
+    pub async fn send_request(&self, endpoint: &str, body: Value) -> Result<String, OpenAiError> {
+        let client = reqwest::Client::new();
+        let request_builder = client
+            .post(endpoint)
+            .headers(Self::build_api_auth_header())
+            .json(&body);
+
+        let response = request_builder.send().await.map_err(OpenAiError::Api)?;
+        let text = response.text().await.map_err(OpenAiError::Api)?;
+        let result: Value = serde_json::from_str(&text).map_err(OpenAiError::Json)?;
+
+        match (self.valid)(&result) {
+            Value::String(str_val) => Ok(str_val.to_owned()),
+            _ => match (self.error)(&result) {
+                Value::String(err_val) => Err(OpenAiError::Refusal(err_val.to_owned())),
+                _ => Err(OpenAiError::Unknown)
+            },
         }
     }
 }
