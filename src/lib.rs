@@ -1,5 +1,3 @@
-use std::env;
-
 use poise::serenity_prelude as serenity;
 
 mod commands;
@@ -9,6 +7,7 @@ use commands::{
     admins::slow_mode::*,
     general::{imgen::*, ping::*, question::*},
 };
+use shuttle_secrets::SecretStore;
 
 type Data = ();
 type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -57,10 +56,6 @@ async fn is_admin(ctx: Context<'_>) -> Result<bool, Error> {
 pub struct Rusty {}
 
 impl Rusty {
-    fn discord_token() -> String {
-        env::var("DISCORD_TOKEN").expect("Discord token not specified in env")
-    }
-
     pub async fn start(&self) -> Result<(), shuttle_service::error::CustomError> {
         let framework = poise::Framework::builder()
             .options(poise::FrameworkOptions {
@@ -81,7 +76,7 @@ impl Rusty {
                 },
                 ..Default::default()
             })
-            .token(Self::discord_token())
+            .token(unsafe { DISCORD_TOKEN.clone().unwrap() })
             .intents(serenity::GatewayIntents::non_privileged())
             .setup(|ctx, _, framework| {
                 Box::pin(async move {
@@ -108,8 +103,16 @@ impl shuttle_service::Service for Rusty {
     }
 }
 
+pub static mut DISCORD_TOKEN: Option<String> = None;
+pub static mut OPENAI_API_KEY: Option<String> = None;
+
 #[shuttle_service::main]
-async fn init() -> Result<Rusty, shuttle_service::Error> {
-    dotenv::dotenv().expect("Failed to load .env file");
+async fn init(
+    #[shuttle_secrets::Secrets] secret_store: SecretStore,
+) -> Result<Rusty, shuttle_service::Error> {
+    unsafe {
+        DISCORD_TOKEN = secret_store.get("DISCORD_TOKEN");
+        OPENAI_API_KEY = secret_store.get("OPENAI_API_KEY");
+    }
     Ok(Rusty {})
 }

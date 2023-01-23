@@ -1,8 +1,8 @@
-use std::env;
-
 use reqwest::header::{self, HeaderMap};
 use serde_json::Value;
 use thiserror::Error;
+
+use crate::OPENAI_API_KEY;
 
 #[derive(Error, Debug)]
 pub enum OpenAiError {
@@ -30,7 +30,7 @@ impl OpenAiRequest {
     }
 
     fn openai_api_key() -> String {
-        env::var("OPENAI_API_KEY").expect("OpenAI API Key not specified in env")
+        unsafe { OPENAI_API_KEY.clone().unwrap() }
     }
 
     fn build_api_auth_header() -> HeaderMap {
