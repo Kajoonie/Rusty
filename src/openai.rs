@@ -30,7 +30,7 @@ impl OpenAiRequest {
     }
 
     fn openai_api_key() -> String {
-        env::var("OPENAI_API_KEY").expect("OpenAI API Key not specified")
+        env::var("OPENAI_API_KEY").expect("OpenAI API Key not specified in env")
     }
 
     fn build_api_auth_header() -> HeaderMap {

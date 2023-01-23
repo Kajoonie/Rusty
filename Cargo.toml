@@ -4,8 +4,6 @@ version = "0.2.0"
 authors = ["Charles <Charles.Cheney@gmail.com>"]
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 dotenv = "0.15"
 tracing = "0.1.37"
@@ -17,7 +15,5 @@ serde_json = "1.0"
 thiserror = "1.0.37"
 base64 = "0.20.0"
 poise = "0.5.2"
-
-[dependencies.tokio]
-version = "1"
-features = ["rt-multi-thread"]
+shuttle-service = "0.8.0"
+tokio = {version = "1.22.0", features = ["rt-multi-thread"]}
