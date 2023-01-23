@@ -1,0 +1,20 @@
+name: Shuttle deploy
+
+on:
+  workflow_dispatch:
+  
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v2
+      - name: Add secrets
+        run: |
+          # Generate Secrets file
+          echo 'DISCORD_TOKEN="${{ secrets.DISCORD_TOKEN }}"' >> Secrets.toml
+          echo 'OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}"' >> Secrets.toml
+      - uses: kaleidawave/shuttle-deploy-action@patch-1
+        with:
+          deploy-key: ${{ secrets.SHUTTLE_DEPLOY_KEY }}
+          allow-dirty: true
