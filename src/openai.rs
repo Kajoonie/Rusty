@@ -2,17 +2,17 @@ use reqwest::header::{self, HeaderMap};
 use serde_json::Value;
 use thiserror::Error;
 
-use crate::OPENAI_API_KEY;
+use crate::openai_api_key;
 
 #[derive(Error, Debug)]
 pub enum OpenAiError {
-    #[error("API communication failure")]
+    #[error("API communication failure: {0}")]
     Api(#[from] reqwest::Error),
 
-    #[error("Unable to parse text from JSON")]
+    #[error("Unable to parse text from JSON: {0}")]
     Json(#[from] serde_json::Error),
 
-    #[error("Refused to complete request")]
+    #[error("Refused to complete request: {0}")]
     Refusal(String),
 
     #[error("Unknown response from OpenAI API")]
@@ -29,12 +29,8 @@ impl OpenAiRequest {
         Self { valid, error }
     }
 
-    fn openai_api_key() -> String {
-        unsafe { OPENAI_API_KEY.clone().unwrap() }
-    }
-
     fn build_api_auth_header() -> HeaderMap {
-        let api_auth = ["Bearer ", Self::openai_api_key().as_str()].concat();
+        let api_auth = ["Bearer ", &openai_api_key()].concat();
 
         let mut headers = HeaderMap::new();
         headers.insert(header::AUTHORIZATION, api_auth.parse().unwrap());

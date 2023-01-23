@@ -15,6 +15,6 @@ serde_json = "1.0"
 thiserror = "1.0.37"
 base64 = "0.20.0"
 poise = "0.5.2"
-shuttle-service = "0.8.0"
+shuttle-service = { version = "0.8.0", features = ["bot-serenity"] }
 tokio = {version = "1.22.0", features = ["rt-multi-thread"]}
 shuttle-secrets = "0.8.0"

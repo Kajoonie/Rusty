@@ -1,3 +1,5 @@
+use std::sync::Once;
+
 use poise::serenity_prelude as serenity;
 
 mod commands;
@@ -8,6 +10,7 @@ use commands::{
     general::{imgen::*, ping::*, question::*},
 };
 use shuttle_secrets::SecretStore;
+use shuttle_service::error::CustomError;
 
 type Data = ();
 type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -53,7 +56,7 @@ async fn is_admin(ctx: Context<'_>) -> Result<bool, Error> {
     Ok(false)
 }
 
-pub struct Rusty {}
+pub struct Rusty;
 
 impl Rusty {
     pub async fn start(&self) -> Result<(), shuttle_service::error::CustomError> {
@@ -76,7 +79,7 @@ impl Rusty {
                 },
                 ..Default::default()
             })
-            .token(unsafe { DISCORD_TOKEN.clone().unwrap() })
+            .token(discord_token())
             .intents(serenity::GatewayIntents::non_privileged())
             .setup(|ctx, _, framework| {
                 Box::pin(async move {
@@ -85,9 +88,7 @@ impl Rusty {
                 })
             });
 
-        framework.run().await.unwrap();
-
-        Ok(())
+        framework.run().await.map_err(CustomError::new)
     }
 }
 
@@ -103,16 +104,44 @@ impl shuttle_service::Service for Rusty {
     }
 }
 
-pub static mut DISCORD_TOKEN: Option<String> = None;
-pub static mut OPENAI_API_KEY: Option<String> = None;
+static mut DISCORD_TOKEN: Option<String> = None;
+static DISCORD_TOKEN_INIT: Once = Once::new();
+
+static mut OPENAI_API_KEY: Option<String> = None;
+static OPENAI_API_KEY_INIT: Once = Once::new();
+// static DISCORD_TOKEN: Mutex<Option<String>> = Mutex::new(None);
+// static OPENAI_API_KEY: Mutex<Option<String>> = Mutex::new(None);
 
 #[shuttle_service::main]
 async fn init(
     #[shuttle_secrets::Secrets] secret_store: SecretStore,
 ) -> Result<Rusty, shuttle_service::Error> {
-    unsafe {
-        DISCORD_TOKEN = secret_store.get("DISCORD_TOKEN");
-        OPENAI_API_KEY = secret_store.get("OPENAI_API_KEY");
-    }
+    set_discord_token(&secret_store);
+    set_openai_api_key(&secret_store);
+
     Ok(Rusty {})
+}
+
+fn set_discord_token(secret_store: &SecretStore) {
+    unsafe {
+        DISCORD_TOKEN_INIT.call_once(|| {
+            DISCORD_TOKEN = secret_store.get("DISCORD_TOKEN");
+        });
+    }
+}
+
+fn set_openai_api_key(secret_store: &SecretStore) {
+    unsafe {
+        OPENAI_API_KEY_INIT.call_once(|| {
+            OPENAI_API_KEY = secret_store.get("OPENAI_API_KEY");
+        })
+    }
+}
+
+fn discord_token() -> String {
+    unsafe { DISCORD_TOKEN.clone().unwrap() }
+}
+
+fn openai_api_key() -> String {
+    unsafe { OPENAI_API_KEY.clone().unwrap() }
 }
