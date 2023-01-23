@@ -1,8 +1,9 @@
 [package]
 name = "rusty"
 version = "0.2.0"
-authors = ["Charles <Charles.Cheney@gmail.com>"]
+authors = ["Charles <Charles.T.Cheney@gmail.com>"]
 edition = "2021"
+publish = false
 
 [dependencies]
 dotenv = "0.15"
