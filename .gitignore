@@ -1,6 +1,4 @@
 /target/
-/.env
-/Cargo.lock
-/src/files/*
 /.idea/*
 /.cargo/*
+/Secrets.toml
