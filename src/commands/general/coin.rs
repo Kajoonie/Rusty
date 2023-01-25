@@ -3,6 +3,7 @@ use serde_json::Value;
 use thiserror::Error;
 
 use poise::serenity_prelude::{AttachmentType, Color};
+use thousands::Separable;
 
 use crate::{CommandResult, Context};
 
@@ -50,20 +51,39 @@ async fn price(
             _ => Color::GOLD,
         };
 
-        // let icon_url = Some(&coin_data.icon[1..coin_data.icon.len() - 1]).unwrap();
-        // let icon_url = Url::parse(&coin_data.icon).unwrap();
+        let fields = vec![
+            (
+                "Price",
+                format!(
+                    "${}",
+                    coin_data.market_data.price_usd.separate_with_commas()
+                ),
+                false,
+            ),
+            (
+                "Change ($)",
+                format!(
+                    "${}",
+                    coin_data.market_data.usd_change_24h.separate_with_commas()
+                ),
+                true,
+            ),
+            (
+                "Change (%)",
+                format!(
+                    "{}%",
+                    coin_data.market_data.perc_change_24h.separate_with_commas()
+                ),
+                true,
+            ),
+        ];
 
         ctx.send(|m| {
             m.embed(|e| {
-                e.description(format!(
-                    "Price: ${:.4}\nVolume: ${}\nChange: ${:.2}",
-                    coin_data.market_data.price_usd,
-                    coin_data.market_data.volume_24h,
-                    coin_data.market_data.perc_change_24h
-                ))
-                .title(coin_data.name)
-                .attachment(coin_data.icon)
-                .color(color)
+                e.fields(fields)
+                    .color(color)
+                    .title(coin_data.name)
+                    .thumbnail(coin_data.icon)
             })
             .ephemeral(false)
         })
@@ -96,6 +116,7 @@ impl JsonParse for Value {
     }
 }
 
+#[derive(Debug)]
 struct MarketData {
     price_usd: f64,
     volume_24h: f64,
@@ -127,6 +148,7 @@ impl MarketData {
     }
 }
 
+#[derive(Debug)]
 struct CoinInfo {
     name: String,
     symbol: String,
@@ -137,11 +159,19 @@ struct CoinInfo {
 impl CoinInfo {
     fn from_json(json: &Value) -> Option<Self> {
         Some(Self {
-            name: json["id"].string(),
+            name: upper_first(json["id"].string()),
             symbol: json["symbol"].string(),
             icon: json["image"]["small"].string(),
             market_data: MarketData::from_json(json)?,
         })
+    }
+}
+
+fn upper_first(s: String) -> String {
+    let mut c = s.chars();
+    match c.next() {
+        None => s,
+        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
     }
 }
 

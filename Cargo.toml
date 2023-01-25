@@ -19,6 +19,7 @@ poise = "0.5.2"
 shuttle-service = { version = "0.8.0", features = ["bot-serenity"] }
 tokio = {version = "1.22.0", features = ["rt-multi-thread"]}
 shuttle-secrets = "0.8.0"
+thousands = "0.2.0"
 
 [patch.crates-io]
 dashmap = { git = "https://github.com/snylonue/dashmap", branch = "no-toolchain" }
