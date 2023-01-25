@@ -3,7 +3,10 @@ use std::borrow::Cow;
 use poise::serenity_prelude::AttachmentType;
 use serde_json::{json, Value};
 
-use crate::{openai::OpenAiRequest, CommandResult, Context};
+use crate::{Context, CommandResult};
+
+// use crate::{openai::OpenAiRequest, CommandResult, Context};
+use super::*;
 
 const ENDPOINT: &str = "https://api.openai.com/v1/images/generations";
 

@@ -1,0 +1,91 @@
+use poise::serenity_prelude::Color;
+use thousands::Separable;
+
+use crate::{Context, CommandResult};
+
+use super::*;
+
+#[poise::command(slash_command, subcommands("list", "price",), category = "General")]
+pub async fn coin(_: Context<'_>) -> CommandResult {
+    Ok(())
+}
+
+#[poise::command(slash_command)]
+async fn list(ctx: Context<'_>) -> CommandResult {
+    ctx.defer().await?;
+
+    todo!()
+}
+
+#[poise::command(slash_command)]
+async fn price(
+    ctx: Context<'_>,
+    #[description = "Coin symbol"]
+    #[rest]
+    symbol: String,
+) -> CommandResult {
+    ctx.defer().await?;
+    let url = [API, "coins/", &symbol].concat();
+    let query = vec![
+        ("localization", "false"),
+        ("tickers", "false"),
+        ("market_data", "true"),
+        ("community_data", "false"),
+        ("developer_data", "false"),
+    ];
+
+    let result = send_request(&url, &query).await?;
+
+    let coin_data = CoinInfo::from_json(&result);
+
+    if let Some(coin_data) = coin_data {
+
+        let color = match coin_data.market_data.usd_change_24h {
+            x if x > 0.0 => Color::DARK_GREEN,
+            x if x < 0.0 => Color::RED,
+            _ => Color::GOLD,
+        };
+
+        let fields = vec![
+            (
+                "Price",
+                format!(
+                    "${}",
+                    coin_data.market_data.price_usd.separate_with_commas()
+                ),
+                false,
+            ),
+            (
+                "Change ($)",
+                format!(
+                    "${}",
+                    coin_data.market_data.usd_change_24h.separate_with_commas()
+                ),
+                true,
+            ),
+            (
+                "Change (%)",
+                format!(
+                    "{}%",
+                    coin_data.market_data.perc_change_24h.separate_with_commas()
+                ),
+                true,
+            ),
+        ];
+
+        ctx.send(|m| {
+            m.embed(|e| {
+                e.fields(fields)
+                    .color(color)
+                    .title(coin_data.name)
+                    .thumbnail(coin_data.icon)
+            })
+            .ephemeral(false)
+        })
+        .await?;
+
+        Ok(())
+    } else {
+        Err(Box::new(CoingeckoError::Invalid))
+    }
+}
