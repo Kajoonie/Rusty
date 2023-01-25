@@ -7,7 +7,7 @@ mod openai;
 
 use commands::{
     admins::slow_mode::*,
-    general::{imgen::*, ping::*, question::*},
+    general::{imgen::*, ping::*, question::*, coin::*},
 };
 use shuttle_secrets::SecretStore;
 use shuttle_service::error::CustomError;
@@ -72,6 +72,7 @@ impl Rusty {
                     ping(),
                     question(),
                     imgen(),
+                    coin(),
                 ],
                 prefix_options: poise::PrefixFrameworkOptions {
                     prefix: Some("!".into()),

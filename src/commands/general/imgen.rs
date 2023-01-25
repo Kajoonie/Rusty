@@ -29,10 +29,10 @@ pub async fn imgen(
     if let Ok(decoded_b64) = base64::decode(response) {
         ctx.send(|m| {
             m.content(image_description)
-            .attachment(AttachmentType::Bytes {
-                data: Cow::from(&decoded_b64[..]),
-                filename: "image.png".into(),
-            })
+                .attachment(AttachmentType::Bytes {
+                    data: Cow::from(&decoded_b64[..]),
+                    filename: "image.png".into(),
+                })
         })
         .await?;
     }
