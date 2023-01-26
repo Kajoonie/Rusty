@@ -1,9 +1,8 @@
 use serde_json::{json, Value};
 
-use crate::{
-    openai::{OpenAiError, OpenAiRequest},
-    CommandResult, Context,
-};
+use crate::{CommandResult, Context};
+
+use super::*;
 
 const ENDPOINT: &str = "https://api.openai.com/v1/engines/text-davinci-003/completions";
 
