@@ -29,11 +29,8 @@ impl JsonParse for Value {
 #[derive(Debug)]
 struct MarketData {
     price_usd: f64,
-    // volume_24h: f64,
     usd_change_24h: f64,
     perc_change_24h: f64,
-    // high_24h: f64,
-    // low_24h: f64,
 }
 
 impl MarketData {
@@ -41,19 +38,13 @@ impl MarketData {
         let market_data = &json["market_data"];
 
         let price_usd = market_data["current_price"]["usd"].f64();
-        // let volume_24h = market_data["total_volume"]["usd"].f64();
         let usd_change_24h = market_data["price_change_24h_in_currency"]["usd"].f64();
         let perc_change_24h = market_data["price_change_percentage_24h_in_currency"]["usd"].f64();
-        // let high_24h = market_data["high_24h"]["usd"].f64();
-        // let low_24h = market_data["low_24h"]["usd"].f64();
 
         Some(Self {
             price_usd,
-            // volume_24h,
             usd_change_24h,
             perc_change_24h,
-            // high_24h,
-            // low_24h,
         })
     }
 }
@@ -61,7 +52,6 @@ impl MarketData {
 #[derive(Debug)]
 struct CoinInfo {
     name: String,
-    // symbol: String,
     icon: String,
     market_data: MarketData,
 }
@@ -69,20 +59,36 @@ struct CoinInfo {
 impl CoinInfo {
     fn from_json(json: &Value) -> Option<Self> {
         Some(Self {
-            name: upper_first(json["id"].string()),
-            // symbol: json["symbol"].string(),
+            name: from_api_format(&json["id"].string()),
             icon: json["image"]["small"].string(),
             market_data: MarketData::from_json(json)?,
         })
     }
 }
 
-fn upper_first(s: String) -> String {
-    let mut c = s.chars();
-    match c.next() {
-        None => s,
-        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-    }
+fn to_api_format(s: &str) -> String {
+    s.as_bytes()
+        .to_ascii_lowercase()
+        .iter()
+        .map(|x| char::from(*x))
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<&str>>()
+        .join("-")
+}
+
+fn from_api_format(s: &str) -> String {
+    s.split('-')
+        .into_iter()
+        .map(|word| {
+            let mut c = word.chars();
+            match c.next() {
+                None => word.to_string(),
+                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+            }
+        })
+        .collect::<Vec<String>>()
+        .join(" ")
 }
 
 #[derive(Error, Debug)]
@@ -92,6 +98,9 @@ enum CoingeckoError {
 
     #[error("Unable to parse text from JSON: {0}")]
     Json(#[from] serde_json::Error),
+
+    #[error("Bad request: {0}")]
+    BadRequest(String),
 
     #[error("Invalid response received from CoinGecko")]
     Invalid,
@@ -108,5 +117,10 @@ async fn send_request(url: &str, query: &[(&str, &str)]) -> Result<Value, Coinge
         .await
         .map_err(CoingeckoError::Api)?;
 
-    serde_json::from_str(&response).map_err(CoingeckoError::Json)
+    let val: serde_json::Value = serde_json::from_str(&response).map_err(CoingeckoError::Json)?;
+
+    match &val["error"] {
+        Value::String(x) => Err(CoingeckoError::BadRequest(x.to_string())),
+        _ => Ok(val),
+    }
 }

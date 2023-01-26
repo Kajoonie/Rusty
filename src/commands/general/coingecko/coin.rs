@@ -1,20 +1,14 @@
+use chrono::Utc;
 use poise::serenity_prelude::Color;
 use thousands::Separable;
 
-use crate::{Context, CommandResult};
+use crate::{CommandResult, Context};
 
 use super::*;
 
-#[poise::command(slash_command, subcommands("list", "price",), category = "General")]
+#[poise::command(slash_command, subcommands("price",), category = "General")]
 pub async fn coin(_: Context<'_>) -> CommandResult {
     Ok(())
-}
-
-#[poise::command(slash_command)]
-async fn list(ctx: Context<'_>) -> CommandResult {
-    ctx.defer().await?;
-
-    todo!()
 }
 
 #[poise::command(slash_command)]
@@ -25,7 +19,9 @@ async fn price(
     symbol: String,
 ) -> CommandResult {
     ctx.defer().await?;
-    let url = [API, "coins/", &symbol].concat();
+
+    let formatted = to_api_format(&symbol);
+    let url = [API, "coins/", &formatted].concat();
     let query = vec![
         ("localization", "false"),
         ("tickers", "false"),
@@ -39,7 +35,6 @@ async fn price(
     let coin_data = CoinInfo::from_json(&result);
 
     if let Some(coin_data) = coin_data {
-
         let color = match coin_data.market_data.usd_change_24h {
             x if x > 0.0 => Color::DARK_GREEN,
             x if x < 0.0 => Color::RED,
@@ -66,7 +61,7 @@ async fn price(
             (
                 "Change (%)",
                 format!(
-                    "{}%",
+                    "{:.4}%",
                     coin_data.market_data.perc_change_24h.separate_with_commas()
                 ),
                 true,
@@ -79,6 +74,8 @@ async fn price(
                     .color(color)
                     .title(coin_data.name)
                     .thumbnail(coin_data.icon)
+                    .footer(|e| e.text("via CoinGecko"))
+                    .timestamp(Utc::now())
             })
             .ephemeral(false)
         })
