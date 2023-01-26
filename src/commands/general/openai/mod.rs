@@ -1,3 +1,6 @@
+pub(crate) mod imgen;
+pub(crate) mod question;
+
 use reqwest::header::{self, HeaderMap};
 use serde_json::Value;
 use thiserror::Error;

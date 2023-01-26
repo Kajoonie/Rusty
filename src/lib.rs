@@ -3,11 +3,14 @@ use std::sync::Once;
 use poise::serenity_prelude as serenity;
 
 mod commands;
-mod openai;
 
 use commands::{
     admins::slow_mode::*,
-    general::{imgen::*, ping::*, question::*},
+    general::{
+        coingecko::coin::*,
+        openai::{imgen::*, question::*},
+        ping::*,
+    },
 };
 use shuttle_secrets::SecretStore;
 use shuttle_service::error::CustomError;
@@ -72,6 +75,7 @@ impl Rusty {
                     ping(),
                     question(),
                     imgen(),
+                    coin(),
                 ],
                 prefix_options: poise::PrefixFrameworkOptions {
                     prefix: Some("!".into()),
