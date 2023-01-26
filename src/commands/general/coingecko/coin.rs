@@ -41,6 +41,12 @@ async fn price(
             _ => Color::GOLD,
         };
 
+        let positive_change = if coin_data.market_data.perc_change_24h > 0.0 {
+            "+"
+        } else {
+            ""
+        };
+
         let fields = vec![
             (
                 "Price",
@@ -53,7 +59,7 @@ async fn price(
             (
                 "Change ($)",
                 format!(
-                    "${}",
+                    "{positive_change}${}",
                     coin_data.market_data.usd_change_24h.separate_with_commas()
                 ),
                 true,
@@ -61,7 +67,7 @@ async fn price(
             (
                 "Change (%)",
                 format!(
-                    "{:.4}%",
+                    "{positive_change}{:.4}%",
                     coin_data.market_data.perc_change_24h.separate_with_commas()
                 ),
                 true,
