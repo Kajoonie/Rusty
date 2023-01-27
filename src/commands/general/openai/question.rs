@@ -24,7 +24,7 @@ pub async fn question(
 async fn send_request(question: &str) -> Result<String, OpenAiError> {
     let body = json!({
         "prompt": format!("{question}"),
-        "max_tokens": 250
+        "max_tokens": 1024
     });
 
     let request = OpenAiRequest::new(valid_json_path, error_json_path);
