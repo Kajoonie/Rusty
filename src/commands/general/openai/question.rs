@@ -15,16 +15,30 @@ pub async fn question(
 ) -> CommandResult {
     ctx.defer().await?;
 
-    let answer = send_request(&question).await?;
-    ctx.say([question, answer].concat()).await?;
+    let author = ctx.author();
+    let user_name_and_id = format!("{}{}", author.name, author.id.0);
+    let answer = send_request(&question, user_name_and_id).await?;
+
+    let mut iter = answer.chars();
+    let mut pos = 0;
+    while pos < answer.len() {
+        let mut len = 0;
+        for ch in iter.by_ref().take(2000) {
+            len += ch.len_utf8();
+        }
+        ctx.say(&answer[pos..pos + len]).await?;
+        pos += len;
+    }
 
     Ok(())
 }
 
-async fn send_request(question: &str) -> Result<String, OpenAiError> {
+async fn send_request(question: &str, user_id: String) -> Result<String, OpenAiError> {
     let body = json!({
         "prompt": format!("{question}"),
-        "max_tokens": 1024
+        "max_tokens": 2048,
+        "echo": true,
+        "user": user_id,
     });
 
     let request = OpenAiRequest::new(valid_json_path, error_json_path);
