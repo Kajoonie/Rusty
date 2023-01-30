@@ -82,10 +82,6 @@ async fn init(
                 imgen(),
                 coin(),
             ],
-            prefix_options: poise::PrefixFrameworkOptions {
-                prefix: Some("!".into()),
-                ..Default::default()
-            },
             ..Default::default()
         })
         .token(discord_token)
