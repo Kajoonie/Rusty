@@ -8,7 +8,7 @@ use commands::{
     admins::slow_mode::*,
     general::{
         coingecko::coin::*,
-        openai::{imgen::*, question::*},
+        openai::{imgen::*, question::*, chat::*},
         ping::*,
     },
 };
@@ -80,6 +80,7 @@ async fn init(
                 ping(),
                 question(),
                 imgen(),
+                chat(),
                 coin(),
             ],
             ..Default::default()
