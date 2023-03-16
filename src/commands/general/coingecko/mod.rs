@@ -79,7 +79,6 @@ fn to_api_format(s: &str) -> String {
 
 fn from_api_format(s: &str) -> String {
     s.split('-')
-        .into_iter()
         .map(|word| {
             let mut c = word.chars();
             match c.next() {
