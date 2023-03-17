@@ -110,7 +110,7 @@ fn add_response_to_conversation_history(user: &str, new_message: GptMessage) {
 }
 
 fn add_message(messages: &mut Vec<GptMessage>, new_message: GptMessage) {
-    if messages.len() > 10 {
+    if messages.len() > 5 {
         messages.remove(1);
     }
     messages.push(new_message);
