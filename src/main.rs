@@ -8,10 +8,11 @@ use commands::{
     admins::slow_mode::*,
     general::{
         coingecko::coin::*,
-        openai::{imgen::*, question::*, chat::*},
+        openai::{chat::*, imgen::*, question::*},
         ping::*,
     },
 };
+use shuttle_poise::ShuttlePoise;
 use shuttle_secrets::SecretStore;
 
 type Data = ();
@@ -58,10 +59,10 @@ async fn is_admin(ctx: Context<'_>) -> Result<bool, Error> {
     Ok(false)
 }
 
-#[shuttle_service::main]
+#[shuttle_runtime::main]
 async fn init(
     #[shuttle_secrets::Secrets] secret_store: SecretStore,
-) -> shuttle_service::ShuttlePoise<impl Send + Sync + 'static, impl Send + 'static> {
+) -> ShuttlePoise<impl Send + Sync + 'static, impl Send + 'static> {
     set_openai_api_key(&secret_store);
 
     let discord_token = secret_store
@@ -94,12 +95,10 @@ async fn init(
             })
         })
         .build()
-        .await;
+        .await
+        .map_err(shuttle_runtime::CustomError::new)?;
 
-    match framework {
-        Ok(f) => Ok(f),
-        Err(e) => panic!("{e}"),
-    }
+    Ok(framework.into())
 }
 
 static mut OPENAI_API_KEY: Option<String> = None;
