@@ -8,7 +8,7 @@ use serde_json::{json, Value};
 use super::*;
 
 const ENDPOINT: &str = "https://api.openai.com/v1/chat/completions";
-const MODEL: &str = "gpt-3.5-turbo";
+const MODEL: &str = "gpt-4";
 
 static CONVO_MAP: Lazy<Mutex<HashMap<String, Vec<GptMessage>>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
