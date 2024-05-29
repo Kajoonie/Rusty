@@ -16,7 +16,7 @@ pub async fn question(
     ctx.defer().await?;
 
     let author = ctx.author();
-    let user_name_and_id = format!("{}{}", author.name, author.id.0);
+    let user_name_and_id = format!("{}{}", author.name, author.id);
     let answer = send_request(question, user_name_and_id).await?;
 
     chunk_response(ctx, answer).await
