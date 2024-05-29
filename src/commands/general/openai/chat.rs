@@ -23,7 +23,7 @@ pub async fn chat(
     ctx.defer().await?;
 
     let author = ctx.author();
-    let openai_user = format!("{}{}", author.name, author.id.0);
+    let openai_user = format!("{}{}", author.name, author.id);
 
     let new_message = GptMessage {
         role: "user".to_string(),

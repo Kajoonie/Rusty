@@ -1,19 +1,16 @@
-use std::sync::Once;
-
 use poise::serenity_prelude as serenity;
+use ::serenity::all::{ClientBuilder, GatewayIntents};
+use std::sync::Once;
 
 mod commands;
 
-use commands::{
-    admins::slow_mode::*,
-    general::{
+use commands::general::{
         coingecko::coin::*,
         openai::{chat::*, imgen::*, question::*},
         ping::*,
-    },
-};
-use shuttle_poise::ShuttlePoise;
-use shuttle_secrets::SecretStore;
+    };
+use shuttle_serenity::ShuttleSerenity;
+use shuttle_runtime::SecretStore;
 
 type Data = ();
 type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -46,23 +43,8 @@ async fn register(ctx: Context<'_>) -> Result<(), Error> {
         .map_err(|e| e.into())
 }
 
-async fn is_admin(ctx: Context<'_>) -> Result<bool, Error> {
-    if let Some(guild_id) = ctx.guild_id() {
-        for role in guild_id.member(ctx, ctx.author().id).await?.roles {
-            if role.to_role_cached(ctx).map_or(false, |r| {
-                r.has_permission(serenity::Permissions::ADMINISTRATOR)
-            }) {
-                return Ok(true);
-            }
-        }
-    }
-    Ok(false)
-}
-
 #[shuttle_runtime::main]
-async fn init(
-    #[shuttle_secrets::Secrets] secret_store: SecretStore,
-) -> ShuttlePoise<impl Send + Sync + 'static, impl Send + 'static> {
+async fn main(#[shuttle_runtime::Secrets] secret_store: SecretStore) -> ShuttleSerenity {
     set_openai_api_key(&secret_store);
 
     let discord_token = secret_store
@@ -75,8 +57,6 @@ async fn init(
                 //helpers
                 register(),
                 help(),
-                //admin
-                slow_mode(),
                 //general
                 ping(),
                 question(),
@@ -86,19 +66,20 @@ async fn init(
             ],
             ..Default::default()
         })
-        .token(discord_token)
-        .intents(serenity::GatewayIntents::non_privileged())
-        .setup(|ctx, _, framework| {
+        .setup(|ctx, _ready, framework| {
             Box::pin(async move {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
                 Ok(())
             })
         })
-        .build()
+        .build();
+
+    let client = ClientBuilder::new(discord_token, GatewayIntents::non_privileged())
+        .framework(framework)
         .await
         .map_err(shuttle_runtime::CustomError::new)?;
 
-    Ok(framework.into())
+    Ok(client.into())
 }
 
 static mut OPENAI_API_KEY: Option<String> = None;

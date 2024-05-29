@@ -1,8 +1,9 @@
 use chrono::Utc;
-use poise::serenity_prelude::Color;
+use poise::{serenity_prelude::Color, CreateReply};
+use serenity::builder::CreateEmbedFooter;
 use thousands::Separable;
 
-use crate::{CommandResult, Context};
+use crate::{serenity::CreateEmbed, CommandResult, Context};
 
 use super::*;
 
@@ -74,18 +75,19 @@ async fn price(
             ),
         ];
 
-        ctx.send(|m| {
-            m.embed(|e| {
-                e.fields(fields)
-                    .color(color)
-                    .title(coin_data.name)
-                    .thumbnail(coin_data.icon)
-                    .footer(|e| e.text("via CoinGecko"))
-                    .timestamp(Utc::now())
-            })
-            .ephemeral(false)
-        })
-        .await?;
+        let embed = CreateEmbed::new()
+            .fields(fields)
+            .color(color)
+            .title(coin_data.name)
+            .thumbnail(coin_data.icon)
+            .timestamp(Utc::now())
+            .footer(CreateEmbedFooter::new("via CoinGecko"));
+
+        let reply = CreateReply::default()
+            .embed(embed)
+            .ephemeral(false);
+
+        ctx.send(reply).await?;
 
         Ok(())
     } else {

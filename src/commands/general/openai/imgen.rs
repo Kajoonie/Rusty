@@ -1,11 +1,11 @@
 use std::borrow::Cow;
 
-use poise::serenity_prelude::AttachmentType;
+use base64::{engine::general_purpose, Engine as _};
+use poise::{serenity_prelude::CreateAttachment, CreateReply};
 use serde_json::{json, Value};
 
-use crate::{Context, CommandResult};
+use crate::{CommandResult, Context};
 
-// use crate::{openai::OpenAiRequest, CommandResult, Context};
 use super::*;
 
 const ENDPOINT: &str = "https://api.openai.com/v1/images/generations";
@@ -29,15 +29,16 @@ pub async fn imgen(
     let request = OpenAiRequest::new(valid_json_path, error_json_path);
     let response = request.send_request(ENDPOINT, body).await?;
 
-    if let Ok(decoded_b64) = base64::decode(response) {
-        ctx.send(|m| {
-            m.content(image_description)
-                .attachment(AttachmentType::Bytes {
-                    data: Cow::from(&decoded_b64[..]),
-                    filename: "image.png".into(),
-                })
-        })
-        .await?;
+    if let Ok(decoded_b64) = general_purpose::STANDARD.decode(response) {
+        let attachment = CreateAttachment::bytes(
+            Cow::from(&decoded_b64[..]), 
+            "image.png".to_string(),
+        );
+        
+        let reply = CreateReply::default()
+            .attachment(attachment);
+
+        ctx.send(reply).await?;
     }
 
     Ok(())
