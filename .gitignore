@@ -1,4 +1,4 @@
 /target/
 /.idea/*
 /.cargo/*
-/Secrets.toml
+.env

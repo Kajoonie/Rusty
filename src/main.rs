@@ -1,21 +1,22 @@
 use poise::serenity_prelude as serenity;
-use ::serenity::all::{ClientBuilder, GatewayIntents};
 use std::sync::Once;
+use dotenv::dotenv;
+use std::env;
 
 mod commands;
 
 use commands::general::{
-        coingecko::coin::*,
-        openai::{chat::*, imgen::*, question::*},
-        ping::*,
-    };
-use shuttle_serenity::ShuttleSerenity;
-use shuttle_runtime::SecretStore;
+    coingecko::coin::*,
+    openai::{chat::*, imgen::*, question::*},
+    ping::*,
+};
 
-type Data = ();
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 type CommandResult = Result<(), Error>;
+
+// Define the user data type we'll be using in our bot
+struct Data {} // User data, which is stored and accessible in all command invocations
 
 #[poise::command(slash_command, category = "General")]
 async fn help(
@@ -43,56 +44,50 @@ async fn register(ctx: Context<'_>) -> Result<(), Error> {
         .map_err(|e| e.into())
 }
 
-#[shuttle_runtime::main]
-async fn main(#[shuttle_runtime::Secrets] secret_store: SecretStore) -> ShuttleSerenity {
-    set_openai_api_key(&secret_store);
+static mut OPENAI_API_KEY: Option<String> = None;
+static OPENAI_API_KEY_INIT: Once = Once::new();
 
-    let discord_token = secret_store
-        .get("DISCORD_TOKEN")
-        .expect("DISCORD_TOKEN secret not present");
+fn set_openai_api_key() {
+    OPENAI_API_KEY_INIT.call_once(|| unsafe {
+        OPENAI_API_KEY = Some(env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY not set"));
+    });
+}
+
+pub fn openai_api_key() -> String {
+    unsafe { OPENAI_API_KEY.clone().unwrap() }
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Error> {
+    dotenv().ok();
+    set_openai_api_key();
+
+    let token = env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN");
+    let intents = serenity::GatewayIntents::non_privileged();
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands: vec![
-                //helpers
-                register(),
                 help(),
-                //general
+                register(),
                 ping(),
-                question(),
-                imgen(),
-                chat(),
                 coin(),
+                chat(),
+                imgen(),
+                question(),
             ],
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {
             Box::pin(async move {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
-                Ok(())
+                Ok(Data {})
             })
-        })
-        .build();
+        });
 
-    let client = ClientBuilder::new(discord_token, GatewayIntents::non_privileged())
-        .framework(framework)
-        .await
-        .map_err(shuttle_runtime::CustomError::new)?;
+    let mut client = serenity::ClientBuilder::new(token, intents)
+        .framework(framework.build())
+        .await?;
 
-    Ok(client.into())
-}
-
-static mut OPENAI_API_KEY: Option<String> = None;
-static OPENAI_API_KEY_INIT: Once = Once::new();
-
-fn set_openai_api_key(secret_store: &SecretStore) {
-    unsafe {
-        OPENAI_API_KEY_INIT.call_once(|| {
-            OPENAI_API_KEY = secret_store.get("OPENAI_API_KEY");
-        })
-    }
-}
-
-fn openai_api_key() -> String {
-    unsafe { OPENAI_API_KEY.clone().unwrap() }
+    client.start().await.map_err(Into::into)
 }
