@@ -53,7 +53,7 @@ impl OpenAiRequest {
     }
 
     fn build_api_auth_header() -> HeaderMap {
-        let api_auth = ["Bearer ", &openai_api_key()].concat();
+        let api_auth = ["Bearer ", openai_api_key()].concat();
 
         let mut headers = HeaderMap::new();
         headers.insert(header::AUTHORIZATION, api_auth.parse().unwrap());
