@@ -31,7 +31,7 @@ pub async fn chat(
 
     let content = response.message.content;
 
-    let full_message = format!("**{}**: {message}\n\n**GPT**: {content}", author.name);
+    let full_message = format!("**{}**: {message}\n\n**AI**: {content}", author.name);
 
     chunk_response(ctx, full_message).await
 }
