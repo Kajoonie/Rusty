@@ -22,4 +22,4 @@ serde = "1.0.203"
 once_cell = "1.19.0"
 ollama-rs = "0.2.6"
 dashmap = "5.5.3"
-rusqlite = "0.28.0"  # Added for SQLite support
+rusqlite = { version = "0.28.0", features = ["bundled"] }  # Use bundled SQLite
