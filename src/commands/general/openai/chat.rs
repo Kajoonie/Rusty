@@ -1,4 +1,5 @@
-use std::{collections::HashMap, sync::Mutex};
+use std::sync::Mutex;
+use dashmap::DashMap;
 use once_cell::sync::Lazy;
 
 use ollama_rs::error::OllamaError;
@@ -10,8 +11,7 @@ use super::*;
 
 const MODEL: &str = "llama3.1:8b";
 
-static CONVO_MAP: Lazy<Mutex<HashMap<String, Vec<ChatMessage>>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
+static CONVO_MAP: Lazy<DashMap<String, Mutex<Vec<ChatMessage>>>> = Lazy::new(DashMap::new);
 
 #[poise::command(slash_command, category = "General")]
 pub async fn chat(
@@ -50,11 +50,11 @@ async fn send_request(user_message: String, mut chat_history: Vec<ChatMessage>) 
 }
 
 fn get_conversation_history(user: &str) -> Vec<ChatMessage> {
-    let mut map = CONVO_MAP.lock().unwrap();
+    CONVO_MAP.entry(user.to_string()).or_insert_with(|| {
+        Mutex::new(vec![])
+    });
 
-    if map.get(user).is_none() {
-        map.insert(user.to_string(), vec![]);
-    }
-
-    map.get(user).unwrap().to_owned()
+    let user_convo = CONVO_MAP.get(user).unwrap();
+    let messages = user_convo.lock().unwrap();
+    messages.clone()
 }
