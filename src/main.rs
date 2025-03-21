@@ -7,7 +7,7 @@ mod commands;
 
 use commands::general::{
     coingecko::coin::*,
-    openai::{chat::*, imgen::*, question::*},
+    openai::{chat::*, imgen::*, question::*, list_models::*},
     ping::*,
 };
 
@@ -75,6 +75,7 @@ async fn main() -> Result<(), Error> {
                 chat(),
                 imgen(),
                 question(),
+                list_models(),
             ],
             ..Default::default()
         })

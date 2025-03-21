@@ -1,6 +1,7 @@
 pub(crate) mod chat;
 pub(crate) mod imgen;
 pub(crate) mod question;
+pub(crate) mod list_models;
 
 use crate::CommandResult;
 use crate::Context;
