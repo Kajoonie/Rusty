@@ -2,6 +2,7 @@ use poise::serenity_prelude as serenity;
 use std::sync::Once;
 use dotenv::dotenv;
 use std::env;
+use rusqlite::Connection;
 
 mod commands;
 
@@ -14,6 +15,8 @@ use commands::general::{
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 type CommandResult = Result<(), Error>;
+
+const DB_PATH: &str = "user_preferences.db";
 
 // Define the user data type we'll be using in our bot
 struct Data {} // User data, which is stored and accessible in all command invocations
@@ -57,10 +60,28 @@ pub fn openai_api_key() -> String {
     unsafe { OPENAI_API_KEY.clone().unwrap() }
 }
 
+pub fn init_db() -> Result<(), Error> {
+    let conn = Connection::open(DB_PATH)?;
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS user_preferences (
+            user_id TEXT PRIMARY KEY,
+            username TEXT NOT NULL,
+            model TEXT NOT NULL
+        )",
+        [],
+    )?;
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     dotenv().ok();
     set_openai_api_key();
+
+    // Initialize the SQLite database
+    if let Err(e) = init_db() {
+        eprintln!("Failed to initialize database: {}", e);
+    }
 
     let token = env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN");
     let intents = serenity::GatewayIntents::non_privileged();
