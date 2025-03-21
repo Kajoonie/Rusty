@@ -14,7 +14,7 @@ pub async fn ping(ctx: Context<'_>) -> CommandResult {
     let embed = CreateEmbed::new()
         .title("Pong!")
         .thumbnail("attachment://pong.png")
-        .field("API Latency", &format!("{} ms", latency), false);
+        .field("API Latency", format!("{} ms", latency), false);
 
     let reply = CreateReply::default()
         .embed(embed)

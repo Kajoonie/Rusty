@@ -1,10 +1,10 @@
 use poise::serenity_prelude as serenity;
-use std::sync::Once;
+use std::sync::OnceLock;
 use dotenv::dotenv;
 use std::env;
-use rusqlite::Connection;
 
 mod commands;
+mod database;
 
 use commands::general::{
     coingecko::coin::*,
@@ -15,8 +15,6 @@ use commands::general::{
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 type CommandResult = Result<(), Error>;
-
-const DB_PATH: &str = "user_preferences.db";
 
 // Define the user data type we'll be using in our bot
 struct Data {} // User data, which is stored and accessible in all command invocations
@@ -47,30 +45,18 @@ async fn register(ctx: Context<'_>) -> Result<(), Error> {
         .map_err(|e| e.into())
 }
 
-static mut OPENAI_API_KEY: Option<String> = None;
-static OPENAI_API_KEY_INIT: Once = Once::new();
+static OPENAI_API_KEY: OnceLock<String> = OnceLock::new();
 
 fn set_openai_api_key() {
-    OPENAI_API_KEY_INIT.call_once(|| unsafe {
-        OPENAI_API_KEY = Some(env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY not set"));
-    });
+    if OPENAI_API_KEY.get().is_none() {
+        let _ = OPENAI_API_KEY.set(
+            env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY not set")
+        );
+    }
 }
 
-pub fn openai_api_key() -> String {
-    unsafe { OPENAI_API_KEY.clone().unwrap() }
-}
-
-pub fn init_db() -> Result<(), Error> {
-    let conn = Connection::open(DB_PATH)?;
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS user_preferences (
-            user_id TEXT PRIMARY KEY,
-            username TEXT NOT NULL,
-            model TEXT NOT NULL
-        )",
-        [],
-    )?;
-    Ok(())
+pub fn openai_api_key() -> &'static str {
+    OPENAI_API_KEY.get().expect("OpenAI API key not initialized")
 }
 
 #[tokio::main]
@@ -79,7 +65,7 @@ async fn main() -> Result<(), Error> {
     set_openai_api_key();
 
     // Initialize the SQLite database
-    if let Err(e) = init_db() {
+    if let Err(e) = database::init_db() {
         eprintln!("Failed to initialize database: {}", e);
     }
 
