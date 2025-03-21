@@ -1,4 +1,4 @@
-pub(crate) mod chat;
+pub(crate) mod ai;
 pub(crate) mod imgen;
 
 use crate::CommandResult;

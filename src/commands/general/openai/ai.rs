@@ -13,7 +13,14 @@ const MODEL: &str = "llama3.1:8b";
 
 static CONVO_MAP: Lazy<DashMap<String, Mutex<Vec<ChatMessage>>>> = Lazy::new(DashMap::new);
 
-#[poise::command(slash_command, category = "General", subcommands("list_models"))]
+#[poise::command(slash_command, category = "General", subcommands("chat", "list_models"))]
+pub async fn ai(
+    _ctx: Context<'_>
+) -> CommandResult {
+    Ok(())
+}
+
+#[poise::command(slash_command, category = "General")]
 pub async fn chat(
     ctx: Context<'_>,
     #[description = "Your chat message"]
