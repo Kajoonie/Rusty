@@ -5,10 +5,11 @@ use std::env;
 
 mod commands;
 mod database;
+mod brave;
 
 use commands::general::{
     coingecko::coin::*,
-    openai::{ai::*, imgen::*},
+    ai::ai::*,
     ping::*,
 };
 
@@ -80,7 +81,6 @@ async fn main() -> Result<(), Error> {
                 ping(),
                 coin(),
                 ai(),
-                imgen(),
             ],
             ..Default::default()
         })

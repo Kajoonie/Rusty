@@ -1,3 +1,3 @@
 pub(crate) mod coingecko;
-pub(crate) mod openai;
+pub(crate) mod ai;
 pub(crate) mod ping;
