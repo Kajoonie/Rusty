@@ -1,5 +1,4 @@
 use poise::serenity_prelude as serenity;
-use std::sync::OnceLock;
 use dotenv::dotenv;
 use std::env;
 
@@ -46,24 +45,9 @@ async fn register(ctx: Context<'_>) -> Result<(), Error> {
         .map_err(|e| e.into())
 }
 
-static OPENAI_API_KEY: OnceLock<String> = OnceLock::new();
-
-fn set_openai_api_key() {
-    if OPENAI_API_KEY.get().is_none() {
-        let _ = OPENAI_API_KEY.set(
-            env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY not set")
-        );
-    }
-}
-
-pub fn openai_api_key() -> &'static str {
-    OPENAI_API_KEY.get().expect("OpenAI API key not initialized")
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     dotenv().ok();
-    set_openai_api_key();
 
     // Initialize the SQLite database
     if let Err(e) = database::init_db() {
