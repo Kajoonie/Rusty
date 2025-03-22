@@ -6,10 +6,21 @@ mod commands;
 mod database;
 mod brave;
 
-use commands::general::{
+use commands::{
+    ai::{
+        chat::*,
+        list_models::*,
+        set_model::*,
+        search::*,
+        get_model::*,
+    },
     coingecko::coin::*,
-    ai::ai::*,
-    ping::*,
+    general::ping::*,
+    music::{
+        play::*,
+        queue::*,
+        skip::*,
+    },
 };
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -55,16 +66,31 @@ async fn main() -> Result<(), Error> {
     }
 
     let token = env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN");
-    let intents = serenity::GatewayIntents::non_privileged();
+    // Add voice intent to allow voice functionality
+    let intents = serenity::GatewayIntents::non_privileged() | serenity::GatewayIntents::MESSAGE_CONTENT | serenity::GatewayIntents::GUILD_VOICE_STATES;
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands: vec![
-                help(),
+                // Default commands
                 register(),
+                help(),
+                // General commands
                 ping(),
+                // AI-centric commands
+                chat(),
+                get_model(),
+                list_models(),
+                search(),
+                set_model(),
+                // Coingecko commands
                 coin(),
-                ai(),
+                // Music commands
+                play(),
+                queue(),
+                skip(),
+                stop(),
+                leave(),
             ],
             ..Default::default()
         })

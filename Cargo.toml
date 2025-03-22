@@ -10,16 +10,35 @@ dotenv = "0.15.0"
 tracing = "0.1.40"
 futures = "0.3.30"
 chrono = "0.4.38"
-reqwest = {version = "0.12.4", features = ["json"]}
-serenity = { version = "0.12.1", default-features = false, features = ["client", "gateway", "rustls_backend", "model"] }
 serde_json = "1.0.117"
 thiserror = "1.0.61"
 base64 = "0.22.1"
 poise = "0.6.1"
-tokio = {version = "1.37.0", features = ["rt-multi-thread"]}
 thousands = "0.2.0"
 serde = "1.0.203"
 once_cell = "1.19.0"
 ollama-rs = "0.2.6"
 dashmap = "5.5.3"
-rusqlite = { version = "0.28.0", features = ["bundled"] }  # Use bundled SQLite
+url = "2.5.0"
+lazy_static = "1.4.0"
+
+[dependencies.tokio]
+version = "1.37.0"
+features = ["rt-multi-thread"]
+
+[dependencies.serenity]
+version = "0.12.1"
+default-features = false
+features = ["client", "gateway", "rustls_backend", "model", "voice"]
+
+[dependencies.songbird]
+version = "0.5"
+features = ["builtin-queue"]
+
+[dependencies.reqwest]
+version = "0.12.4"
+features = ["json"]
+
+[dependencies.rusqlite]
+version = "0.28.0"
+features = ["bundled"]

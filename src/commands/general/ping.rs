@@ -4,7 +4,8 @@ use std::time::Duration;
 
 use crate::{CommandResult, Context};
 
-#[poise::command(slash_command)]
+/// Ping the bot to check its latency
+#[poise::command(slash_command, category = "General")]
 pub async fn ping(ctx: Context<'_>) -> CommandResult {
     let latency = get_shard_latency(&ctx)
         .await
