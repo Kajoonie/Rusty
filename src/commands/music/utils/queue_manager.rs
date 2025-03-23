@@ -10,7 +10,6 @@ use super::audio_sources::TrackMetadata;
 use super::music_manager::MusicError;
 
 /// A queue item containing the audio input and metadata
-#[derive(Clone)]
 pub struct QueueItem {
     pub input: Input,
     pub metadata: TrackMetadata,
