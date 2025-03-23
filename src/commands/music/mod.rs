@@ -3,6 +3,7 @@ pub(crate) mod queue;
 pub(crate) mod skip;
 pub(crate) mod stop;
 pub(crate) mod leave;
+pub(crate) mod utils;
 
 use poise::{serenity_prelude as serenity, CreateReply};
 use serenity::all::CreateEmbed;
