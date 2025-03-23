@@ -38,7 +38,7 @@ impl QueueManager {
     /// Add a track to the queue for a guild
     pub fn add(&mut self, guild_id: GuildId, item: QueueItem) {
         // Get or create the queue for this guild
-        let queue = self.queues.entry(guild_id).or_insert_with(VecDeque::new);
+        let queue = self.queues.entry(guild_id).or_default();
         queue.push_back(item);
     }
 

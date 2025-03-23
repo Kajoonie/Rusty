@@ -21,7 +21,7 @@ pub async fn play(
 
     // Get the user's voice channel
     let user_id = ctx.author().id;
-    let channel_id = match MusicManager::get_user_voice_channel(&ctx.serenity_context(), guild_id, user_id) {
+    let channel_id = match MusicManager::get_user_voice_channel(ctx.serenity_context(), guild_id, user_id) {
         Ok(channel_id) => channel_id,
         Err(err) => {
             ctx.send(CreateReply::default()
@@ -39,11 +39,11 @@ pub async fn play(
     ctx.defer().await?;
 
     // Join the voice channel if not already connected
-    let call = match MusicManager::get_call(&ctx.serenity_context(), guild_id).await {
+    let call = match MusicManager::get_call(ctx.serenity_context(), guild_id).await {
         Ok(call) => call,
         Err(_) => {
             // Not connected, so join the channel
-            match MusicManager::join_channel(&ctx.serenity_context(), guild_id, channel_id).await {
+            match MusicManager::join_channel(ctx.serenity_context(), guild_id, channel_id).await {
                 Ok(call) => call,
                 Err(err) => {
                     ctx.send(CreateReply::default()
