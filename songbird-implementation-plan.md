@@ -21,15 +21,17 @@
 
 ## 2. Core Music Functionality
 
-### Play Command Implementation
+### Play Command Implementation ✅
 - Join the user's voice channel if not already connected
 - Process the input query (URL or search term)
 - For URLs: directly fetch and play the audio
 - For search terms: use YouTube search API to find and play the first result
 - Add proper error handling for unavailable videos or connection issues
 - Implement track metadata extraction (title, duration, etc.)
+   - Created queue management system in `src/commands/music/utils/queue_manager.rs`
+   - Implemented automatic playback of the next song when current one ends
 
-### Queue Management
+### Queue Management ✅
 - Create a queue data structure to store upcoming tracks
 - Implement methods to add, remove, and view queue items
 - Set up automatic playback of the next song when current one ends
@@ -91,14 +93,14 @@
 
 ## Implementation Steps in Order
 
-1. **First Phase: Core Infrastructure** ✅
+1. **First Phase: Core Infrastructure** 
    - Set up Songbird manager and voice connection handling
    - Implement basic audio source handling
    - Create the queue data structure
 
-2. **Second Phase: Basic Commands**
-   - Implement the play command with URL support
-   - Add basic queue management
+2. **Second Phase: Basic Commands** (In Progress)
+   - Implement the play command with URL support 
+   - Add basic queue management 
    - Implement leave command
 
 3. **Third Phase: Complete Core Functionality**
@@ -123,15 +125,16 @@ src/
 ├── commands/
 │   ├── music/
 │   │   ├── mod.rs                 # Export music commands
-│   │   ├── play.rs                # Play command implementation
+│   │   ├── play.rs                # Play command implementation 
 │   │   ├── queue.rs               # Queue command implementation
 │   │   ├── skip.rs                # Skip command implementation
 │   │   ├── stop.rs                # Stop command implementation
 │   │   ├── leave.rs               # Leave command implementation
 │   │   └── utils/                 # Music utilities
-│   │       ├── mod.rs             # Export music utilities
-│   │       ├── queue_manager.rs   # Queue management
+│   │       ├── mod.rs             # Export music utilities 
+│   │       ├── queue_manager.rs   # Queue management 
 │   │       ├── track_info.rs      # Track information handling
-│   │       ├── audio_sources.rs   # Audio source handling
-│   │       └── music_manager.rs   # Music manager implementation
-``` 
+│   │       ├── audio_sources.rs   # Audio source handling 
+│   │       └── music_manager.rs   # Music manager implementation 
+└──
+```
