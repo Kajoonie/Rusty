@@ -4,6 +4,7 @@ use serenity::model::id::{ChannelId, GuildId};
 use songbird::{Call, Songbird};
 use std::sync::Arc;
 use thiserror::Error;
+use serenity::prelude::Mutex as SerenityMutex;
 
 /// Errors that can occur during music operations
 #[derive(Error, Debug)]
@@ -54,7 +55,7 @@ impl MusicManager {
         ctx: &Context, 
         guild_id: GuildId, 
         channel_id: ChannelId
-    ) -> MusicResult<Arc<songbird::Call>> {
+    ) -> MusicResult<Arc<SerenityMutex<Call>>> {
         let songbird = Self::get_songbird(ctx).await?;
         
         // Join the voice channel
@@ -87,7 +88,7 @@ impl MusicManager {
     pub async fn get_call(
         ctx: &Context, 
         guild_id: GuildId
-    ) -> MusicResult<Arc<songbird::Call>> {
+    ) -> MusicResult<Arc<SerenityMutex<Call>>> {
         let songbird = Self::get_songbird(ctx).await?;
         
         let call = songbird.get(guild_id)

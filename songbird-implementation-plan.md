@@ -10,10 +10,14 @@
   - Set up proper error handling with custom `MusicError` enum
   - Implemented utility functions for getting Songbird instances and call handles
 
-### Implement Audio Source Handling
+### Implement Audio Source Handling ✅
 - Set up YouTube-dl/yt-dlp integration for fetching audio from YouTube
 - Create utilities for handling direct audio URLs
 - Implement audio source validation and error handling
+  - Created in `src/commands/music/utils/audio_sources.rs`
+  - Added support for YouTube URLs, direct URLs, and search terms
+  - Implemented metadata extraction for tracks
+  - Added caching capability for frequently played tracks
 
 ## 2. Core Music Functionality
 
@@ -87,7 +91,7 @@
 
 ## Implementation Steps in Order
 
-1. **First Phase: Core Infrastructure**
+1. **First Phase: Core Infrastructure** ✅
    - Set up Songbird manager and voice connection handling
    - Implement basic audio source handling
    - Create the queue data structure
