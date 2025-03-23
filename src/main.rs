@@ -20,6 +20,8 @@ use commands::{
         play::*,
         queue::*,
         skip::*,
+        stop::*,
+        leave::*,
     },
 };
 

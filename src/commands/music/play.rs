@@ -1,7 +1,4 @@
-use poise::{serenity_prelude as serenity, CreateReply};
-use serenity::all::CreateEmbed;
-
-use crate::{CommandResult, Context};
+use super::*;
 
 /// Play a song from YouTube or a direct URL
 #[poise::command(slash_command, category = "Music")]
