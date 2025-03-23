@@ -1,7 +1,4 @@
-use poise::{serenity_prelude as serenity, CreateReply};
-use serenity::all::CreateEmbed;
-
-use crate::{CommandResult, Context};
+use super::*;
 
 /// View the current music queue
 #[poise::command(slash_command, category = "Music")]
