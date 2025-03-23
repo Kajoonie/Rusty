@@ -56,7 +56,7 @@ fn get_conversation_history(user: &str) -> Vec<ChatMessage> {
 }
 
 async fn send_request_with_model(user_message: String, mut chat_history: Vec<ChatMessage>, model: &str) -> Result<ChatMessageResponse, OllamaError> {
-    let mut ollama = (&*get_ollama()).clone();
+    let mut ollama = (*get_ollama()).clone();
 
     ollama.send_chat_messages_with_history(
             &mut chat_history,
