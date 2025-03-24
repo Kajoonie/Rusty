@@ -2450,6 +2450,7 @@ dependencies = [
  "thousands",
  "tokio",
  "tracing",
+ "tracing-subscriber",
  "url",
 ]
 

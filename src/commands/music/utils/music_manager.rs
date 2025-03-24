@@ -32,6 +32,9 @@ pub enum MusicError {
     
     #[error("Queue error: {0}")]
     QueueError(String),
+
+    #[error("Playback failed: {0}")]
+    PlaybackFailed(String),
 }
 
 /// Result type for music operations

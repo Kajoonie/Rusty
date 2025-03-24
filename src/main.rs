@@ -2,6 +2,7 @@ use poise::serenity_prelude as serenity;
 use dotenv::dotenv;
 use std::env;
 use songbird::SerenityInit;
+use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 mod commands;
 mod database;
@@ -61,6 +62,20 @@ async fn register(ctx: Context<'_>) -> Result<(), Error> {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    // Initialize logging with debug level for our crate
+    FmtSubscriber::builder()
+        .with_env_filter(
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| EnvFilter::new("rusty=debug,warn"))
+        )
+        .with_thread_ids(true)
+        .with_line_number(true)
+        .with_file(true)
+        .with_target(true)
+        .with_ansi(true)
+        .pretty()
+        .init();
+
     dotenv().ok();
 
     // Initialize the SQLite database
@@ -69,7 +84,7 @@ async fn main() -> Result<(), Error> {
     }
 
     let token = env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN");
-    // Add voice intent to allow voice functionality
+
     let intents = serenity::GatewayIntents::non_privileged() | serenity::GatewayIntents::MESSAGE_CONTENT | serenity::GatewayIntents::GUILD_VOICE_STATES;
 
     let framework = poise::Framework::builder()

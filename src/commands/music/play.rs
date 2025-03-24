@@ -8,6 +8,7 @@ use poise::serenity_prelude::{self as serenity, CreateEmbed};
 use songbird::tracks::PlayMode;
 use std::time::Duration;
 use async_trait::async_trait;
+use tracing::{info, error, warn, debug};
 
 /// Play a song from YouTube or a direct URL
 #[poise::command(slash_command, category = "Music")]
@@ -15,6 +16,7 @@ pub async fn play(
     ctx: Context<'_>,
     #[description = "URL or search query"] query: String,
 ) -> CommandResult {
+    info!("Received play command with query: {}", query);
     let guild_id = ctx.guild_id().ok_or_else(|| {
         Box::new(MusicError::NotInGuild) as Box<dyn std::error::Error + Send + Sync>
     })?;
@@ -59,9 +61,15 @@ pub async fn play(
     };
 
     // Process the query to get an audio source
+    info!("Processing audio source for query: {}", query);
     let (source, metadata) = match AudioSource::from_query(&query).await {
-        Ok(result) => result,
+        Ok(result) => {
+            let (src, meta) = result;
+            info!("Successfully created audio source. Metadata: {:?}", meta);
+            (src, meta)
+        },
         Err(err) => {
+            error!("Failed to create audio source: {}", err);
             ctx.send(CreateReply::default()
                 .embed(CreateEmbed::new()
                     .title("❌ Error")
@@ -73,6 +81,7 @@ pub async fn play(
     };
 
     // Create a queue item
+    debug!("Creating queue item with metadata: {:?}", metadata);
     let queue_item = QueueItem {
         input: source,
         metadata: metadata.clone(),
@@ -148,11 +157,35 @@ async fn play_next_track(
         None => return Ok(()),
     };
 
+    info!("Attempting to play track: {:?}", queue_item.metadata.title);
+
     // Get a lock on the call
     let mut handler = call.lock().await;
+    info!("Obtained lock on voice handler, preparing to play audio");
 
-    // Play the track
+    // Play the track and verify it started successfully
+    debug!("Starting playback of audio input");
     let track_handle = handler.play_input(queue_item.input);
+    info!("Track handle created, waiting to verify playback");
+    
+    // Wait a short moment and check if playback started
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    
+    match track_handle.get_info().await {
+        Ok(info) => {
+            info!("Track info retrieved - State: {:?}, Position: {:?}", info.playing, info.position);
+            if info.playing == PlayMode::Play {
+                info!("Track playback started successfully");
+            } else {
+                warn!("Track not playing after initialization. PlayMode: {:?}", info.playing);
+                return Err(Box::new(MusicError::PlaybackFailed("Track failed to start playing".into())));
+            }
+        },
+        Err(e) => {
+            error!("Failed to get track info: {}", e);
+            return Err(Box::new(MusicError::PlaybackFailed(format!("Failed to verify playback: {}", e))));
+        }
+    }
 
     // Store the current track
     set_current_track(guild_id, track_handle.clone(), queue_item.metadata.clone()).await?;

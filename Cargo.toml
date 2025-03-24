@@ -35,7 +35,7 @@ features = ["client", "gateway", "rustls_backend", "model", "voice"]
 
 [dependencies.songbird]
 version = "0.5"
-features = ["builtin-queue", "gateway"]
+features = ["builtin-queue", "gateway", "driver"]
 
 # Additional codecs for songbird via symphonia
 [dependencies.symphonia]
@@ -49,3 +49,7 @@ features = ["json"]
 [dependencies.rusqlite]
 version = "0.28.0"
 features = ["bundled"]
+
+[dependencies.tracing-subscriber]
+version = "0.3"
+features = ["env-filter"]
