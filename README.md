@@ -13,6 +13,7 @@ A Discord bot built with Rust using the Poise framework, designed to enhance you
 - [Building and Running](#building-and-running)
 - [Commands](#commands)
   - [General Commands](#general-commands)
+  - [AI Commands](#ai-commands)
   - [Music Commands](#music-commands)
 - [Development](#development)
 - [Troubleshooting](#troubleshooting)
@@ -23,8 +24,14 @@ A Discord bot built with Rust using the Poise framework, designed to enhance you
 
 - **General Commands**:
   - **Ping**: Responds with "Pong!" to check if the bot is online.
-  - **AI Responses**: Engages in conversation with users through text-based AI.
   - **Cryptocurrency Information**: Provides real-time updates on various cryptocurrencies.
+
+- **AI Commands**:
+  - **Chat**: Engages in conversation with users through an AI model that maintains context.
+  - **Search**: Searches the web and provides AI-summarized results for any query.
+  - **List Models**: Displays all available AI models that can be used.
+  - **Set Model**: Changes which AI model is used for your interactions.
+  - **Get Model**: Shows which AI model you're currently using.
 
 - **Music Commands**:
   - **Play**: Initiates playback of a song from a URL or search query.
@@ -95,8 +102,14 @@ cargo run --release
 
 ### General Commands
 - `/ping`: Check bot responsiveness
-- `/ai <message>`: Interact with AI
 - `/crypto <symbol>`: Get cryptocurrency information
+
+### AI Commands
+- `/chat <message>`: Chat with an AI model, maintaining conversation context
+- `/search <query>`: Search the web and receive an AI-summarized response
+- `/list_models`: View all available AI models on the server
+- `/set_model <model>`: Change the AI model used for your interactions
+- `/get_model`: Check which AI model you're currently using
 
 ### Music Commands
 - `/play <url or search query>`: Play audio from YouTube
