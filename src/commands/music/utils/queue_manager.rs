@@ -82,14 +82,6 @@ impl QueueManager {
         self.current_tracks.get(&guild_id)
     }
 
-    /// Check if the queue is empty for a guild
-    pub fn is_empty(&self, guild_id: GuildId) -> bool {
-        match self.queues.get(&guild_id) {
-            Some(queue) => queue.is_empty(),
-            None => true,
-        }
-    }
-
     /// Get the number of tracks in the queue for a guild
     pub fn len(&self, guild_id: GuildId) -> usize {
         match self.queues.get(&guild_id) {
@@ -139,11 +131,6 @@ pub async fn set_current_track(guild_id: GuildId, track: TrackHandle, metadata: 
 pub async fn get_current_track(guild_id: GuildId) -> QueueResult<Option<(TrackHandle, TrackMetadata)>> {
     let manager = QUEUE_MANAGER.lock().await;
     Ok(manager.get_current_track(guild_id).cloned())
-}
-
-pub async fn is_queue_empty(guild_id: GuildId) -> QueueResult<bool> {
-    let manager = QUEUE_MANAGER.lock().await;
-    Ok(manager.is_empty(guild_id))
 }
 
 pub async fn queue_length(guild_id: GuildId) -> QueueResult<usize> {

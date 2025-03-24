@@ -2,7 +2,7 @@ use super::*;
 use crate::commands::music::utils::{
     music_manager::{MusicManager, MusicError},
     audio_sources::AudioSource,
-    queue_manager::{QueueItem, add_to_queue, get_current_track, is_queue_empty, queue_length, get_next_track, set_current_track, get_queue},
+    queue_manager::{QueueItem, add_to_queue, get_current_track, queue_length, get_next_track, set_current_track, get_queue},
 };
 use poise::serenity_prelude::{self as serenity, CreateEmbed};
 use songbird::tracks::PlayMode;
@@ -88,7 +88,8 @@ pub async fn play(
     };
 
     // Check if we're already playing something
-    let is_empty = is_queue_empty(guild_id).await.unwrap_or(true);
+    let current_track = get_current_track(guild_id).await?;
+    let should_start_playing = current_track.is_none();
 
     // Add the track to the queue
     if let Err(err) = add_to_queue(guild_id, queue_item).await {
@@ -102,7 +103,7 @@ pub async fn play(
     }
 
     // If nothing is currently playing, start playback
-    if is_empty {
+    if should_start_playing {
         play_next_track(ctx.serenity_context(), guild_id, call).await?;
     }
 
