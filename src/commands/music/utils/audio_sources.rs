@@ -13,6 +13,7 @@ use lazy_static::lazy_static;
 use reqwest::Client;
 use tracing::{info, debug};
 use std::process::Command;
+use serde_json;
 
 /// Result type for audio source operations
 pub type AudioSourceResult<T> = Result<T, MusicError>;
@@ -108,16 +109,44 @@ impl AudioSource {
         }
 
         debug!("yt-dlp version: {}", String::from_utf8_lossy(&output.stdout));
+
+        // Get video metadata using yt-dlp
+        let metadata_output = Command::new("yt-dlp")
+            .args([
+                "-j",  // Output as JSON
+                "--no-playlist",  // Don't process playlists
+                url
+            ])
+            .output()
+            .map_err(|e| MusicError::AudioSourceError(format!("Failed to get video metadata: {}", e)))?;
+
+        let metadata_str = String::from_utf8_lossy(&metadata_output.stdout);
+        let metadata_json: serde_json::Value = serde_json::from_str(&metadata_str)
+            .map_err(|e| MusicError::AudioSourceError(format!("Failed to parse video metadata: {}", e)))?;
         
         // Create the source with default options (Songbird will use best audio quality)
         let source = YoutubeDl::new(HTTP_CLIENT.clone(), url.to_string());
 
-        // Create basic metadata since we can't easily get it from YouTube
+        // Extract metadata from JSON
+        let title = metadata_json["title"]
+            .as_str()
+            .unwrap_or("Unknown Title")
+            .to_string();
+        
+        let duration = metadata_json["duration"]
+            .as_f64()
+            .map(|secs| Duration::from_secs_f64(secs));
+        
+        let thumbnail = metadata_json["thumbnail"]
+            .as_str()
+            .map(|s| s.to_string());
+
+        // Create metadata with extracted information
         let metadata = TrackMetadata {
-            title: url.to_string(),
+            title,
             url: Some(url.to_string()),
-            duration: None,
-            thumbnail: None,
+            duration,
+            thumbnail,
         };
 
         Ok((source.into(), metadata))

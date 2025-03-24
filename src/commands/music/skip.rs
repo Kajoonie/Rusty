@@ -1,8 +1,9 @@
 use super::*;
 use crate::commands::music::utils::{
     music_manager::{MusicManager, MusicError},
-    queue_manager::{get_current_track, get_next_track, set_current_track},
+    queue_manager::{get_current_track, get_next_track, set_current_track, queue_length, get_queue},
 };
+use std::time::Duration;
 
 /// Skip the currently playing song
 #[poise::command(slash_command, category = "Music")]
@@ -68,16 +69,52 @@ pub async fn skip(ctx: Context<'_>) -> CommandResult {
     );
 
     // Send success message with the new track's info
+    let mut embed = CreateEmbed::new()
+        .title("⏭️ Skipped Track")
+        .description(format!("**Now Playing:** [{}]({})",
+            next_track.metadata.title,
+            next_track.metadata.url.as_deref().unwrap_or("#")
+        ))
+        .color(0x00ff00);
+
+    // Add duration if available
+    if let Some(duration) = next_track.metadata.duration {
+        embed = embed.field("Duration", format!("`{}`", format_duration(duration)), true);
+    }
+
+    // Add thumbnail if available
+    if let Some(thumbnail) = next_track.metadata.thumbnail {
+        embed = embed.thumbnail(thumbnail);
+    }
+
+    // Add remaining queue info
+    let queue_length = queue_length(guild_id).await?;
+    if queue_length > 0 {
+        let queue = get_queue(guild_id).await?;
+        let total_duration: Duration = queue.iter()
+            .filter_map(|track| track.duration)
+            .sum();
+        
+        if total_duration.as_secs() > 0 {
+            embed = embed.field(
+                "Up Next",
+                format!("`{} tracks` • Total Length: `{}`",
+                    queue_length,
+                    format_duration(total_duration)
+                ),
+                true
+            );
+        } else {
+            embed = embed.field(
+                "Up Next",
+                format!("`{} tracks`", queue_length),
+                true
+            );
+        }
+    }
+
     ctx.send(CreateReply::default()
-        .embed(CreateEmbed::new()
-            .title("⏭️ Skipped Track")
-            .description(format!("Now playing: {}", next_track.metadata.title))
-            .field("Duration", 
-                next_track.metadata.duration
-                    .map(format_duration)
-                    .unwrap_or_else(|| "Unknown duration".to_string()),
-                true)
-            .color(0x00ff00)))
+        .embed(embed))
         .await?;
 
     Ok(())
