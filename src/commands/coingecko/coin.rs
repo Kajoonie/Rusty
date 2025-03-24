@@ -137,69 +137,6 @@ async fn list_coin_ids() -> Vec<String> {
     results
 }
 
-// static COIN_CACHE: Lazy<RwLock<Vec<String>>> = Lazy::new(|| RwLock::new(Vec::new()));
-
-// async fn list_coin_ids() -> Vec<String> {
-//     let cache = COIN_CACHE.read().await;
-//     if cache.is_empty() {
-//         let url = [API, "coins/list"].concat();
-//         let query = vec![
-//             ("localization", "false")
-//         ];
-
-//         let result = send_request(&url, &query).await;
-
-//         let value = match result {
-//             Ok(result) => result,
-//             Err(e) => {
-//                 println!("Error listing coins: {}", e);
-//                 Value::Null
-//             }
-//         };
-
-//         let array = value.as_array();
-
-//         if let Some(arr) = array {
-//             let mut results = arr
-//                 .into_iter()
-//                 .map(|coin| coin["id"].to_string().trim_start_matches('"').trim_end_matches('"').to_string())
-//                 .collect();
-            
-//             COIN_CACHE.write().await.append(&mut results);
-//         }
-//     }
-
-//     COIN_CACHE.read().await.to_vec()
-// }
-
-// async fn list_coin_ids() -> Vec<String> {
-//     let url = [API, "coins/list"].concat();
-//     let query = vec![
-//         ("localization", "false")
-//     ];
-
-//     let result = send_request(&url, &query).await;
-
-//     let value = match result {
-//         Ok(result) => result,
-//         Err(e) => {
-//             println!("Error listing coins: {}", e);
-//             Value::Null
-//         }
-//     };
-
-//     let array = value.as_array();
-
-//     if let Some(arr) = array {
-//         arr
-//             .into_iter()
-//             .map(|coin| coin["id"].to_string())
-//             .collect::<Vec<_>>()
-//     } else {
-//         vec![]
-//     }
-// }
-
 async fn autocomplete_coin_id<'a>(
     _ctx: Context<'_>,
     partial: &'a str,

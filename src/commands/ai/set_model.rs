@@ -1,5 +1,7 @@
 use ollama_rs::models::LocalModel;
 
+use crate::commands::ai::utils::ollama_client::OLLAMA_CLIENT;
+
 use super::*;
 use futures::{Stream, StreamExt};
 
@@ -13,8 +15,7 @@ pub async fn set_model(
 ) -> CommandResult {
     ctx.defer().await?;
     
-    let ollama = get_ollama();
-    let models = ollama.list_local_models().await?;
+    let models = list_models().await;
     
     if !models.iter().any(|m| m.name == model) {
         ctx.say(format!("Model '{}' is not available. Use `/ai list_models` to see available models.", model)).await?;
@@ -41,8 +42,7 @@ pub async fn set_model(
 }
 
 async fn list_models() -> Vec<LocalModel> {
-    let ollama = get_ollama();
-    let model_list = ollama.list_local_models().await;
+    let model_list = OLLAMA_CLIENT.clone().list_models().await;
 
     match model_list {
         Ok(models) => models,

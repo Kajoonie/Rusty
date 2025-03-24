@@ -1,4 +1,5 @@
 use rusqlite::{Connection, Result as SqlResult};
+use serenity::all::User;
 use std::sync::Once;
 
 pub const DB_PATH: &str = "user_preferences.db";
@@ -32,10 +33,10 @@ fn create_tables() -> SqlResult<()> {
     Ok(())
 }
 
-pub fn get_user_model(user_id: &str) -> String {
+pub fn get_user_model(user: &User) -> String {
     if let Ok(conn) = Connection::open(DB_PATH) {
-        if let Ok(mut stmt) = conn.prepare("SELECT model FROM user_preferences WHERE user_id = ?1") {
-            if let Ok(mut rows) = stmt.query([user_id]) {
+        if let Ok(mut statement) = conn.prepare("SELECT model FROM user_preferences WHERE user_id = ?1") {
+            if let Ok(mut rows) = statement.query([user.id.to_string()]) {
                 if let Ok(Some(row)) = rows.next() {
                     if let Ok(model) = row.get(0) {
                         return model;
@@ -44,6 +45,7 @@ pub fn get_user_model(user_id: &str) -> String {
             }
         }
     }
+
     "llama3.1:8b".to_string() // Default model
 }
 

@@ -1697,6 +1697,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "mock-it"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "efa708585d105b1a85107b761cddecd5b1d1709716e3a79ba04da13ab2d404f5"
+dependencies = [
+ "mock-it_codegen",
+]
+
+[[package]]
+name = "mock-it_codegen"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f80c9bb04a0dec5c0dafb12595e3a1deefa637564a55aac629ebf6b355023f32"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.107",
+]
+
+[[package]]
 name = "mockall"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2772,6 +2792,7 @@ dependencies = [
  "fake",
  "futures",
  "lazy_static",
+ "mock-it",
  "mockall",
  "ollama-rs",
  "once_cell",
