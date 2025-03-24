@@ -11,6 +11,8 @@ use std::time::Duration;
 use regex::Regex;
 use lazy_static::lazy_static;
 use reqwest::Client;
+use tracing::{info, debug};
+use std::process::Command;
 
 /// Result type for audio source operations
 pub type AudioSourceResult<T> = Result<T, MusicError>;
@@ -50,6 +52,7 @@ pub struct AudioSource;
 impl AudioSource {
     /// Create an audio source from a URL or search term
     pub async fn from_query(query: &str) -> AudioSourceResult<(Input, TrackMetadata)> {
+        debug!("Creating audio source from query: {}", query);
         // Check if the query is a URL
         if Self::is_url(query) {
             Self::from_url(query).await
@@ -71,6 +74,7 @@ impl AudioSource {
 
     /// Create an audio source from a URL
     pub async fn from_url(url: &str) -> AudioSourceResult<(Input, TrackMetadata)> {
+        debug!("Creating audio source from URL: {}", url);
         // Handle YouTube URLs with ytdl
         if Self::is_youtube_url(url) {
             return Self::from_youtube_url(url).await;
@@ -91,15 +95,29 @@ impl AudioSource {
 
     /// Create an audio source from a YouTube URL
     pub async fn from_youtube_url(url: &str) -> AudioSourceResult<(Input, TrackMetadata)> {
-        // Use YoutubeDl to get the audio source
+        info!("Creating YouTube audio source for URL: {}", url);
+
+        // First, verify yt-dlp is working
+        let output = Command::new("yt-dlp")
+            .arg("--version")
+            .output()
+            .map_err(|e| MusicError::AudioSourceError(format!("Failed to execute yt-dlp: {}", e)))?;
+
+        if !output.status.success() {
+            return Err(MusicError::AudioSourceError("yt-dlp is not properly installed".to_string()));
+        }
+
+        debug!("yt-dlp version: {}", String::from_utf8_lossy(&output.stdout));
+        
+        // Create the source with default options (Songbird will use best audio quality)
         let source = YoutubeDl::new(HTTP_CLIENT.clone(), url.to_string());
 
-        // Extract metadata from the source (basic implementation)
-        // In a more complete implementation, you would extract more metadata
+        // Create basic metadata since we can't easily get it from YouTube
         let metadata = TrackMetadata {
-            title: url.to_string(), // This would ideally be the actual video title
+            title: url.to_string(),
             url: Some(url.to_string()),
-            ..Default::default()
+            duration: None,
+            thumbnail: None,
         };
 
         Ok((source.into(), metadata))
@@ -107,15 +125,19 @@ impl AudioSource {
 
     /// Create an audio source from a search term using YouTube search
     pub async fn from_search(search_term: &str) -> AudioSourceResult<(Input, TrackMetadata)> {
+        info!("Creating audio source from search term: {}", search_term);
         // Use YoutubeDl with search prefix for YouTube search
         let search_url = format!("ytsearch:{}", search_term);
-        let source = YoutubeDl::new(HTTP_CLIENT.clone(), search_url);
+        
+        // Create the source with default options
+        let source = YoutubeDl::new(HTTP_CLIENT.clone(), search_url.clone());
 
         // Create basic metadata
-        // In a real implementation, you would extract the actual video title and details
         let metadata = TrackMetadata {
             title: format!("Search result for: {}", search_term),
-            ..Default::default()
+            url: None,
+            duration: None,
+            thumbnail: None,
         };
 
         Ok((source.into(), metadata))
