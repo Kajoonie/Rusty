@@ -216,7 +216,6 @@ async fn play_next_track(
 
     // Set up a handler for when the track ends
     let ctx = ctx.clone();
-    let guild_id = guild_id;
     let call = call.clone();
 
     let _ = track_handle.add_event(

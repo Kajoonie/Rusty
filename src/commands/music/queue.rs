@@ -35,7 +35,7 @@ pub async fn queue(ctx: Context<'_>) -> CommandResult {
             description.push_str(&format!("{} `{}/{}`\n", progress, pos_str, dur_str));
         }
 
-        description.push_str("\n");
+        description.push('\n');
     } else {
         description.push_str("**🔇 Nothing playing**\n\n");
     }
