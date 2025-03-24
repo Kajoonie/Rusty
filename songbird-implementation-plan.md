@@ -53,9 +53,12 @@
    - Added proper error handling and user feedback
    - Maintains voice channel connection after stopping
 
-### Leave Command Implementation
+### Leave Command Implementation ✅
 - Disconnect from the voice channel
 - Clean up resources and clear the queue
+   - Implemented in `src/commands/music/leave.rs`
+   - Added proper error handling and user feedback
+   - Cleans up queue and voice connection
 
 ## 3. Enhanced Features
 
@@ -104,11 +107,11 @@
    - Implement basic audio source handling
    - Create the queue data structure
 
-2. **Second Phase: Basic Commands** (In Progress)
+2. **Second Phase: Basic Commands** ✅
    - Implement the play command with URL support ✅
    - Add basic queue management ✅
    - Implement skip command ✅
-   - Implement leave command
+   - Implement leave command ✅
 
 3. **Third Phase: Complete Core Functionality**
    - Add search functionality to play command
