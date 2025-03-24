@@ -117,7 +117,7 @@ pub async fn play(
         .map(format_duration)
         .unwrap_or_else(|| "Unknown duration".to_string());
 
-    let mut embed = if position <= 1 {
+    let mut embed = if position == 0 {
         // Playing now
         CreateEmbed::new()
             .title("🎵 Now Playing")
