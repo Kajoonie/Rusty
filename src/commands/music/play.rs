@@ -1,8 +1,8 @@
 use super::*;
 use crate::commands::music::utils::{
     music_manager::{MusicManager, MusicError},
-    audio_sources::AudioSource,
-    queue_manager::{QueueItem, add_to_queue, get_current_track, queue_length, get_next_track, set_current_track, get_queue},
+    audio_sources::{AudioSource, TrackMetadata},
+    queue_manager::{QueueItem, add_to_queue, get_current_track, queue_length, get_next_track, set_current_track, get_queue, clear_queue},
 };
 use poise::serenity_prelude::{self as serenity, CreateEmbed};
 use songbird::tracks::PlayMode;
@@ -176,13 +176,18 @@ async fn play_next_track(
     guild_id: serenity::GuildId,
     call: std::sync::Arc<serenity::prelude::Mutex<songbird::Call>>,
 ) -> CommandResult {
+    info!("Attempting to play next track for guild {}", guild_id);
+    
     // Get the next track from the queue
     let queue_item = match get_next_track(guild_id).await? {
         Some(item) => item,
-        None => return Ok(()),
+        None => {
+            info!("No more tracks in queue for guild {}", guild_id);
+            return Ok(());
+        }
     };
 
-    info!("Attempting to play track: {:?}", queue_item.metadata.title);
+    info!("Got next track from queue: {:?}", queue_item.metadata.title);
 
     // Get a lock on the call
     let mut handler = call.lock().await;
@@ -240,13 +245,21 @@ struct SongEndNotifier {
 
 #[async_trait]
 impl songbird::EventHandler for SongEndNotifier {
-    async fn act(&self, _ctx: &songbird::EventContext<'_>) -> Option<songbird::Event> {
-        // Check if the track ended naturally (not paused or stopped)
-        if let Ok(Some((track, _))) = get_current_track(self.guild_id).await {
-            let track_info = track.get_info().await;
-            if let Ok(track_state) = track_info {
-                if track_state.playing == PlayMode::End {
-                    let _ = play_next_track(&self.ctx, self.guild_id, self.call.clone()).await;
+    async fn act(&self, ctx: &songbird::EventContext<'_>) -> Option<songbird::Event> {
+        info!("Track end event triggered for guild {}", self.guild_id);
+        
+        // Check if this is a track end event
+        if let songbird::EventContext::Track(_track_list) = ctx {
+            // The TrackEvent::End is what we registered for, so we can just proceed
+            info!("Track ended naturally, proceeding to next track");
+            
+            // Attempt to play the next track without trying to get info from the ended track
+            match play_next_track(&self.ctx, self.guild_id, self.call.clone()).await {
+                Ok(_) => {
+                    info!("Successfully started playing next track");
+                }
+                Err(e) => {
+                    error!("Failed to play next track: {}", e);
                 }
             }
         }
