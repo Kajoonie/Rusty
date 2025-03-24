@@ -60,6 +60,9 @@
    - Added proper error handling and user feedback
    - Cleans up queue and voice connection
 
+### Queue Command Implementation ✅
+- Implement queue command with track information display
+
 ## 3. Enhanced Features
 
 ### Track Information Display
@@ -112,6 +115,7 @@
    - Add basic queue management ✅
    - Implement skip command ✅
    - Implement leave command ✅
+   - Implement queue command with track information display ✅
 
 3. **Third Phase: Complete Core Functionality**
    - Add search functionality to play command
