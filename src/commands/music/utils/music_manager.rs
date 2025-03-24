@@ -21,17 +21,11 @@ pub enum MusicError {
     #[error("Failed to get voice manager")]
     NoVoiceManager,
     
-    #[error("Failed to get guild voice state")]
-    NoVoiceState,
-    
     #[error("User is not in a voice channel")]
     UserNotInVoiceChannel,
     
     #[error("Audio source error: {0}")]
     AudioSourceError(String),
-    
-    #[error("Queue error: {0}")]
-    QueueError(String),
 
     #[error("Playback failed: {0}")]
     PlaybackFailed(String),

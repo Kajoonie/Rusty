@@ -12,7 +12,7 @@ pub async fn stop(ctx: Context<'_>) -> CommandResult {
     })?;
 
     // Get the current voice call
-    let call = match MusicManager::get_call(ctx.serenity_context(), guild_id).await {
+    match MusicManager::get_call(ctx.serenity_context(), guild_id).await {
         Ok(call) => call,
         Err(err) => {
             ctx.send(CreateReply::default()

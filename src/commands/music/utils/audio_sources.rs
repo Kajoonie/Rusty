@@ -1,10 +1,8 @@
 use songbird::input::{
-    cached::Compressed, 
     Input,
     YoutubeDl,
     HttpRequest,
 };
-use songbird::driver::Bitrate;
 use url::Url;
 use crate::commands::music::utils::music_manager::MusicError;
 use std::time::Duration;
@@ -135,7 +133,7 @@ impl AudioSource {
         
         let duration = metadata_json["duration"]
             .as_f64()
-            .map(|secs| Duration::from_secs_f64(secs));
+            .map(Duration::from_secs_f64);
         
         let thumbnail = metadata_json["thumbnail"]
             .as_str()
@@ -172,11 +170,4 @@ impl AudioSource {
         Ok((source.into(), metadata))
     }
 
-    /// Create a cached audio source to improve performance for frequently played tracks
-    pub async fn cached_source(input: Input) -> AudioSourceResult<Input> {
-        match Compressed::new(input, Bitrate::Auto).await {
-            Ok(cached) => Ok(cached.into()),
-            Err(e) => Err(MusicError::AudioSourceError(format!("Failed to create cached source: {}", e))),
-        }
-    }
 }
