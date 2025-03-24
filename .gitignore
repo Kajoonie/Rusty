@@ -1,4 +1,5 @@
 /target/
 /.idea/*
 /.cargo/*
-/Secrets.toml
+.env
+user_preferences.db

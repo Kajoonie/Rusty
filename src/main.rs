@@ -1,21 +1,30 @@
 use poise::serenity_prelude as serenity;
-use ::serenity::all::{ClientBuilder, GatewayIntents};
-use std::sync::Once;
+use dotenv::dotenv;
+use std::env;
+use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 mod commands;
+mod database;
+mod brave;
 
-use commands::general::{
-        coingecko::coin::*,
-        openai::{chat::*, imgen::*, question::*},
-        ping::*,
-    };
-use shuttle_serenity::ShuttleSerenity;
-use shuttle_runtime::SecretStore;
+use commands::{
+    ai::{
+        chat::*,
+        list_models::*,
+        set_model::*,
+        search::*,
+        get_model::*,
+    },
+    coingecko::coin::*,
+    general::ping::*,
+};
 
-type Data = ();
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 type CommandResult = Result<(), Error>;
+
+// Define the user data type we'll be using in our bot
+struct Data {} // User data, which is stored and accessible in all command invocations
 
 #[poise::command(slash_command, category = "General")]
 async fn help(
@@ -43,56 +52,120 @@ async fn register(ctx: Context<'_>) -> Result<(), Error> {
         .map_err(|e| e.into())
 }
 
-#[shuttle_runtime::main]
-async fn main(#[shuttle_runtime::Secrets] secret_store: SecretStore) -> ShuttleSerenity {
-    set_openai_api_key(&secret_store);
+#[tokio::main]
+async fn main() -> Result<(), Error> {
+    // Initialize logging with debug level for our crate
+    FmtSubscriber::builder()
+        .with_env_filter(
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| EnvFilter::new("rusty=debug,warn"))
+        )
+        .with_thread_ids(true)
+        .with_line_number(true)
+        .with_file(true)
+        .with_target(true)
+        .with_ansi(true)
+        .pretty()
+        .init();
 
-    let discord_token = secret_store
-        .get("DISCORD_TOKEN")
-        .expect("DISCORD_TOKEN secret not present");
+    dotenv().ok();
+
+    // Initialize the SQLite database
+    if let Err(e) = database::init_db() {
+        eprintln!("Failed to initialize database: {}", e);
+    }
+
+    let token = env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN");
+
+    let intents = serenity::GatewayIntents::non_privileged() | serenity::GatewayIntents::MESSAGE_CONTENT | serenity::GatewayIntents::GUILD_VOICE_STATES;
+
+    // Create a vector to hold our commands
+    let mut commands = vec![
+        // Default commands
+        register(),
+        help(),
+        // General commands
+        ping(),
+        // AI-centric commands
+        chat(),
+        get_model(),
+        list_models(),
+        search(),
+        set_model(),
+        // Coingecko commands
+        coin(),
+    ];
+
+    // Handle Music feature
+    #[cfg(feature = "music")]
+    {
+        use commands::music::{
+            play::*,
+            queue::*,
+            skip::*,
+            stop::*,
+            leave::*,
+            pause::*,
+            remove::*,
+        };
+
+        // Add music commands
+        commands.extend(vec![
+            play(),
+            pause(),
+            queue(),
+            remove(),
+            skip(),
+            stop(),
+            leave(),
+        ]);
+    }
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![
-                //helpers
-                register(),
-                help(),
-                //general
-                ping(),
-                question(),
-                imgen(),
-                chat(),
-                coin(),
-            ],
+            commands,
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {
             Box::pin(async move {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
-                Ok(())
+                Ok(Data {})
             })
-        })
-        .build();
+        });
 
-    let client = ClientBuilder::new(discord_token, GatewayIntents::non_privileged())
-        .framework(framework)
-        .await
-        .map_err(shuttle_runtime::CustomError::new)?;
-
-    Ok(client.into())
+    let framework_built = framework.build();
+    
+    // Create and run client
+    let client_builder = serenity::ClientBuilder::new(token, intents)
+        .framework(framework_built);
+    
+    #[cfg(feature = "music")]
+    return run_with_music(client_builder).await;
+    
+    #[cfg(not(feature = "music"))]
+    return run_without_music(client_builder).await;
 }
 
-static mut OPENAI_API_KEY: Option<String> = None;
-static OPENAI_API_KEY_INIT: Once = Once::new();
-
-fn set_openai_api_key(secret_store: &SecretStore) {
-    unsafe {
-        OPENAI_API_KEY_INIT.call_once(|| {
-            OPENAI_API_KEY = secret_store.get("OPENAI_API_KEY");
-        })
-    }
+// Only compiled when the music feature is enabled
+#[cfg(feature = "music")]
+async fn run_with_music(
+    client_builder: serenity::ClientBuilder
+) -> Result<(), Error> {
+    // Required for music functionality
+    use songbird::SerenityInit;
+    
+    let mut client = client_builder
+        .register_songbird()
+        .await?;
+        
+    client.start().await.map_err(Into::into)
 }
 
-fn openai_api_key() -> String {
-    unsafe { OPENAI_API_KEY.clone().unwrap() }
+// Only compiled when the music feature is disabled
+#[cfg(not(feature = "music"))]
+async fn run_without_music(
+    client_builder: serenity::ClientBuilder
+) -> Result<(), Error> {
+    let mut client = client_builder.await?;
+    client.start().await.map_err(Into::into)
 }
