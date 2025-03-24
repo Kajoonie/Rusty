@@ -1,7 +1,6 @@
 use poise::serenity_prelude as serenity;
 use dotenv::dotenv;
 use std::env;
-use songbird::SerenityInit;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 mod commands;
@@ -18,15 +17,6 @@ use commands::{
     },
     coingecko::coin::*,
     general::ping::*,
-    music::{
-        play::*,
-        queue::*,
-        skip::*,
-        stop::*,
-        leave::*,
-        pause::*,
-        remove::*,
-    },
 };
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -89,31 +79,51 @@ async fn main() -> Result<(), Error> {
 
     let intents = serenity::GatewayIntents::non_privileged() | serenity::GatewayIntents::MESSAGE_CONTENT | serenity::GatewayIntents::GUILD_VOICE_STATES;
 
+    // Create a vector to hold our commands
+    let mut commands = vec![
+        // Default commands
+        register(),
+        help(),
+        // General commands
+        ping(),
+        // AI-centric commands
+        chat(),
+        get_model(),
+        list_models(),
+        search(),
+        set_model(),
+        // Coingecko commands
+        coin(),
+    ];
+
+    // Handle Music feature
+    #[cfg(feature = "music")]
+    {
+        use commands::music::{
+            play::*,
+            queue::*,
+            skip::*,
+            stop::*,
+            leave::*,
+            pause::*,
+            remove::*,
+        };
+
+        // Add music commands
+        commands.extend(vec![
+            play(),
+            pause(),
+            queue(),
+            remove(),
+            skip(),
+            stop(),
+            leave(),
+        ]);
+    }
+
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![
-                // Default commands
-                register(),
-                help(),
-                // General commands
-                ping(),
-                // AI-centric commands
-                chat(),
-                get_model(),
-                list_models(),
-                search(),
-                set_model(),
-                // Coingecko commands
-                coin(),
-                // Music commands
-                play(),
-                pause(),
-                queue(),
-                remove(),
-                skip(),
-                stop(),
-                leave(),
-            ],
+            commands,
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {
@@ -123,11 +133,39 @@ async fn main() -> Result<(), Error> {
             })
         });
 
-    let mut client = serenity::ClientBuilder::new(token, intents)
-        .framework(framework.build())
-        // Register songbird with the client
+    let framework_built = framework.build();
+    
+    // Create and run client
+    let client_builder = serenity::ClientBuilder::new(token, intents)
+        .framework(framework_built);
+    
+    #[cfg(feature = "music")]
+    return run_with_music(client_builder).await;
+    
+    #[cfg(not(feature = "music"))]
+    return run_without_music(client_builder).await;
+}
+
+// Only compiled when the music feature is enabled
+#[cfg(feature = "music")]
+async fn run_with_music(
+    client_builder: serenity::ClientBuilder
+) -> Result<(), Error> {
+    // Required for music functionality
+    use songbird::SerenityInit;
+    
+    let mut client = client_builder
         .register_songbird()
         .await?;
+        
+    client.start().await.map_err(Into::into)
+}
 
+// Only compiled when the music feature is disabled
+#[cfg(not(feature = "music"))]
+async fn run_without_music(
+    client_builder: serenity::ClientBuilder
+) -> Result<(), Error> {
+    let mut client = client_builder.await?;
     client.start().await.map_err(Into::into)
 }

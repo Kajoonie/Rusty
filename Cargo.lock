@@ -2426,7 +2426,7 @@ checksum = "eded382c5f5f786b989652c49544c4877d9f015cc22e145a5ea8ea66c2921cd2"
 
 [[package]]
 name = "rusty"
-version = "1.0.1"
+version = "1.1.34"
 dependencies = [
  "async-trait",
  "base64 0.22.1",

@@ -1,6 +1,7 @@
 use super::*;
 
 /// Search the web with AI.
+#[cfg(feature = "brave_search")]
 #[poise::command(slash_command, category = "AI")]
 pub async fn search(
     ctx: Context<'_>,
@@ -41,4 +42,16 @@ pub async fn search(
             Ok(())
         }
     }
+}
+
+#[cfg(not(feature = "brave_search"))]
+#[poise::command(slash_command, category = "AI")]
+pub async fn search(
+    ctx: Context<'_>,
+    #[description = "Your search query"]
+    #[rest]
+    _query: String,
+) -> CommandResult {
+    ctx.say("The search command requires the 'brave_search' feature to be enabled. Please check the bot configuration.").await?;
+    Ok(())
 }
