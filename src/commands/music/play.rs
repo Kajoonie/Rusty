@@ -1,8 +1,8 @@
 use super::*;
 use crate::commands::music::utils::{
     music_manager::{MusicManager, MusicError},
-    audio_sources::{AudioSource, TrackMetadata},
-    queue_manager::{QueueItem, add_to_queue, get_current_track, queue_length, get_next_track, set_current_track, get_queue, clear_queue},
+    audio_sources::AudioSource,
+    queue_manager::{QueueItem, add_to_queue, get_current_track, queue_length, get_next_track, set_current_track, get_queue},
 };
 use poise::serenity_prelude::{self as serenity, CreateEmbed};
 use songbird::tracks::PlayMode;
@@ -177,7 +177,7 @@ async fn play_next_track(
     call: std::sync::Arc<serenity::prelude::Mutex<songbird::Call>>,
 ) -> CommandResult {
     info!("Attempting to play next track for guild {}", guild_id);
-    
+
     // Get the next track from the queue
     let queue_item = match get_next_track(guild_id).await? {
         Some(item) => item,
