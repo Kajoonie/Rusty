@@ -37,10 +37,13 @@
 - Set up automatic playback of the next song when current one ends
 - Add persistence to prevent queue loss on bot restart
 
-### Skip Command Implementation
+### Skip Command Implementation ✅
 - Skip the current track and play the next one in queue
 - Handle edge cases (empty queue, last track, etc.)
 - Add optional functionality to skip to a specific position in the queue
+   - Implemented in `src/commands/music/skip.rs`
+   - Added proper error handling and user feedback
+   - Set up automatic playback of next track after skipping
 
 ### Stop Command Implementation
 - Stop the current playback
@@ -93,19 +96,20 @@
 
 ## Implementation Steps in Order
 
-1. **First Phase: Core Infrastructure** 
+1. **First Phase: Core Infrastructure** ✅
    - Set up Songbird manager and voice connection handling
    - Implement basic audio source handling
    - Create the queue data structure
 
 2. **Second Phase: Basic Commands** (In Progress)
-   - Implement the play command with URL support 
-   - Add basic queue management 
+   - Implement the play command with URL support ✅
+   - Add basic queue management ✅
+   - Implement skip command ✅
    - Implement leave command
 
 3. **Third Phase: Complete Core Functionality**
    - Add search functionality to play command
-   - Implement skip and stop commands
+   - Implement stop command
    - Add track information display
 
 4. **Fourth Phase: Enhancements**
