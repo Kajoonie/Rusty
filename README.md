@@ -149,15 +149,6 @@ cargo run --release
 - `/stop`: Stop playback and clear queue
 - `/leave`: Disconnect from voice channel
 
-## Development
-
-The music system is currently under development. Planned implementations:
-
-1. YouTube-dl integration via Songbird
-2. Queue management system
-3. Audio playback controls
-4. Voice channel management
-
 ## Troubleshooting
 
 Common issues and solutions:
