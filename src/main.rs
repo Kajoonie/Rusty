@@ -24,6 +24,8 @@ use commands::{
         skip::*,
         stop::*,
         leave::*,
+        pause::*,
+        remove::*,
     },
 };
 
@@ -105,7 +107,9 @@ async fn main() -> Result<(), Error> {
                 coin(),
                 // Music commands
                 play(),
+                pause(),
                 queue(),
+                remove(),
                 skip(),
                 stop(),
                 leave(),
