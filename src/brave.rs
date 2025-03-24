@@ -1,8 +1,13 @@
+#[cfg(feature = "brave_search")]
 use reqwest::Client;
+#[cfg(feature = "brave_search")]
 use serde::Deserialize;
+#[cfg(feature = "brave_search")]
 use std::env;
+#[cfg(feature = "brave_search")]
 use thiserror::Error;
 
+#[cfg(feature = "brave_search")]
 #[derive(Error, Debug)]
 pub enum BraveSearchError {
     #[error("API communication failure: {0}")]
@@ -18,16 +23,19 @@ pub enum BraveSearchError {
     NoResults,
 }
 
+#[cfg(feature = "brave_search")]
 #[derive(Debug, Deserialize)]
 pub struct BraveSearchResponse {
     pub web: BraveWebResults,
 }
 
+#[cfg(feature = "brave_search")]
 #[derive(Debug, Deserialize)]
 pub struct BraveWebResults {
     pub results: Vec<BraveWebResult>,
 }
 
+#[cfg(feature = "brave_search")]
 #[derive(Debug, Deserialize)]
 pub struct BraveWebResult {
     pub title: String,
@@ -35,6 +43,17 @@ pub struct BraveWebResult {
     pub description: String,
 }
 
+#[cfg(not(feature = "brave_search"))]
+#[derive(Debug)]
+pub enum BraveSearchError {
+    FeatureNotEnabled,
+}
+
+#[cfg(not(feature = "brave_search"))]
+#[derive(Debug)]
+pub struct BraveWebResult {}
+
+#[cfg(feature = "brave_search")]
 pub async fn search(query: &str) -> Result<Vec<BraveWebResult>, BraveSearchError> {
     let api_key = env::var("BRAVE_API_KEY").map_err(|_| {
         BraveSearchError::MissingApiKey(
@@ -60,6 +79,12 @@ pub async fn search(query: &str) -> Result<Vec<BraveWebResult>, BraveSearchError
     Ok(search_response.web.results)
 }
 
+#[cfg(not(feature = "brave_search"))]
+pub async fn search(_query: &str) -> Result<Vec<BraveWebResult>, BraveSearchError> {
+    Err(BraveSearchError::FeatureNotEnabled)
+}
+
+#[cfg(feature = "brave_search")]
 pub fn format_search_results(results: &[BraveWebResult], query: &str) -> String {
     let mut formatted = format!("Search results for: \"{}\"\n\n", query);
 
@@ -74,4 +99,9 @@ pub fn format_search_results(results: &[BraveWebResult], query: &str) -> String 
     }
 
     formatted
+}
+
+#[cfg(not(feature = "brave_search"))]
+pub fn format_search_results(_results: &[BraveWebResult], _query: &str) -> String {
+    "The Brave Search feature is not enabled.".to_string()
 }
