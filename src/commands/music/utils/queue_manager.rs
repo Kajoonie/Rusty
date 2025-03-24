@@ -89,6 +89,22 @@ impl QueueManager {
             None => 0,
         }
     }
+
+    /// Remove a track at a specific position in the queue (0-based index)
+    /// Returns the removed track's metadata if successful
+    pub fn remove_track(&mut self, guild_id: GuildId, position: usize) -> Option<TrackMetadata> {
+        if let Some(queue) = self.queues.get_mut(&guild_id) {
+            if position < queue.len() {
+                // Remove and return the track at the specified position
+                let item = queue.remove(position)?;
+                Some(item.metadata)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
 }
 
 // Create a global queue manager wrapped in a mutex for thread safety
@@ -136,4 +152,9 @@ pub async fn get_current_track(guild_id: GuildId) -> QueueResult<Option<(TrackHa
 pub async fn queue_length(guild_id: GuildId) -> QueueResult<usize> {
     let manager = QUEUE_MANAGER.lock().await;
     Ok(manager.len(guild_id))
+}
+
+pub async fn remove_track(guild_id: GuildId, position: usize) -> QueueResult<Option<TrackMetadata>> {
+    let mut manager = QUEUE_MANAGER.lock().await;
+    Ok(manager.remove_track(guild_id, position))
 }
