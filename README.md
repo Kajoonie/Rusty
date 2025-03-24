@@ -79,10 +79,38 @@ A Discord bot built with Rust using the Poise framework, designed to enhance you
 
 3. Create a `.env` file in the root directory:
    ```env
+   # Required for basic bot functionality
    DISCORD_TOKEN=your_discord_bot_token
+   
+   # Required unless the `brave_search` feature is disabled
    BRAVE_API_KEY=your_brave_search_api_key
+   
+   # Required unless the `music` feature is disabled
    YOUTUBE_API_KEY=your_youtube_data_api_key
    ```
+
+## Feature Flags
+
+The bot supports feature flags to enable/disable specific functionality:
+
+- `brave_search`: Enables the `/search` command that uses the Brave Search API
+- `music`: Enables all music commands that use YouTube functionality
+
+By default, all features are enabled. To build with only specific features:
+
+```bash
+# Build with only search functionality
+cargo build --no-default-features --features "brave_search"
+
+# Build with only music functionality
+cargo build --no-default-features --features "music" 
+
+# Build with both features explicitly
+cargo build --features "brave_search music"
+
+# Build with no optional features
+cargo build --no-default-features
+```
 
 ## Building and Running
 

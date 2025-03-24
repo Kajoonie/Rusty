@@ -1,3 +1,4 @@
+#[cfg(feature = "music")]
 use songbird::input::{
     Input,
     YoutubeDl,
