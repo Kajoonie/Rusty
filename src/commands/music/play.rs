@@ -2,7 +2,7 @@ use super::*;
 use crate::commands::music::utils::{
     music_manager::{MusicManager, MusicError},
     audio_sources::AudioSource,
-    queue_manager::{QueueItem, add_to_queue, get_current_track, is_queue_empty, queue_length, get_next_track, set_current_track},
+    queue_manager::{QueueItem, add_to_queue, get_current_track, is_queue_empty, queue_length, get_next_track, set_current_track, get_queue},
 };
 use poise::serenity_prelude::{self as serenity, CreateEmbed};
 use songbird::tracks::PlayMode;
@@ -111,34 +111,58 @@ pub async fn play(
 
     // Send a success message
     let title = metadata.title.clone();
-    let url = metadata.url.clone().unwrap_or_else(|| "Unknown URL".to_string());
+    let url = metadata.url.clone().unwrap_or_else(|| "#".to_string());
     let duration_str = metadata.duration
         .map(format_duration)
         .unwrap_or_else(|| "Unknown duration".to_string());
 
-    let embed = if position <= 1 {
+    let mut embed = if position <= 1 {
         // Playing now
         CreateEmbed::new()
             .title("🎵 Now Playing")
             .description(format!("[{}]({})", title, url))
-            .field("Duration", duration_str, true)
+            .field("Duration", format!("`{}`", duration_str), true)
             .color(0x00ff00)
     } else {
         // Added to queue
         CreateEmbed::new()
             .title("🎵 Added to Queue")
             .description(format!("[{}]({})", title, url))
-            .field("Duration", duration_str, true)
-            .field("Position", position.to_string(), true)
+            .field("Duration", format!("`{}`", duration_str), true)
+            .field("Position", format!("`#{}`", position), true)
             .color(0x00ff00)
     };
 
     // Add thumbnail if available
-    let embed = if let Some(thumbnail) = metadata.thumbnail {
-        embed.thumbnail(thumbnail)
-    } else {
-        embed
-    };
+    if let Some(thumbnail) = metadata.thumbnail {
+        embed = embed.thumbnail(thumbnail);
+    }
+
+    // Add queue information
+    let queue_length = queue_length(guild_id).await?;
+    if queue_length > 1 {
+        let total_duration: Duration = get_queue(guild_id).await?
+            .iter()
+            .filter_map(|track| track.duration)
+            .sum();
+        
+        if total_duration.as_secs() > 0 {
+            embed = embed.field(
+                "Queue Info", 
+                format!("`{} tracks` • Total Length: `{}`", 
+                    queue_length,
+                    format_duration(total_duration)
+                ),
+                false
+            );
+        } else {
+            embed = embed.field(
+                "Queue Info",
+                format!("`{} tracks`", queue_length),
+                false
+            );
+        }
+    }
 
     ctx.send(CreateReply::default().embed(embed)).await?;
 
