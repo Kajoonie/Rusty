@@ -1,6 +1,7 @@
 use poise::serenity_prelude as serenity;
 use dotenv::dotenv;
 use std::env;
+use songbird::SerenityInit;
 
 mod commands;
 mod database;
@@ -105,6 +106,8 @@ async fn main() -> Result<(), Error> {
 
     let mut client = serenity::ClientBuilder::new(token, intents)
         .framework(framework.build())
+        // Register songbird with the client
+        .register_songbird()
         .await?;
 
     client.start().await.map_err(Into::into)
