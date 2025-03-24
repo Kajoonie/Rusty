@@ -153,18 +153,49 @@ impl AudioSource {
     /// Create an audio source from a search term using YouTube search
     pub async fn from_search(search_term: &str) -> AudioSourceResult<(Input, TrackMetadata)> {
         info!("Creating audio source from search term: {}", search_term);
-        // Use YoutubeDl with search prefix for YouTube search
         let search_url = format!("ytsearch:{}", search_term);
         
-        // Create the source with default options
-        let source = YoutubeDl::new(HTTP_CLIENT.clone(), search_url.clone());
+        // Get video metadata using yt-dlp
+        let metadata_output = Command::new("yt-dlp")
+            .args([
+                "-j",  // Output as JSON
+                "--no-playlist",  // Don't process playlists
+                &search_url
+            ])
+            .output()
+            .map_err(|e| MusicError::AudioSourceError(format!("Failed to get video metadata: {}", e)))?;
 
-        // Create basic metadata
+        let metadata_str = String::from_utf8_lossy(&metadata_output.stdout);
+        let metadata_json: serde_json::Value = serde_json::from_str(&metadata_str)
+            .map_err(|e| MusicError::AudioSourceError(format!("Failed to parse video metadata: {}", e)))?;
+        
+        // Create the source with default options
+        let source = YoutubeDl::new(HTTP_CLIENT.clone(), search_url);
+
+        // Extract metadata from JSON
+        let title = metadata_json["title"]
+            .as_str()
+            .unwrap_or("Unknown Title")
+            .to_string();
+        
+        let duration = metadata_json["duration"]
+            .as_f64()
+            .map(Duration::from_secs_f64);
+        
+        let thumbnail = metadata_json["thumbnail"]
+            .as_str()
+            .map(|s| s.to_string());
+
+        let video_url = metadata_json["webpage_url"]
+            .as_str()
+            .map(|s| s.to_string());
+
+        // Create metadata with extracted information
         let metadata = TrackMetadata {
-            title: format!("Search result for: {}", search_term),
-            url: None,
-            duration: None,
-            thumbnail: None,
+            title,
+            url: video_url,
+            duration,
+            thumbnail,
         };
 
         Ok((source.into(), metadata))
