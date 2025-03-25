@@ -35,7 +35,7 @@ version = "1.37.0"
 features = ["rt-multi-thread"]
 
 [dependencies.serenity]
-version = "0.12.1"
+version = "0.12.4"
 default-features = false
 features = ["client", "gateway", "rustls_backend", "model", "voice"]
 
