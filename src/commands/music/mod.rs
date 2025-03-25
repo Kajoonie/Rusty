@@ -1,17 +1,12 @@
-#[cfg(feature = "music")]
 pub(crate) mod play;
-#[cfg(feature = "music")]
-pub(crate) mod queue;
-#[cfg(feature = "music")]
-pub(crate) mod skip;
-#[cfg(feature = "music")]
 pub(crate) mod stop;
-#[cfg(feature = "music")]
-pub(crate) mod leave;
-#[cfg(feature = "music")]
-pub(crate) mod remove;
-#[cfg(feature = "music")]
 pub(crate) mod pause;
+pub(crate) mod resume;
+pub(crate) mod skip;
+pub(crate) mod queue;
+pub(crate) mod leave;
+pub(crate) mod remove;
+
 #[cfg(feature = "music")]
 pub(crate) mod utils;
 

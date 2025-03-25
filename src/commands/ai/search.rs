@@ -1,4 +1,5 @@
 use super::*;
+use utils::ollama_client::*;
 
 /// Search the web with AI.
 #[cfg(feature = "brave_search")]
@@ -12,8 +13,6 @@ pub async fn search(
     ctx.defer().await?;
 
     let author = ctx.author();
-    let author_str = format!("{}{}", author.name, author.id);
-    let model = database::get_user_model(&author.id.to_string());
 
     // Perform the search using Brave Search API
     match brave::search(&query).await {
@@ -26,11 +25,7 @@ pub async fn search(
                 formatted_results
             );
             
-            // Get conversation history
-            let chat_history = get_conversation_history(&author_str);
-            
-            // Send to LLM
-            let response = send_request_with_model(prompt, chat_history, &model).await?;
+            let response = OLLAMA_CLIENT.clone().chat(&author, &prompt).await?;
             
             let content = response.message.content;
             let full_message = format!("**Search Query**: {query}\n\n**AI Summary**: {content}");

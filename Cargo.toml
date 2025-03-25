@@ -61,3 +61,15 @@ features = ["bundled"]
 [dependencies.tracing-subscriber]
 version = "0.3"
 features = ["env-filter"]
+
+[dev-dependencies]
+mockall = "0.12.1"
+mock-it = "0.4.0"
+tokio-test = "0.4.3"
+test-case = "3.3.1"
+assert_matches = "1.5.0"
+pretty_assertions = "1.4.0"
+wiremock = "0.5.22"
+fake = { version = "2.9.2", features = ["derive"] }
+rstest = "0.18.2"
+async-trait = "0.1.88"
