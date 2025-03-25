@@ -60,10 +60,8 @@ impl AutoplayManager {
             Ok((guild_id, enabled))
         })?;
         
-        for row_result in rows {
-            if let Ok((guild_id, enabled)) = row_result {
-                self.autoplay_settings.insert(guild_id, enabled);
-            }
+        for (guild_id, enabled) in rows.flatten() {
+            self.autoplay_settings.insert(guild_id, enabled);
         }
         
         Ok(())
