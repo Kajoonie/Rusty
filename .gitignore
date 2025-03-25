@@ -3,3 +3,4 @@
 /.cargo/*
 .env
 user_preferences.db
+feature_ideas.md
