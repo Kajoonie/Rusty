@@ -29,6 +29,12 @@ pub enum MusicError {
 
     #[error("Playback failed: {0}")]
     PlaybackFailed(String),
+
+    #[error("External API error: {0}")]
+    ExternalApiError(String),
+
+    #[error("Configuration error: {0}")]
+    ConfigError(String),
 }
 
 /// Result type for music operations
