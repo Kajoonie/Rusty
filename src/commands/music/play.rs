@@ -1,15 +1,13 @@
 use super::*;
 use crate::commands::music::utils::{
     music_manager::{MusicManager, MusicError},
-    audio_sources::{AudioSource, TrackMetadata},
-    queue_manager::{QueueItem, add_to_queue, get_current_track, queue_length, get_next_track, set_current_track, get_queue},
-    autoplay_manager::is_autoplay_enabled,
+    audio_sources::AudioSource,
+    queue_manager::{QueueItem, add_to_queue, get_current_track, queue_length, get_queue},
+    event_handlers::play_next_track,
 };
-use poise::serenity_prelude::{self as serenity, CreateEmbed};
-use songbird::tracks::PlayMode;
+use poise::serenity_prelude::CreateEmbed;
 use std::time::Duration;
-use async_trait::async_trait;
-use tracing::{info, error, warn, debug};
+use tracing::{info, error, debug};
 
 /// Play a song from YouTube or a direct URL
 #[poise::command(slash_command, category = "Music")]
@@ -169,152 +167,6 @@ pub async fn play(
     ctx.send(CreateReply::default().embed(embed)).await?;
 
     Ok(())
-}
-
-/// Helper function to play the next track in the queue
-/// Returns true if a track was played, false if the queue was empty
-async fn play_next_track(
-    ctx: &serenity::Context,
-    guild_id: serenity::GuildId,
-    call: std::sync::Arc<serenity::prelude::Mutex<songbird::Call>>,
-) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
-    info!("Attempting to play next track for guild {}", guild_id);
-
-    // Get the next track from the queue
-    let queue_item = match get_next_track(guild_id).await? {
-        Some(item) => item,
-        None => {
-            info!("No more tracks in queue for guild {}", guild_id);
-            return Ok(false); // Indicate no track was played
-        }
-    };
-
-    info!("Got next track from queue: {:?}", queue_item.metadata.title);
-
-    // Get a lock on the call
-    let mut handler = call.lock().await;
-    info!("Obtained lock on voice handler, preparing to play audio");
-
-    // Play the track and verify it started successfully
-    debug!("Starting playback of audio input");
-    let track_handle = handler.play_input(queue_item.input);
-    info!("Track handle created, waiting to verify playback");
-    
-    // Wait a short moment and check if playback started
-    tokio::time::sleep(Duration::from_millis(500)).await;
-    
-    match track_handle.get_info().await {
-        Ok(info) => {
-            info!("Track info retrieved - State: {:?}, Position: {:?}", info.playing, info.position);
-            if info.playing == PlayMode::Play {
-                info!("Track playback started successfully");
-            } else {
-                warn!("Track not playing after initialization. PlayMode: {:?}", info.playing);
-                return Err(Box::new(MusicError::PlaybackFailed("Track failed to start playing".into())));
-            }
-        },
-        Err(e) => {
-            error!("Failed to get track info: {}", e);
-            return Err(Box::new(MusicError::PlaybackFailed(format!("Failed to verify playback: {}", e))));
-        }
-    }
-
-    // Store the current track
-    set_current_track(guild_id, track_handle.clone(), queue_item.metadata.clone()).await?;
-
-    // Set up a handler for when the track ends
-    let ctx = ctx.clone();
-    let call = call.clone();
-
-    let _ = track_handle.add_event(
-        songbird::Event::Track(songbird::TrackEvent::End),
-        SongEndNotifier {
-            ctx,
-            guild_id,
-            call,
-            track_metadata: queue_item.metadata.clone(),
-        },
-    );
-
-    Ok(true) // Indicate a track was played
-}
-
-/// Event handler for when a song ends
-struct SongEndNotifier {
-    ctx: serenity::Context,
-    guild_id: serenity::GuildId,
-    call: std::sync::Arc<serenity::prelude::Mutex<songbird::Call>>,
-    track_metadata: TrackMetadata,
-}
-
-#[async_trait]
-impl songbird::EventHandler for SongEndNotifier {
-    async fn act(&self, ctx: &songbird::EventContext<'_>) -> Option<songbird::Event> {
-        info!("Track end event triggered for guild {}", self.guild_id);
-        
-        // Check if this is a track end event
-        if let songbird::EventContext::Track(_track_list) = ctx {
-            info!("Track ended naturally, proceeding to next track");
-            
-            // Attempt to play the next track
-            match play_next_track(&self.ctx, self.guild_id, self.call.clone()).await {
-                Ok(track_played) => {
-                    if track_played {
-                        info!("Successfully started playing next track");
-                    } else {
-                        info!("Queue is empty, checking if autoplay is enabled");
-                        
-                        // If autoplay is enabled and there are no more tracks in the queue,
-                        // try to get a related song using the stored metadata
-                        if is_autoplay_enabled(self.guild_id).await {
-                            info!("Autoplay is enabled, attempting to find related songs");
-                            
-                            // Use the metadata we stored in the struct
-                            if let Some(url) = &self.track_metadata.url {
-                                match AudioSource::get_related_songs(url).await {
-                                    Ok(related_songs) => {
-                                        for song in related_songs {
-                                            if let Some(song_url) = &song.url {
-                                                info!("Adding related song to queue: {}", song.title);
-                                                
-                                                // Make sure the URL is a valid YouTube video URL
-                                                if !AudioSource::is_youtube_video_url(song_url) {
-                                                    info!("Skipping non-video URL: {}", song_url);
-                                                    continue;
-                                                }
-                                                
-                                                // Create audio source from the related song
-                                                if let Ok((source, _)) = AudioSource::from_youtube_url(song_url).await {
-                                                    let queue_item = QueueItem {
-                                                        input: source,
-                                                        metadata: song,
-                                                    };
-                                                    
-                                                    // Add to queue and start playing
-                                                    if (add_to_queue(self.guild_id, queue_item).await).is_ok() {
-                                                        let _ = play_next_track(&self.ctx, self.guild_id, self.call.clone()).await;
-                                                        break;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                    Err(e) => {
-                                        error!("Failed to get related songs: {}", e);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Err(e) => {
-                    error!("Failed to play next track: {}", e);
-                }
-            }
-        }
-
-        None
-    }
 }
 
 /// Format a duration into a human-readable string
