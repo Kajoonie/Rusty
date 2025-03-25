@@ -273,7 +273,7 @@ impl AudioSource {
                     // Extract duration if available
                     let duration = video.get("length")
                         .and_then(|d| d.as_str())
-                        .and_then(|d| Self::parse_duration_string(d));
+                        .and_then(Self::parse_duration_string);
                     
                     // Extract thumbnail if available
                     let thumbnail = video.get("thumbnail")
@@ -480,7 +480,7 @@ impl AudioSource {
             return Self::from_spotify_track(first_track).await;
         }
         
-        return Err(MusicError::AudioSourceError("Invalid Spotify URL".to_string()));
+        Err(MusicError::AudioSourceError("Invalid Spotify URL".to_string()))
     }
 
     /// Create an audio source from a Spotify track
@@ -529,7 +529,7 @@ mod tests {
         
         // Test HH:MM:SS format
         let duration = AudioSource::parse_duration_string("1:23:45").unwrap();
-        assert_eq!(duration.as_secs(), 1 * 3600 + 23 * 60 + 45);
+        assert_eq!(duration.as_secs(), 3600 + 23 * 60 + 45);
         
         // Test invalid format
         assert!(AudioSource::parse_duration_string("invalid").is_none());
