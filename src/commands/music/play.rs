@@ -1,13 +1,13 @@
 use super::*;
 use crate::commands::music::utils::{
-    music_manager::{MusicManager, MusicError},
     audio_sources::AudioSource,
-    queue_manager::{QueueItem, add_to_queue, get_current_track, queue_length, get_queue},
     event_handlers::play_next_track,
+    music_manager::{MusicError, MusicManager},
+    queue_manager::{add_to_queue, get_current_track, get_queue, queue_length, QueueItem},
 };
 use poise::serenity_prelude::CreateEmbed;
 use std::time::Duration;
-use tracing::{info, error, debug};
+use tracing::{debug, error, info};
 
 /// Play a song from YouTube or a direct URL
 #[poise::command(slash_command, category = "Music")]
@@ -22,19 +22,24 @@ pub async fn play(
 
     // Get the user's voice channel
     let user_id = ctx.author().id;
-    let channel_id = match MusicManager::get_user_voice_channel(ctx.serenity_context(), guild_id, user_id) {
-        Ok(channel_id) => channel_id,
-        Err(err) => {
-            ctx.send(CreateReply::default()
-                .embed(CreateEmbed::new()
-                    .title("❌ Error")
-                    .description(format!("You need to be in a voice channel: {}", err))
-                    .color(0xff0000))
-                .ephemeral(true))
+    let channel_id =
+        match MusicManager::get_user_voice_channel(ctx.serenity_context(), guild_id, user_id) {
+            Ok(channel_id) => channel_id,
+            Err(err) => {
+                ctx.send(
+                    CreateReply::default()
+                        .embed(
+                            CreateEmbed::new()
+                                .title("❌ Error")
+                                .description(format!("You need to be in a voice channel: {}", err))
+                                .color(0xff0000),
+                        )
+                        .ephemeral(true),
+                )
                 .await?;
-            return Ok(());
-        }
-    };
+                return Ok(());
+            }
+        };
 
     // Defer the response since audio processing might take time
     ctx.defer().await?;
@@ -47,12 +52,15 @@ pub async fn play(
             match MusicManager::join_channel(ctx.serenity_context(), guild_id, channel_id).await {
                 Ok(call) => call,
                 Err(err) => {
-                    ctx.send(CreateReply::default()
-                        .embed(CreateEmbed::new()
-                            .title("❌ Error")
-                            .description(format!("Failed to join voice channel: {}", err))
-                            .color(0xff0000)))
-                        .await?;
+                    ctx.send(
+                        CreateReply::default().embed(
+                            CreateEmbed::new()
+                                .title("❌ Error")
+                                .description(format!("Failed to join voice channel: {}", err))
+                                .color(0xff0000),
+                        ),
+                    )
+                    .await?;
                     return Ok(());
                 }
             }
@@ -66,15 +74,18 @@ pub async fn play(
             let (src, meta) = result;
             info!("Successfully created audio source. Metadata: {:?}", meta);
             (src, meta)
-        },
+        }
         Err(err) => {
             error!("Failed to create audio source: {}", err);
-            ctx.send(CreateReply::default()
-                .embed(CreateEmbed::new()
-                    .title("❌ Error")
-                    .description(format!("Failed to process audio source: {}", err))
-                    .color(0xff0000)))
-                .await?;
+            ctx.send(
+                CreateReply::default().embed(
+                    CreateEmbed::new()
+                        .title("❌ Error")
+                        .description(format!("Failed to process audio source: {}", err))
+                        .color(0xff0000),
+                ),
+            )
+            .await?;
             return Ok(());
         }
     };
@@ -92,12 +103,15 @@ pub async fn play(
 
     // Add the track to the queue
     if let Err(err) = add_to_queue(guild_id, queue_item).await {
-        ctx.send(CreateReply::default()
-            .embed(CreateEmbed::new()
-                .title("❌ Error")
-                .description(format!("Failed to add track to queue: {}", err))
-                .color(0xff0000)))
-            .await?;
+        ctx.send(
+            CreateReply::default().embed(
+                CreateEmbed::new()
+                    .title("❌ Error")
+                    .description(format!("Failed to add track to queue: {}", err))
+                    .color(0xff0000),
+            ),
+        )
+        .await?;
         return Ok(());
     }
 
@@ -112,7 +126,8 @@ pub async fn play(
     // Send a success message
     let title = metadata.title.clone();
     let url = metadata.url.clone().unwrap_or_else(|| "#".to_string());
-    let duration_str = metadata.duration
+    let duration_str = metadata
+        .duration
         .map(format_duration)
         .unwrap_or_else(|| "Unknown duration".to_string());
 
@@ -141,26 +156,24 @@ pub async fn play(
     // Add queue information
     let queue_length = queue_length(guild_id).await?;
     if queue_length > 1 {
-        let total_duration: Duration = get_queue(guild_id).await?
+        let total_duration: Duration = get_queue(guild_id)
+            .await?
             .iter()
             .filter_map(|track| track.duration)
             .sum();
-        
+
         if total_duration.as_secs() > 0 {
             embed = embed.field(
-                "Queue Info", 
-                format!("`{} tracks` • Total Length: `{}`", 
+                "Queue Info",
+                format!(
+                    "`{} tracks` • Total Length: `{}`",
                     queue_length,
                     format_duration(total_duration)
                 ),
-                false
+                false,
             );
         } else {
-            embed = embed.field(
-                "Queue Info",
-                format!("`{} tracks`", queue_length),
-                false
-            );
+            embed = embed.field("Queue Info", format!("`{} tracks`", queue_length), false);
         }
     }
 

@@ -1,11 +1,14 @@
 use crate::commands::music::utils::{
     audio_sources::{AudioSource, TrackMetadata},
-    queue_manager::{get_next_track, set_current_track, add_to_queue, is_manual_stop_flag_set, clear_manual_stop_flag},
     autoplay_manager::is_autoplay_enabled,
+    queue_manager::{
+        add_to_queue, clear_manual_stop_flag, get_next_track, is_manual_stop_flag_set,
+        set_current_track,
+    },
 };
-use poise::serenity_prelude as serenity;
 use async_trait::async_trait;
-use tracing::{info, error};
+use poise::serenity_prelude as serenity;
+use tracing::{error, info};
 
 /// Event handler for when a song ends
 pub struct SongEndNotifier {
@@ -19,11 +22,11 @@ pub struct SongEndNotifier {
 impl songbird::EventHandler for SongEndNotifier {
     async fn act(&self, ctx: &songbird::EventContext<'_>) -> Option<songbird::Event> {
         info!("Track end event triggered for guild {}", self.guild_id);
-        
+
         // Check if this is a track end event
         if let songbird::EventContext::Track(_track_list) = ctx {
             info!("Track ended naturally, proceeding to next track");
-            
+
             // Attempt to play the next track
             match play_next_track(&self.ctx, self.guild_id, self.call.clone()).await {
                 Ok(track_played) => {
@@ -31,41 +34,54 @@ impl songbird::EventHandler for SongEndNotifier {
                         info!("Successfully started playing next track");
                     } else {
                         info!("Queue is empty, checking if autoplay is enabled");
-                        
+
                         // Check if the manual stop flag is set
                         let manual_stop = is_manual_stop_flag_set(self.guild_id).await;
-                        
+
                         if manual_stop {
                             info!("Manual stop flag is set, skipping autoplay");
                             // Clear the flag for future playback
                             clear_manual_stop_flag(self.guild_id).await;
                         } else if is_autoplay_enabled(self.guild_id).await {
                             info!("Autoplay is enabled, attempting to find related songs");
-                            
+
                             // Use the metadata we stored in the struct
                             if let Some(url) = &self.track_metadata.url {
                                 match AudioSource::get_related_songs(url).await {
                                     Ok(related_songs) => {
                                         for song in related_songs {
                                             if let Some(song_url) = &song.url {
-                                                info!("Adding related song to queue: {}", song.title);
-                                                
+                                                info!(
+                                                    "Adding related song to queue: {}",
+                                                    song.title
+                                                );
+
                                                 // Make sure the URL is a valid YouTube video URL
                                                 if !AudioSource::is_youtube_video_url(song_url) {
                                                     info!("Skipping non-video URL: {}", song_url);
                                                     continue;
                                                 }
-                                                
+
                                                 // Create audio source from the related song
-                                                if let Ok((source, _)) = AudioSource::from_youtube_url(song_url).await {
+                                                if let Ok((source, _)) =
+                                                    AudioSource::from_youtube_url(song_url).await
+                                                {
                                                     let queue_item = QueueItem {
                                                         input: source,
                                                         metadata: song,
                                                     };
-                                                    
+
                                                     // Add to queue and start playing
-                                                    if (add_to_queue(self.guild_id, queue_item).await).is_ok() {
-                                                        let _ = play_next_track(&self.ctx, self.guild_id, self.call.clone()).await;
+                                                    if (add_to_queue(self.guild_id, queue_item)
+                                                        .await)
+                                                        .is_ok()
+                                                    {
+                                                        let _ = play_next_track(
+                                                            &self.ctx,
+                                                            self.guild_id,
+                                                            self.call.clone(),
+                                                        )
+                                                        .await;
                                                         break;
                                                     }
                                                 }
@@ -117,7 +133,7 @@ pub async fn play_next_track(
     // Play the track and verify it started successfully
     let track_handle = handler.play_input(queue_item.input);
     info!("Track handle created");
-    
+
     // Store the current track
     set_current_track(guild_id, track_handle.clone(), queue_item.metadata.clone()).await?;
 
@@ -139,4 +155,4 @@ pub async fn play_next_track(
 }
 
 /// Struct needed for QueueItem
-pub use crate::commands::music::utils::queue_manager::QueueItem; 
+pub use crate::commands::music::utils::queue_manager::QueueItem;

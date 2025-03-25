@@ -1,8 +1,8 @@
 use super::*;
 use crate::commands::music::utils::{
-    music_manager::{MusicManager, MusicError},
-    queue_manager::{get_current_track, get_next_track},
     event_handlers::play_next_track,
+    music_manager::{MusicError, MusicManager},
+    queue_manager::{get_current_track, get_next_track},
 };
 use std::time::Duration;
 
@@ -17,19 +17,22 @@ pub async fn skip(ctx: Context<'_>) -> CommandResult {
     let call = match MusicManager::get_call(ctx.serenity_context(), guild_id).await {
         Ok(call) => call,
         Err(err) => {
-            ctx.send(CreateReply::default()
-                .embed(CreateEmbed::new()
-                    .title("❌ Error")
-                    .description(format!("Not connected to a voice channel: {}", err))
-                    .color(0xff0000)))
-                .await?;
+            ctx.send(
+                CreateReply::default().embed(
+                    CreateEmbed::new()
+                        .title("❌ Error")
+                        .description(format!("Not connected to a voice channel: {}", err))
+                        .color(0xff0000),
+                ),
+            )
+            .await?;
             return Ok(());
         }
     };
 
     // Get the current track
     let current_track = get_current_track(guild_id).await?;
-    
+
     // Stop the current track if there is one
     if let Some((track, _)) = current_track {
         track.stop()?;
@@ -44,8 +47,14 @@ pub async fn skip(ctx: Context<'_>) -> CommandResult {
                 Some(queue_item) => {
                     // Send a success message
                     let title = queue_item.metadata.title.clone();
-                    let url = queue_item.metadata.url.clone().unwrap_or_else(|| "#".to_string());
-                    let duration_str = queue_item.metadata.duration
+                    let url = queue_item
+                        .metadata
+                        .url
+                        .clone()
+                        .unwrap_or_else(|| "#".to_string());
+                    let duration_str = queue_item
+                        .metadata
+                        .duration
                         .map(format_duration)
                         .unwrap_or_else(|| "Unknown duration".to_string());
 
@@ -61,35 +70,44 @@ pub async fn skip(ctx: Context<'_>) -> CommandResult {
                     }
 
                     ctx.send(CreateReply::default().embed(embed)).await?;
-                },
+                }
                 None => {
                     // This shouldn't happen since play_next_track returned true
-                    ctx.send(CreateReply::default()
-                        .embed(CreateEmbed::new()
-                            .title("❓ Unexpected Error")
-                            .description("Track was played but queue information is missing")
-                            .color(0xff0000)))
-                        .await?;
+                    ctx.send(
+                        CreateReply::default().embed(
+                            CreateEmbed::new()
+                                .title("❓ Unexpected Error")
+                                .description("Track was played but queue information is missing")
+                                .color(0xff0000),
+                        ),
+                    )
+                    .await?;
                 }
             }
-        },
+        }
         Ok(false) => {
             // Queue is empty
-            ctx.send(CreateReply::default()
-                .embed(CreateEmbed::new()
-                    .title("⏭️ Queue Empty")
-                    .description("No more tracks in the queue")
-                    .color(0xffaa00)))
-                .await?;
-        },
+            ctx.send(
+                CreateReply::default().embed(
+                    CreateEmbed::new()
+                        .title("⏭️ Queue Empty")
+                        .description("No more tracks in the queue")
+                        .color(0xffaa00),
+                ),
+            )
+            .await?;
+        }
         Err(err) => {
             // Error playing next track
-            ctx.send(CreateReply::default()
-                .embed(CreateEmbed::new()
-                    .title("❌ Error")
-                    .description(format!("Failed to play next track: {}", err))
-                    .color(0xff0000)))
-                .await?;
+            ctx.send(
+                CreateReply::default().embed(
+                    CreateEmbed::new()
+                        .title("❌ Error")
+                        .description(format!("Failed to play next track: {}", err))
+                        .color(0xff0000),
+                ),
+            )
+            .await?;
         }
     }
 

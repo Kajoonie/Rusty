@@ -6,7 +6,7 @@ use tracing::{debug, info};
 pub async fn get_model(ctx: Context<'_>) -> CommandResult {
     let author = ctx.author();
     debug!("Get model request received from user {}", author.name);
-    
+
     ctx.defer().await?;
 
     info!("Fetching model preference for user {}", author.name);
@@ -14,6 +14,7 @@ pub async fn get_model(ctx: Context<'_>) -> CommandResult {
     debug!("Retrieved model '{}' for user {}", model, author.name);
 
     info!("Sending model information to {}", author.name);
-    ctx.say(format!("Your currently active model is: **{}**", model)).await?;
+    ctx.say(format!("Your currently active model is: **{}**", model))
+        .await?;
     Ok(())
 }

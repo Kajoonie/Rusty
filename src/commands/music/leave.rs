@@ -1,6 +1,6 @@
 use super::*;
 use crate::commands::music::utils::{
-    music_manager::{MusicManager, MusicError},
+    music_manager::{MusicError, MusicManager},
     queue_manager::clear_queue,
 };
 
@@ -18,21 +18,27 @@ pub async fn leave(ctx: Context<'_>) -> CommandResult {
             clear_queue(guild_id).await?;
 
             // Send success message
-            ctx.send(CreateReply::default()
-                .embed(CreateEmbed::new()
-                    .title("👋 Left Voice Channel")
-                    .description("Successfully disconnected and cleared the queue")
-                    .color(0x00ff00)))
-                .await?;
+            ctx.send(
+                CreateReply::default().embed(
+                    CreateEmbed::new()
+                        .title("👋 Left Voice Channel")
+                        .description("Successfully disconnected and cleared the queue")
+                        .color(0x00ff00),
+                ),
+            )
+            .await?;
         }
         Err(err) => {
             // Send error message
-            ctx.send(CreateReply::default()
-                .embed(CreateEmbed::new()
-                    .title("❌ Error")
-                    .description(format!("Failed to leave voice channel: {}", err))
-                    .color(0xff0000)))
-                .await?;
+            ctx.send(
+                CreateReply::default().embed(
+                    CreateEmbed::new()
+                        .title("❌ Error")
+                        .description(format!("Failed to leave voice channel: {}", err))
+                        .color(0xff0000),
+                ),
+            )
+            .await?;
         }
     }
 
