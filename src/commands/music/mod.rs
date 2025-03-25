@@ -1,7 +1,6 @@
 pub(crate) mod play;
 pub(crate) mod stop;
 pub(crate) mod pause;
-pub(crate) mod resume;
 pub(crate) mod skip;
 pub(crate) mod queue;
 pub(crate) mod leave;
