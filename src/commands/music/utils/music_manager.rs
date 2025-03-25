@@ -27,9 +27,6 @@ pub enum MusicError {
     #[error("Audio source error: {0}")]
     AudioSourceError(String),
 
-    #[error("Playback failed: {0}")]
-    PlaybackFailed(String),
-
     #[error("External API error: {0}")]
     ExternalApiError(String),
 

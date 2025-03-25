@@ -14,11 +14,9 @@ pub type SpotifyResult<T> = Result<T, MusicError>;
 /// Data structure for Spotify track information
 #[derive(Clone, Debug)]
 pub struct SpotifyTrack {
-    pub id: String,
     pub name: String,
     pub artists: Vec<String>,
     pub duration_ms: u64,
-    pub album_name: String,
     pub album_image: Option<String>,
     pub url: String,
 }
@@ -34,15 +32,6 @@ struct SpotifyToken {
 }
 
 impl SpotifyToken {
-    fn new(access_token: String, token_type: String, expires_in: u64) -> Self {
-        Self {
-            access_token,
-            token_type,
-            expires_in,
-            created_at: Instant::now(),
-        }
-    }
-
     fn is_expired(&self) -> bool {
         let expiry = Duration::from_secs(self.expires_in);
         let elapsed = self.created_at.elapsed();
@@ -179,10 +168,6 @@ impl SpotifyApi {
         let duration_ms = track_data["duration_ms"].as_u64()
             .unwrap_or(0);
         
-        let album_name = track_data["album"]["name"].as_str()
-            .unwrap_or("Unknown Album")
-            .to_string();
-        
         let album_image = track_data["album"]["images"].as_array()
             .and_then(|imgs| imgs.first())
             .and_then(|img| img["url"].as_str())
@@ -191,11 +176,9 @@ impl SpotifyApi {
         let url = format!("https://open.spotify.com/track/{}", id);
         
         Ok(SpotifyTrack {
-            id,
             name,
             artists,
             duration_ms,
-            album_name,
             album_image,
             url,
         })
@@ -246,10 +229,6 @@ impl SpotifyApi {
                         let duration_ms = track["duration_ms"].as_u64()
                             .unwrap_or(0);
                         
-                        let album_name = track["album"]["name"].as_str()
-                            .unwrap_or("Unknown Album")
-                            .to_string();
-                        
                         let album_image = track["album"]["images"].as_array()
                             .and_then(|imgs| imgs.first())
                             .and_then(|img| img["url"].as_str())
@@ -258,11 +237,9 @@ impl SpotifyApi {
                         let url = format!("https://open.spotify.com/track/{}", id);
                         
                         tracks.push(SpotifyTrack {
-                            id,
                             name,
                             artists,
                             duration_ms,
-                            album_name,
                             album_image,
                             url,
                         });
@@ -302,10 +279,6 @@ impl SpotifyApi {
         
         let album_data: serde_json::Value = album_response.json().await
             .map_err(|e| MusicError::ExternalApiError(format!("Failed to parse Spotify album data: {}", e)))?;
-        
-        let album_name = album_data["name"].as_str()
-            .unwrap_or("Unknown Album")
-            .to_string();
         
         let album_image = album_data["images"].as_array()
             .and_then(|imgs| imgs.first())
@@ -356,11 +329,9 @@ impl SpotifyApi {
                     let url = format!("https://open.spotify.com/track/{}", id);
                     
                     tracks.push(SpotifyTrack {
-                        id,
                         name,
                         artists,
                         duration_ms,
-                        album_name: album_name.clone(),
                         album_image: album_image.clone(),
                         url,
                     });
