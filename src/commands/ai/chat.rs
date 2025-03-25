@@ -1,5 +1,6 @@
 use super::*;
 use utils::ollama_client::*;
+use tracing::{debug, info, error};
 
 /// Chat with the AI
 #[poise::command(slash_command, category = "AI")]
@@ -9,15 +10,26 @@ pub async fn chat(
     #[rest]
     message: String,
 ) -> CommandResult {
+    let author = ctx.author();
+    debug!("Chat request received from user {}", author.name);
+    
     ctx.defer().await?;
 
-    let author = ctx.author();
+    info!("Processing chat request from {}: {}", author.name, message);
 
-    let response = OLLAMA_CLIENT.clone().chat(author, &message).await?;
-
-    let content = response.message.content;
-    
-    let full_message = format!("**{}**: {message}\n\n**AI**: {content}", author.name);
-
-    chunk_response(ctx, full_message).await
+    match OLLAMA_CLIENT.clone().chat(author, &message).await {
+        Ok(response) => {
+            let content = response.message.content;
+            debug!("Received AI response for {}", author.name);
+            
+            let full_message = format!("**{}**: {message}\n\n**AI**: {content}", author.name);
+            info!("Sending formatted response to {}", author.name);
+            
+            chunk_response(ctx, full_message).await
+        }
+        Err(e) => {
+            error!("Failed to get AI response for {}: {}", author.name, e);
+            Err(e.into())
+        }
+    }
 }
