@@ -85,8 +85,8 @@ A Discord bot built with Rust using the Poise framework, designed to enhance you
    # Required unless the `brave_search` feature is disabled
    BRAVE_API_KEY=your_brave_search_api_key
    
-   # Required unless the `music` feature is disabled
-   YOUTUBE_API_KEY=your_youtube_data_api_key
+   # Required for the 'autoplay' function of the `music` feature
+   SERP_API_KEY=your-serp-api-key
    ```
 
 ## Feature Flags
@@ -140,14 +140,17 @@ cargo run --release
 - `/get_model`: Check which AI model you're currently using
 
 ### Music Commands
-- `/play <url or search query>`: Play audio from YouTube
+- `/play <URL or search term>`: Play a song from YouTube, Spotify, or a direct URL
   ```bash
   /play https://www.youtube.com/watch?v=dQw4w9WgXcQ
   ```
-- `/queue`: Display current queue
-- `/skip`: Skip current track
-- `/stop`: Stop playback and clear queue
-- `/leave`: Disconnect from voice channel
+- `/skip`: Skip the current song
+- `/stop`: Stop playing and clear the queue
+- `/pause`: Pause/resume the current song
+- `/queue`: View the current music queue
+- `/leave`: Disconnect from the voice channel
+- `/remove <position>`: Remove a song from the queue
+- `/autoplay [enabled]`: Toggle or set autoplay feature
 
 ## Troubleshooting
 
@@ -171,3 +174,44 @@ Common issues and solutions:
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## New Features
+
+### Autoplay
+When enabled, the bot will automatically play related songs when the queue is empty. This feature uses YouTube's recommendations to find related songs.
+
+### Spotify Integration
+The bot can now play songs from Spotify URLs, including:
+- Single tracks
+- Playlists (queues all tracks)
+- Albums (queues all tracks)
+
+## Setup Instructions
+
+### Basic Setup
+1. Ensure your bot has the necessary permissions:
+   - View Channels
+   - Send Messages
+   - Connect to Voice Channel
+   - Speak in Voice Channel
+
+### Spotify Integration Setup
+To use Spotify integration, you need to set up a Spotify Developer application:
+
+1. Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
+2. Create a new application
+3. Get your Client ID and Client Secret
+4. Set these as environment variables:
+   ```
+   SPOTIFY_CLIENT_ID=your_client_id
+   SPOTIFY_CLIENT_SECRET=your_client_secret
+   ```
+
+## Requirements
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) must be installed and available in PATH
+- FFmpeg must be installed and available in PATH
+
+## Development Notes
+- The autoplay feature works by fetching related songs from YouTube when the queue is empty
+- Spotify integration uses the Spotify API to fetch track information, then searches for the track on YouTube
+- For playlists and albums, the first track is returned immediately, and the rest are processed and queued in the background

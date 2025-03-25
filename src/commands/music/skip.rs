@@ -1,7 +1,7 @@
 use super::*;
 use crate::commands::music::utils::{
     music_manager::{MusicManager, MusicError},
-    queue_manager::{get_current_track, get_next_track, set_current_track, queue_length, get_queue},
+    queue_manager::{get_current_track, get_next_track, set_current_track},
 };
 use std::time::Duration;
 
@@ -56,66 +56,37 @@ pub async fn skip(ctx: Context<'_>) -> CommandResult {
     set_current_track(guild_id, track_handle.clone(), next_track.metadata.clone()).await?;
 
     // Set up a handler for when the track ends
-    let serenity_ctx = ctx.serenity_context().clone();
-    let call = call.clone();
+    let ctx_ref = ctx.serenity_context().clone();
+    let call_ref = call.clone();
 
     let _ = track_handle.add_event(
         songbird::Event::Track(songbird::TrackEvent::End),
         SongEndNotifier {
-            ctx: serenity_ctx,
+            ctx: ctx_ref,
             guild_id,
-            call,
+            call: call_ref,
         },
     );
 
-    // Send success message with the new track's info
-    let mut embed = CreateEmbed::new()
-        .title("⏭️ Skipped Track")
-        .description(format!("**Now Playing:** [{}]({})",
-            next_track.metadata.title,
-            next_track.metadata.url.as_deref().unwrap_or("#")
-        ))
-        .color(0x00ff00);
+    // Send a success message
+    let title = next_track.metadata.title.clone();
+    let url = next_track.metadata.url.clone().unwrap_or_else(|| "#".to_string());
+    let duration_str = next_track.metadata.duration
+        .map(format_duration)
+        .unwrap_or_else(|| "Unknown duration".to_string());
 
-    // Add duration if available
-    if let Some(duration) = next_track.metadata.duration {
-        embed = embed.field("Duration", format!("`{}`", format_duration(duration)), true);
-    }
+    let mut embed = CreateEmbed::new()
+        .title("⏭️ Now Playing")
+        .description(format!("[{}]({})", title, url))
+        .field("Duration", format!("`{}`", duration_str), true)
+        .color(0x00ff00);
 
     // Add thumbnail if available
     if let Some(thumbnail) = next_track.metadata.thumbnail {
         embed = embed.thumbnail(thumbnail);
     }
 
-    // Add remaining queue info
-    let queue_length = queue_length(guild_id).await?;
-    if queue_length > 0 {
-        let queue = get_queue(guild_id).await?;
-        let total_duration: Duration = queue.iter()
-            .filter_map(|track| track.duration)
-            .sum();
-        
-        if total_duration.as_secs() > 0 {
-            embed = embed.field(
-                "Up Next",
-                format!("`{} tracks` • Total Length: `{}`",
-                    queue_length,
-                    format_duration(total_duration)
-                ),
-                true
-            );
-        } else {
-            embed = embed.field(
-                "Up Next",
-                format!("`{} tracks`", queue_length),
-                true
-            );
-        }
-    }
-
-    ctx.send(CreateReply::default()
-        .embed(embed))
-        .await?;
+    ctx.send(CreateReply::default().embed(embed)).await?;
 
     Ok(())
 }
@@ -144,15 +115,16 @@ impl songbird::EventHandler for SongEndNotifier {
 }
 
 /// Helper function to play the next track in the queue
+/// Returns true if a track was played, false if the queue was empty
 async fn play_next_track(
     ctx: &serenity::Context,
     guild_id: serenity::GuildId,
     call: std::sync::Arc<serenity::prelude::Mutex<songbird::Call>>,
-) -> CommandResult {
+) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
     // Get the next track from the queue
     let queue_item = match get_next_track(guild_id).await? {
         Some(item) => item,
-        None => return Ok(()),
+        None => return Ok(false),
     };
 
     // Get a lock on the call
@@ -177,11 +149,11 @@ async fn play_next_track(
         },
     );
 
-    Ok(())
+    Ok(true)
 }
 
 /// Format a duration into a human-readable string
-fn format_duration(duration: std::time::Duration) -> String {
+fn format_duration(duration: Duration) -> String {
     let seconds = duration.as_secs();
     let minutes = seconds / 60;
     let seconds = seconds % 60;

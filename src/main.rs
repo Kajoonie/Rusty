@@ -100,6 +100,7 @@ async fn main() -> Result<(), Error> {
     #[cfg(feature = "music")]
     {
         use commands::music::{
+            autoplay::*,
             play::*,
             queue::*,
             skip::*,
@@ -111,6 +112,7 @@ async fn main() -> Result<(), Error> {
 
         // Add music commands
         commands.extend(vec![
+            autoplay(),
             play(),
             pause(),
             queue(),
