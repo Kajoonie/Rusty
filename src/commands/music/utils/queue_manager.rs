@@ -5,6 +5,7 @@ use songbird::input::Input;
 use songbird::tracks::TrackHandle;
 use serenity::model::id::GuildId;
 use std::collections::HashMap;
+use lazy_static::lazy_static;
 
 use super::audio_sources::TrackMetadata;
 use super::music_manager::MusicError;
@@ -108,8 +109,10 @@ impl QueueManager {
 }
 
 // Create a global queue manager wrapped in a mutex for thread safety
-lazy_static::lazy_static! {
+lazy_static! {
     pub static ref QUEUE_MANAGER: Arc<Mutex<QueueManager>> = Arc::new(Mutex::new(QueueManager::new()));
+    // Track whether a guild has been manually stopped
+    static ref MANUAL_STOP_FLAGS: Mutex<HashMap<GuildId, bool>> = Mutex::new(HashMap::new());
 }
 
 /// Helper functions for working with the global queue manager
@@ -157,4 +160,22 @@ pub async fn queue_length(guild_id: GuildId) -> QueueResult<usize> {
 pub async fn remove_track(guild_id: GuildId, position: usize) -> QueueResult<Option<TrackMetadata>> {
     let mut manager = QUEUE_MANAGER.lock().await;
     Ok(manager.remove_track(guild_id, position))
+}
+
+/// Set the manual stop flag for a guild
+pub async fn set_manual_stop_flag(guild_id: GuildId, value: bool) {
+    let mut flags = MANUAL_STOP_FLAGS.lock().await;
+    flags.insert(guild_id, value);
+}
+
+/// Check if manual stop flag is set
+pub async fn is_manual_stop_flag_set(guild_id: GuildId) -> bool {
+    let flags = MANUAL_STOP_FLAGS.lock().await;
+    *flags.get(&guild_id).unwrap_or(&false)
+}
+
+/// Clear the manual stop flag for a guild
+pub async fn clear_manual_stop_flag(guild_id: GuildId) {
+    let mut flags = MANUAL_STOP_FLAGS.lock().await;
+    flags.remove(&guild_id);
 }

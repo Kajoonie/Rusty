@@ -1,6 +1,6 @@
 use crate::commands::music::utils::{
     audio_sources::{AudioSource, TrackMetadata},
-    queue_manager::{get_next_track, set_current_track, add_to_queue},
+    queue_manager::{get_next_track, set_current_track, add_to_queue, is_manual_stop_flag_set, clear_manual_stop_flag},
     autoplay_manager::is_autoplay_enabled,
 };
 use poise::serenity_prelude as serenity;
@@ -32,9 +32,14 @@ impl songbird::EventHandler for SongEndNotifier {
                     } else {
                         info!("Queue is empty, checking if autoplay is enabled");
                         
-                        // If autoplay is enabled and there are no more tracks in the queue,
-                        // try to get a related song using the stored metadata
-                        if is_autoplay_enabled(self.guild_id).await {
+                        // Check if the manual stop flag is set
+                        let manual_stop = is_manual_stop_flag_set(self.guild_id).await;
+                        
+                        if manual_stop {
+                            info!("Manual stop flag is set, skipping autoplay");
+                            // Clear the flag for future playback
+                            clear_manual_stop_flag(self.guild_id).await;
+                        } else if is_autoplay_enabled(self.guild_id).await {
                             info!("Autoplay is enabled, attempting to find related songs");
                             
                             // Use the metadata we stored in the struct

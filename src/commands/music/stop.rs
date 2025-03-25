@@ -1,8 +1,8 @@
 use super::*;
 use crate::commands::music::utils::{
     music_manager::{MusicManager, MusicError},
-    queue_manager::{get_current_track, clear_queue},
-    autoplay_manager::{is_autoplay_enabled, set_autoplay},
+    queue_manager::{get_current_track, clear_queue, set_manual_stop_flag},
+    autoplay_manager::is_autoplay_enabled,
 };
 
 /// Stop the music and clear the queue
@@ -26,13 +26,11 @@ pub async fn stop(ctx: Context<'_>) -> CommandResult {
         }
     };
 
-    // Check if autoplay was enabled and store that information
-    let autoplay_was_enabled = is_autoplay_enabled(guild_id).await;
+    // Check if autoplay is enabled to show in the message
+    let autoplay_is_enabled = is_autoplay_enabled(guild_id).await;
     
-    // If autoplay was enabled, temporarily disable it
-    if autoplay_was_enabled {
-        set_autoplay(guild_id, false).await;
-    }
+    // Set the manual stop flag to prevent autoplay from triggering
+    set_manual_stop_flag(guild_id, true).await;
 
     // Get the current track
     let current_track = get_current_track(guild_id).await?;
@@ -51,9 +49,9 @@ pub async fn stop(ctx: Context<'_>) -> CommandResult {
         .description("Playback stopped and queue cleared")
         .color(0x00ff00);
         
-    // Add information about autoplay if it was enabled
-    if autoplay_was_enabled {
-        embed = embed.field("Autoplay", "Autoplay was temporarily disabled", false);
+    // Add information about autoplay if it's enabled
+    if autoplay_is_enabled {
+        embed = embed.field("Autoplay", "Autoplay is paused and will resume on next play", false);
     }
 
     ctx.send(CreateReply::default().embed(embed)).await?;
