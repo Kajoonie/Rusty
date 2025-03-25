@@ -1,11 +1,11 @@
+use lazy_static::lazy_static;
+use serenity::model::id::GuildId;
+use songbird::input::Input;
+use songbird::tracks::TrackHandle;
+use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use songbird::input::Input;
-use songbird::tracks::TrackHandle;
-use serenity::model::id::GuildId;
-use std::collections::HashMap;
-use lazy_static::lazy_static;
 
 use super::audio_sources::TrackMetadata;
 use super::music_manager::MusicError;
@@ -47,7 +47,7 @@ impl QueueManager {
     pub fn next(&mut self, guild_id: GuildId) -> Option<QueueItem> {
         // Remove the current track handle if it exists
         self.current_tracks.remove(&guild_id);
-        
+
         // Get the queue for this guild
         if let Some(queue) = self.queues.get_mut(&guild_id) {
             queue.pop_front()
@@ -74,7 +74,12 @@ impl QueueManager {
     }
 
     /// Set the current track for a guild
-    pub fn set_current_track(&mut self, guild_id: GuildId, track: TrackHandle, metadata: TrackMetadata) {
+    pub fn set_current_track(
+        &mut self,
+        guild_id: GuildId,
+        track: TrackHandle,
+        metadata: TrackMetadata,
+    ) {
         self.current_tracks.insert(guild_id, (track, metadata));
     }
 
@@ -141,13 +146,19 @@ pub async fn get_queue(guild_id: GuildId) -> QueueResult<Vec<TrackMetadata>> {
     Ok(queue)
 }
 
-pub async fn set_current_track(guild_id: GuildId, track: TrackHandle, metadata: TrackMetadata) -> QueueResult<()> {
+pub async fn set_current_track(
+    guild_id: GuildId,
+    track: TrackHandle,
+    metadata: TrackMetadata,
+) -> QueueResult<()> {
     let mut manager = QUEUE_MANAGER.lock().await;
     manager.set_current_track(guild_id, track, metadata);
     Ok(())
 }
 
-pub async fn get_current_track(guild_id: GuildId) -> QueueResult<Option<(TrackHandle, TrackMetadata)>> {
+pub async fn get_current_track(
+    guild_id: GuildId,
+) -> QueueResult<Option<(TrackHandle, TrackMetadata)>> {
     let manager = QUEUE_MANAGER.lock().await;
     Ok(manager.get_current_track(guild_id).cloned())
 }
@@ -157,7 +168,10 @@ pub async fn queue_length(guild_id: GuildId) -> QueueResult<usize> {
     Ok(manager.len(guild_id))
 }
 
-pub async fn remove_track(guild_id: GuildId, position: usize) -> QueueResult<Option<TrackMetadata>> {
+pub async fn remove_track(
+    guild_id: GuildId,
+    position: usize,
+) -> QueueResult<Option<TrackMetadata>> {
     let mut manager = QUEUE_MANAGER.lock().await;
     Ok(manager.remove_track(guild_id, position))
 }

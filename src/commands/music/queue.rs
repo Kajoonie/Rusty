@@ -1,12 +1,13 @@
 use super::*;
-use crate::commands::music::utils::queue_manager::{get_current_track, get_queue};
 use crate::commands::music::utils::music_manager::MusicError;
+use crate::commands::music::utils::queue_manager::{get_current_track, get_queue};
 use std::time::Duration;
 
 /// View the current music queue
 #[poise::command(slash_command, category = "Music")]
 pub async fn queue(ctx: Context<'_>) -> CommandResult {
-    let guild_id = ctx.guild_id()
+    let guild_id = ctx
+        .guild_id()
         .ok_or_else(|| Box::new(MusicError::NotInGuild))?;
 
     // Get the current track and queue
@@ -20,9 +21,10 @@ pub async fn queue(ctx: Context<'_>) -> CommandResult {
     if let Some((track_handle, metadata)) = &current_track {
         let track_info = track_handle.get_info().await.ok();
         let position = track_info.as_ref().map(|info| info.position);
-        
+
         description.push_str("**🎵 Now Playing**\n");
-        description.push_str(&format!("**[{}]({})**\n", 
+        description.push_str(&format!(
+            "**[{}]({})**\n",
             metadata.title,
             metadata.url.as_deref().unwrap_or("#")
         ));
@@ -52,8 +54,9 @@ pub async fn queue(ctx: Context<'_>) -> CommandResult {
             } else {
                 "•".to_string()
             };
-            
-            description.push_str(&format!("{} [{}]({})", 
+
+            description.push_str(&format!(
+                "{} [{}]({})",
                 number,
                 track.title,
                 track.url.as_deref().unwrap_or("#")
@@ -66,11 +69,12 @@ pub async fn queue(ctx: Context<'_>) -> CommandResult {
         }
 
         // Add total duration if available
-        let total_duration: Duration = queue.iter()
-            .filter_map(|track| track.duration)
-            .sum();
+        let total_duration: Duration = queue.iter().filter_map(|track| track.duration).sum();
         if total_duration.as_secs() > 0 {
-            description.push_str(&format!("\n**⏱️ Total Duration:** `{}`", format_duration(total_duration)));
+            description.push_str(&format!(
+                "\n**⏱️ Total Duration:** `{}`",
+                format_duration(total_duration)
+            ));
         }
     }
 
@@ -87,9 +91,7 @@ pub async fn queue(ctx: Context<'_>) -> CommandResult {
         }
     }
 
-    ctx.send(CreateReply::default()
-        .embed(embed)
-        .ephemeral(false))
+    ctx.send(CreateReply::default().embed(embed).ephemeral(false))
         .await?;
 
     Ok(())
@@ -117,12 +119,9 @@ fn format_progress_bar(position: Duration, total: Duration) -> String {
     } else {
         position.as_secs_f64() / total.as_secs_f64()
     };
-    
+
     let filled = (progress * BAR_LENGTH as f64).round() as usize;
     let empty = BAR_LENGTH - filled;
 
-    format!("▬{}🔘{}▬",
-        "▬".repeat(filled),
-        "▬".repeat(empty)
-    )
+    format!("▬{}🔘{}▬", "▬".repeat(filled), "▬".repeat(empty))
 }

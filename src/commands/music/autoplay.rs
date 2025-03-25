@@ -1,7 +1,7 @@
 use super::*;
 use crate::commands::music::utils::{
+    autoplay_manager::{is_autoplay_enabled, set_autoplay},
     music_manager::MusicError,
-    autoplay_manager::{set_autoplay, is_autoplay_enabled},
 };
 
 /// Toggle autoplay feature (automatically play related songs when queue is empty)
@@ -24,16 +24,23 @@ pub async fn autoplay(
     set_autoplay(guild_id, new_state).await;
 
     // Send confirmation message
-    ctx.send(CreateReply::default()
-        .embed(CreateEmbed::new()
-            .title(if new_state { "🔄 Autoplay Enabled" } else { "⏹️ Autoplay Disabled" })
-            .description(if new_state {
-                "I will automatically play related songs when the queue is empty"
-            } else {
-                "I will stop playing when the queue is empty"
-            })
-            .color(if new_state { 0x00ff00 } else { 0xff0000 })))
-        .await?;
+    ctx.send(
+        CreateReply::default().embed(
+            CreateEmbed::new()
+                .title(if new_state {
+                    "🔄 Autoplay Enabled"
+                } else {
+                    "⏹️ Autoplay Disabled"
+                })
+                .description(if new_state {
+                    "I will automatically play related songs when the queue is empty"
+                } else {
+                    "I will stop playing when the queue is empty"
+                })
+                .color(if new_state { 0x00ff00 } else { 0xff0000 }),
+        ),
+    )
+    .await?;
 
     Ok(())
-} 
+}

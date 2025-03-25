@@ -1,20 +1,14 @@
-use poise::serenity_prelude as serenity;
 use dotenv::dotenv;
+use poise::serenity_prelude as serenity;
 use std::env;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
+mod brave;
 mod commands;
 mod database;
-mod brave;
 
 use commands::{
-    ai::{
-        chat::*,
-        list_models::*,
-        set_model::*,
-        search::*,
-        get_model::*,
-    },
+    ai::{chat::*, get_model::*, list_models::*, search::*, set_model::*},
     coingecko::coin::*,
     general::ping::*,
 };
@@ -58,7 +52,7 @@ async fn main() -> Result<(), Error> {
     FmtSubscriber::builder()
         .with_env_filter(
             EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("rusty=debug,warn"))
+                .unwrap_or_else(|_| EnvFilter::new("rusty=debug,warn")),
         )
         .with_thread_ids(true)
         .with_line_number(true)
@@ -77,7 +71,9 @@ async fn main() -> Result<(), Error> {
 
     let token = env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN");
 
-    let intents = serenity::GatewayIntents::non_privileged() | serenity::GatewayIntents::MESSAGE_CONTENT | serenity::GatewayIntents::GUILD_VOICE_STATES;
+    let intents = serenity::GatewayIntents::non_privileged()
+        | serenity::GatewayIntents::MESSAGE_CONTENT
+        | serenity::GatewayIntents::GUILD_VOICE_STATES;
 
     // Create a vector to hold our commands
     let mut commands = vec![
@@ -100,14 +96,7 @@ async fn main() -> Result<(), Error> {
     #[cfg(feature = "music")]
     {
         use commands::music::{
-            autoplay::*,
-            play::*,
-            queue::*,
-            skip::*,
-            stop::*,
-            leave::*,
-            pause::*,
-            remove::*,
+            autoplay::*, leave::*, pause::*, play::*, queue::*, remove::*, skip::*, stop::*,
         };
 
         // Add music commands
@@ -136,38 +125,31 @@ async fn main() -> Result<(), Error> {
         });
 
     let framework_built = framework.build();
-    
+
     // Create and run client
-    let client_builder = serenity::ClientBuilder::new(token, intents)
-        .framework(framework_built);
-    
+    let client_builder = serenity::ClientBuilder::new(token, intents).framework(framework_built);
+
     #[cfg(feature = "music")]
     return run_with_music(client_builder).await;
-    
+
     #[cfg(not(feature = "music"))]
     return run_without_music(client_builder).await;
 }
 
 // Only compiled when the music feature is enabled
 #[cfg(feature = "music")]
-async fn run_with_music(
-    client_builder: serenity::ClientBuilder
-) -> Result<(), Error> {
+async fn run_with_music(client_builder: serenity::ClientBuilder) -> Result<(), Error> {
     // Required for music functionality
     use songbird::SerenityInit;
-    
-    let mut client = client_builder
-        .register_songbird()
-        .await?;
-        
+
+    let mut client = client_builder.register_songbird().await?;
+
     client.start().await.map_err(Into::into)
 }
 
 // Only compiled when the music feature is disabled
 #[cfg(not(feature = "music"))]
-async fn run_without_music(
-    client_builder: serenity::ClientBuilder
-) -> Result<(), Error> {
+async fn run_without_music(client_builder: serenity::ClientBuilder) -> Result<(), Error> {
     let mut client = client_builder.await?;
     client.start().await.map_err(Into::into)
 }

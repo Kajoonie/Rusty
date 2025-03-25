@@ -1,8 +1,8 @@
+use rusqlite::{params, Connection, Result as SqliteResult};
+use serenity::model::id::GuildId;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use serenity::model::id::GuildId;
-use rusqlite::{Connection, Result as SqliteResult, params};
 
 pub struct AutoplayManager {
     // Map of guild ID to autoplay enabled status (in-memory cache)
@@ -38,7 +38,7 @@ impl AutoplayManager {
     // Initialize the database and create tables if they don't exist
     fn initialize_db() -> SqliteResult<Connection> {
         let conn = Connection::open("user_preferences.db")?;
-        
+
         conn.execute(
             "CREATE TABLE IF NOT EXISTS autoplay_settings (
                 guild_id INTEGER PRIMARY KEY,
@@ -46,24 +46,26 @@ impl AutoplayManager {
             )",
             [],
         )?;
-        
+
         Ok(conn)
     }
 
     // Load settings from database into memory
     fn load_settings(&mut self) -> SqliteResult<()> {
-        let mut stmt = self.connection.prepare("SELECT guild_id, enabled FROM autoplay_settings")?;
-        
+        let mut stmt = self
+            .connection
+            .prepare("SELECT guild_id, enabled FROM autoplay_settings")?;
+
         let rows = stmt.query_map([], |row| {
             let guild_id: u64 = row.get(0)?;
             let enabled: bool = row.get(1)?;
             Ok((guild_id, enabled))
         })?;
-        
+
         for (guild_id, enabled) in rows.flatten() {
             self.autoplay_settings.insert(guild_id, enabled);
         }
-        
+
         Ok(())
     }
 
@@ -73,14 +75,14 @@ impl AutoplayManager {
             "INSERT OR REPLACE INTO autoplay_settings (guild_id, enabled) VALUES (?1, ?2)",
             params![guild_id, enabled],
         )?;
-        
+
         Ok(())
     }
 
     pub fn set_autoplay(&mut self, guild_id: GuildId, enabled: bool) {
         let guild_id_u64 = guild_id.get();
         self.autoplay_settings.insert(guild_id_u64, enabled);
-        
+
         // Save setting to database
         if let Err(e) = self.save_setting(guild_id_u64, enabled) {
             eprintln!("Failed to save autoplay setting to database: {}", e);
@@ -88,7 +90,10 @@ impl AutoplayManager {
     }
 
     pub fn is_autoplay_enabled(&self, guild_id: GuildId) -> bool {
-        *self.autoplay_settings.get(&guild_id.get()).unwrap_or(&false)
+        *self
+            .autoplay_settings
+            .get(&guild_id.get())
+            .unwrap_or(&false)
     }
 }
 
@@ -106,4 +111,4 @@ pub async fn set_autoplay(guild_id: GuildId, enabled: bool) {
 pub async fn is_autoplay_enabled(guild_id: GuildId) -> bool {
     let manager = AUTOPLAY_MANAGER.lock().await;
     manager.is_autoplay_enabled(guild_id)
-} 
+}

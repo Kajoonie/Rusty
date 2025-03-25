@@ -1,6 +1,6 @@
 use super::*;
+use tracing::{debug, error, info};
 use utils::ollama_client::*;
-use tracing::{debug, info, error};
 
 /// Chat with the AI
 #[poise::command(slash_command, category = "AI")]
@@ -12,7 +12,7 @@ pub async fn chat(
 ) -> CommandResult {
     let author = ctx.author();
     debug!("Chat request received from user {}", author.name);
-    
+
     ctx.defer().await?;
 
     info!("Processing chat request from {}: {}", author.name, message);
@@ -21,10 +21,10 @@ pub async fn chat(
         Ok(response) => {
             let content = response.message.content;
             debug!("Received AI response for {}", author.name);
-            
+
             let full_message = format!("**{}**: {message}\n\n**AI**: {content}", author.name);
             info!("Sending formatted response to {}", author.name);
-            
+
             chunk_response(ctx, full_message).await
         }
         Err(e) => {
