@@ -136,14 +136,15 @@ async fn list_coin_ids() -> Vec<String> {
     results
 }
 
-// This function is a bit slow when it comes to showing matching autocomplete values to user's input. Let's speed it up, AI!
 async fn autocomplete_coin_id<'a>(
     _ctx: Context<'_>,
     partial: &'a str,
 ) -> impl Stream<Item = String> + 'a {
     let coin_id_list = list_coin_ids().await;
 
-    futures::stream::iter(coin_id_list.into_iter())
-        .map(|id| id.trim_start_matches('"').trim_end_matches('"').to_string())
-        .filter(move |id| futures::future::ready(id.starts_with(partial)))
+    futures::stream::iter(
+        coin_id_list
+            .into_iter()
+            .filter(move |id| id.starts_with(partial))
+    )
 }
