@@ -22,91 +22,74 @@ pub struct SongEndNotifier {
 #[async_trait]
 impl songbird::EventHandler for SongEndNotifier {
     async fn act(&self, ctx: &songbird::EventContext<'_>) -> Option<songbird::Event> {
-        info!("Track end event triggered for guild {}", self.guild_id);
+        if let songbird::EventContext::Track(_) = ctx {
+            self.handle_track_end().await;
+        }
+        None
+    }
+}
 
-        // Check if this is a track end event
-        if let songbird::EventContext::Track(_track_list) = ctx {
-            info!("Track ended naturally, proceeding to next track");
+impl SongEndNotifier {
+    async fn handle_track_end(&self) {
+        info!("Track ended for guild {}", self.guild_id);
 
-            // Attempt to play the next track
-            match play_next_track(&self.ctx, self.guild_id, self.call.clone(), true).await {
-                Ok(track_played) => {
-                    if track_played {
-                        info!("Successfully started playing next track");
-                    } else {
-                        info!("Queue is empty, checking if autoplay is enabled");
+        let track_played = play_next_track(
+            &self.ctx,
+            self.guild_id,
+            self.call.clone(),
+            true,
+        ).await.is_ok();
 
-                        // Check if the manual stop flag is set
-                        let manual_stop = is_manual_stop_flag_set(self.guild_id).await;
+        if !track_played {
+            self.handle_empty_queue().await;
+        }
+    }
 
-                        if manual_stop {
-                            info!("Manual stop flag is set, skipping autoplay");
-                            // Clear the flag for future playback
-                            clear_manual_stop_flag(self.guild_id).await;
-                        } else if is_autoplay_enabled(self.guild_id).await {
-                            info!("Autoplay is enabled, attempting to find related songs");
+    async fn handle_empty_queue(&self) {
+        let manual_stop = is_manual_stop_flag_set(self.guild_id).await;
 
-                            // Use the metadata we stored in the struct
-                            if let Some(url) = &self.track_metadata.url {
-                                match AudioSource::get_related_songs(url).await {
-                                    Ok(related_songs) => {
-                                        for song in related_songs {
-                                            if let Some(song_url) = &song.url {
-                                                info!(
-                                                    "Adding related song to queue: {}",
-                                                    song.title
-                                                );
+        if manual_stop {
+            clear_manual_stop_flag(self.guild_id).await;
+            return;
+        }
 
-                                                // Make sure the URL is a valid YouTube video URL
-                                                if !AudioSource::is_youtube_video_url(song_url) {
-                                                    info!("Skipping non-video URL: {}", song_url);
-                                                    continue;
-                                                }
+        if is_autoplay_enabled(self.guild_id).await {
+            if let Err(e) = self.attempt_autoplay().await {
+                error!("Autoplay failed: {}", e);
+            }
+        }
+    }
 
-                                                // Create audio source from the related song
-                                                if let Ok((source, _)) =
-                                                    AudioSource::from_youtube_url(song_url).await
-                                                {
-                                                    let queue_item = QueueItem {
-                                                        input: source,
-                                                        metadata: song,
-                                                    };
+    async fn attempt_autoplay(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if let Some(url) = &self.track_metadata.url {
+            let related_songs = AudioSource::get_related_songs(url).await?;
 
-                                                    // Add to queue and start playing
-                                                    if (add_to_queue(self.guild_id, queue_item)
-                                                        .await)
-                                                        .is_ok()
-                                                    {
-                                                        let _ = play_next_track(
-                                                            &self.ctx,
-                                                            self.guild_id,
-                                                            self.call.clone(),
-                                                            true,
-                                                        )
-                                                        .await;
-                                                        break;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                    Err(e) => {
-                                        error!("Failed to get related songs: {}", e);
-                                    }
-                                }
-                            }
-                        } else {
-                            info!("Autoplay disabled, stopping playback");
-                        }
+            for song in related_songs {
+                if let Some(song_url) = &song.url {
+                    if !AudioSource::is_youtube_video_url(song_url) {
+                        continue;
                     }
-                }
-                Err(e) => {
-                    error!("Failed to play next track: {}", e);
+
+                    let (source, _) = AudioSource::from_youtube_url(song_url).await?;
+                    let queue_item = QueueItem {
+                        input: source,
+                        metadata: song.clone(),
+                    };
+
+                    add_to_queue(self.guild_id, queue_item).await?;
+                    play_next_track(
+                        &self.ctx,
+                        self.guild_id,
+                        self.call.clone(),
+                        true,
+                    ).await?;
+                    
+                    break;
                 }
             }
         }
 
-        None
+        Ok(())
     }
 }
 
