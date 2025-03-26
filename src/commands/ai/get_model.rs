@@ -13,9 +13,9 @@ pub async fn get_model(ctx: Context<'_>) -> CommandResult {
     let model = match database::get_user_model(author) {
         Some(model) => model,
         None => {
-            ctx.say(format!(
-                "You do not have a user-defined model set or a default model available"
-            ))
+            ctx.say(
+                "You do not have a user-defined model set or a default model available".to_string(),
+            )
             .await?;
             return Ok(());
         }

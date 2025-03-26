@@ -2,7 +2,6 @@ use rusqlite::{params, Connection, Result as SqlResult};
 use serenity::all::User;
 use serenity::model::id::GuildId;
 use std::sync::Once;
-use tracing::{debug, error, info, warn};
 
 use crate::utils::ollama_client::OLLAMA_CLIENT;
 
