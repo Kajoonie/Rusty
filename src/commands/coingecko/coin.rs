@@ -1,7 +1,7 @@
 use std::sync::LazyLock;
 
 use chrono::Utc;
-use futures::{Stream, StreamExt};
+use futures::Stream;
 use poise::{CreateReply, serenity_prelude::Color};
 use serenity::builder::CreateEmbedFooter;
 use thousands::Separable;
