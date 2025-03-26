@@ -94,8 +94,8 @@ pub async fn music_queue(
     } else {
         description.push_str(&format!("**📋 Queue - {} tracks**\n", queue.len()));
         for (index, track) in queue.iter().enumerate() {
-            // Add track number emoji (1-10) or default bullet point
-            let number = if index < 10 {
+            // Add track number emoji (1-9) or default bullet point
+            let number = if index < 9 {
                 format!("{}\u{FE0F}\u{20E3}", index + 1) // Unicode keycap emoji
             } else {
                 "•".to_string()
