@@ -101,23 +101,3 @@ pub fn get_autoplay_setting(guild_id: GuildId) -> bool {
 
     false // Default: autoplay disabled
 }
-
-pub fn load_all_autoplay_settings() -> SqlResult<Vec<(u64, bool)>> {
-    let conn = Connection::open(APPDATA_DB)?;
-    let mut settings = Vec::new();
-
-    let mut stmt = conn.prepare("SELECT guild_id, enabled FROM autoplay_settings")?;
-    let rows = stmt.query_map([], |row| {
-        let guild_id: u64 = row.get(0)?;
-        let enabled: bool = row.get(1)?;
-        Ok((guild_id, enabled))
-    })?;
-
-    for row_result in rows {
-        if let Ok(setting) = row_result {
-            settings.push(setting);
-        }
-    }
-
-    Ok(settings)
-}
