@@ -1,8 +1,9 @@
-use crate::database;
 use serenity::model::id::GuildId;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+
+use crate::utils::database;
 
 pub struct AutoplayManager {
     // Map of guild ID to autoplay enabled status (in-memory cache)

@@ -10,9 +10,18 @@ pub async fn get_model(ctx: Context<'_>) -> CommandResult {
     ctx.defer().await?;
 
     info!("Fetching model preference for user {}", author.name);
-    let model = database::get_user_model(author);
-    debug!("Retrieved model '{}' for user {}", model, author.name);
+    let model = match database::get_user_model(author) {
+        Some(model) => model,
+        None => {
+            ctx.say(format!(
+                "You do not have a user-defined model set or a default model available"
+            ))
+            .await?;
+            return Ok(());
+        }
+    };
 
+    debug!("Retrieved model '{}' for user {}", model, author.name);
     info!("Sending model information to {}", author.name);
     ctx.say(format!("Your currently active model is: **{}**", model))
         .await?;

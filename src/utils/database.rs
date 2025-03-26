@@ -2,6 +2,9 @@ use rusqlite::{params, Connection, Result as SqlResult};
 use serenity::all::User;
 use serenity::model::id::GuildId;
 use std::sync::Once;
+use tracing::{debug, error, info, warn};
+
+use crate::utils::ollama_client::OLLAMA_CLIENT;
 
 pub const APPDATA_DB: &str = "application_data.db";
 static DB_INIT: Once = Once::new();
@@ -46,7 +49,7 @@ fn create_tables() -> SqlResult<()> {
     Ok(())
 }
 
-pub fn get_user_model(user: &User) -> String {
+pub fn get_user_model(user: &User) -> Option<String> {
     if let Ok(conn) = Connection::open(APPDATA_DB) {
         if let Ok(mut statement) =
             conn.prepare("SELECT model FROM user_preferences WHERE user_id = ?1")
@@ -61,7 +64,7 @@ pub fn get_user_model(user: &User) -> String {
         }
     }
 
-    "llama3.1:8b".to_string() // Default model
+    OLLAMA_CLIENT.clone().get_default_model() // Default model
 }
 
 pub fn set_user_preference(pref: &UserPreference) -> SqlResult<()> {

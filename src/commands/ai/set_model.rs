@@ -1,6 +1,9 @@
 use ollama_rs::models::LocalModel;
 
-use crate::commands::ai::utils::ollama_client::OLLAMA_CLIENT;
+use crate::{
+    utils::database::{self, UserPreference},
+    utils::ollama_client::OLLAMA_CLIENT,
+};
 
 use super::*;
 use futures::{Stream, StreamExt};

@@ -1,6 +1,7 @@
+use crate::utils::ollama_client::OLLAMA_CLIENT;
+
 use super::*;
 use tracing::{debug, error, info};
-use utils::ollama_client::*;
 
 /// List all local models.
 #[poise::command(slash_command, category = "AI")]
