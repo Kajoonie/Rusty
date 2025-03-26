@@ -1,11 +1,13 @@
 pub(crate) mod chat;
 pub(crate) mod get_model;
 pub(crate) mod list_models;
+#[cfg(feature = "brave_search")]
 pub(crate) mod search;
 pub(crate) mod set_model;
 
 mod utils;
 
+#[cfg(feature = "brave_search")]
 use crate::brave;
 use crate::database::{self, UserPreference};
 use crate::CommandResult;
