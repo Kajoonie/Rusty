@@ -3,4 +3,3 @@
 /.cargo/*
 .env
 application_data.db
-feature_ideas.md
