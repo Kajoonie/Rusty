@@ -227,6 +227,7 @@ impl AudioSource {
         Ok((source.into(), metadata))
     }
 
+    // Let's break this function down into smaller, modularized functions, AI!
     /// Get related songs for a given YouTube video URL
     pub async fn get_related_songs(url: &str) -> AudioSourceResult<Vec<TrackMetadata>> {
         info!("Fetching related songs for URL: {}", url);
