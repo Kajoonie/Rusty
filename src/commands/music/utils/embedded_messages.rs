@@ -36,29 +36,43 @@ fn parse_metadata(metadata: &TrackMetadata) -> (String, String, String) {
 pub fn now_playing(metadata: &TrackMetadata) -> CreateEmbed {
     let (title, url, duration_str) = parse_metadata(metadata);
 
-    CreateEmbed::new()
+    let mut embed = CreateEmbed::new()
         .title("🎵 Now Playing")
         .description(format!("[{}]({})", title, url))
         .field("Duration", format!("`{}`", duration_str), true)
-        .color(0x00ff00)
+        .color(0x00ff00);
+
+    // Add thumbnail if available
+    if let Some(thumbnail) = &metadata.thumbnail {
+        embed = embed.thumbnail(thumbnail);
+    }
+
+    embed
 }
 
 /// Create an embed for when a song is added to the queue
 pub fn added_to_queue(metadata: &TrackMetadata, position: &usize) -> CreateEmbed {
     let (title, url, duration_str) = parse_metadata(metadata);
 
-    CreateEmbed::new()
+    let mut embed = CreateEmbed::new()
         .title("🎵 Added to Queue")
         .description(format!("[{}]({})", title, url))
         .field("Duration", format!("`{}`", duration_str), true)
         .field("Position", format!("`#{}`", position), true)
-        .color(0x00ff00)
+        .color(0x00ff00);
+
+    // Add thumbnail if available
+    if let Some(thumbnail) = &metadata.thumbnail {
+        embed = embed.thumbnail(thumbnail);
+    }
+
+    embed
 }
 
 /// Create an embed for the music queue
 pub async fn music_queue(
     current_track: &Option<(TrackHandle, TrackMetadata)>,
-    queue: &Vec<TrackMetadata>,
+    queue: &[TrackMetadata],
 ) -> CreateEmbed {
     // Build the queue display
     let mut description = String::new();
@@ -126,7 +140,7 @@ pub async fn music_queue(
 
     // Create and send the embed
     CreateEmbed::new()
-        .title("🎵 Music Queue")
+        .title("Music Queue")
         .description(description)
         .color(0x00ff00)
 }

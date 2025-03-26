@@ -4,7 +4,9 @@ use crate::commands::music::utils::{
     embedded_messages,
     event_handlers::play_next_track,
     music_manager::{MusicError, MusicManager},
-    queue_manager::{add_to_queue, get_current_track, get_queue, queue_length, QueueItem},
+    queue_manager::{
+        add_to_queue, get_current_track, get_queue, queue_length, store_channel_id, QueueItem,
+    },
 };
 use std::time::Duration;
 use tracing::{debug, error, info};
@@ -19,6 +21,9 @@ pub async fn play(
     let guild_id = ctx.guild_id().ok_or_else(|| {
         Box::new(MusicError::NotInGuild) as Box<dyn std::error::Error + Send + Sync>
     })?;
+
+    // Store the channel ID where the command was invoked
+    store_channel_id(guild_id, ctx.channel_id()).await;
 
     // Get the user's voice channel
     let user_id = ctx.author().id;
@@ -115,7 +120,7 @@ pub async fn play(
 
     // If nothing is currently playing, start playback
     if should_start_playing {
-        play_next_track(ctx.serenity_context(), guild_id, call).await?;
+        play_next_track(ctx.serenity_context(), guild_id, call, false).await?;
     }
 
     // Get the queue length
@@ -126,11 +131,6 @@ pub async fn play(
     } else {
         embedded_messages::added_to_queue(&metadata, &position)
     };
-
-    // Add thumbnail if available
-    if let Some(thumbnail) = metadata.thumbnail {
-        embed = embed.thumbnail(thumbnail);
-    }
 
     // Add queue information
     let queue_length = queue_length(guild_id).await?;

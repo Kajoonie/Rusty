@@ -1,4 +1,5 @@
 use lazy_static::lazy_static;
+use serenity::model::id::ChannelId;
 use serenity::model::id::GuildId;
 use songbird::input::Input;
 use songbird::tracks::TrackHandle;
@@ -118,6 +119,8 @@ lazy_static! {
     pub static ref QUEUE_MANAGER: Arc<Mutex<QueueManager>> = Arc::new(Mutex::new(QueueManager::new()));
     // Track whether a guild has been manually stopped
     static ref MANUAL_STOP_FLAGS: Mutex<HashMap<GuildId, bool>> = Mutex::new(HashMap::new());
+    // Store channel IDs for each guild
+    static ref CHANNEL_IDS: Mutex<HashMap<GuildId, ChannelId>> = Mutex::new(HashMap::new());
 }
 
 /// Helper functions for working with the global queue manager
@@ -192,4 +195,16 @@ pub async fn is_manual_stop_flag_set(guild_id: GuildId) -> bool {
 pub async fn clear_manual_stop_flag(guild_id: GuildId) {
     let mut flags = MANUAL_STOP_FLAGS.lock().await;
     flags.remove(&guild_id);
+}
+
+/// Store the channel ID for a guild
+pub async fn store_channel_id(guild_id: GuildId, channel_id: ChannelId) {
+    let mut channels = CHANNEL_IDS.lock().await;
+    channels.insert(guild_id, channel_id);
+}
+
+/// Get the channel ID for a guild
+pub async fn get_channel_id(guild_id: GuildId) -> Option<ChannelId> {
+    let channels = CHANNEL_IDS.lock().await;
+    channels.get(&guild_id).copied()
 }
