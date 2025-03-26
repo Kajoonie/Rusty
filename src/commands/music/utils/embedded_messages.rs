@@ -335,3 +335,23 @@ pub fn stopped(autoplay_enabled: bool) -> CreateReply {
 
     CreateReply::default().embed(embed)
 }
+
+/// Create an embed for when a track is skipped
+pub fn skipped(metadata: &TrackMetadata) -> CreateReply {
+    let (title, url, _) = parse_metadata(metadata);
+
+    CreateReply::default().embed(
+        CreateEmbed::new()
+            .title("⏭️ Skipped")
+            .description(format!("Skipped [{}]({})", title, url)),
+    )
+}
+
+/// Create an embed for when there is no track to skip
+pub fn no_track_to_skip() -> CreateReply {
+    CreateReply::default().embed(
+        CreateEmbed::new()
+            .title("❌ Error")
+            .description("No track is currently playing"),
+    )
+}
