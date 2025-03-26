@@ -1,9 +1,10 @@
 use crate::commands::music::utils::{
     audio_sources::{AudioSource, TrackMetadata},
     autoplay_manager::is_autoplay_enabled,
+    embedded_messages,
     queue_manager::{
-        add_to_queue, clear_manual_stop_flag, get_next_track, is_manual_stop_flag_set,
-        set_current_track,
+        add_to_queue, clear_manual_stop_flag, get_channel_id, get_next_track,
+        is_manual_stop_flag_set, set_current_track,
     },
 };
 use async_trait::async_trait;
@@ -28,7 +29,7 @@ impl songbird::EventHandler for SongEndNotifier {
             info!("Track ended naturally, proceeding to next track");
 
             // Attempt to play the next track
-            match play_next_track(&self.ctx, self.guild_id, self.call.clone()).await {
+            match play_next_track(&self.ctx, self.guild_id, self.call.clone(), true).await {
                 Ok(track_played) => {
                     if track_played {
                         info!("Successfully started playing next track");
@@ -80,6 +81,7 @@ impl songbird::EventHandler for SongEndNotifier {
                                                             &self.ctx,
                                                             self.guild_id,
                                                             self.call.clone(),
+                                                            true,
                                                         )
                                                         .await;
                                                         break;
@@ -114,6 +116,7 @@ pub async fn play_next_track(
     ctx: &serenity::Context,
     guild_id: serenity::GuildId,
     call: std::sync::Arc<serenity::prelude::Mutex<songbird::Call>>,
+    send_message: bool,
 ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
     info!("Attempting to play next track for guild {}", guild_id);
 
@@ -138,6 +141,15 @@ pub async fn play_next_track(
 
     // Store the current track
     set_current_track(guild_id, track_handle.clone(), queue_item.metadata.clone()).await?;
+
+    if send_message {
+        // Send a now playing message
+        if let Some(channel_id) = get_channel_id(guild_id).await {
+            let embed = embedded_messages::now_playing(&queue_item.metadata);
+            let message = serenity::CreateMessage::default().embeds(vec![embed]);
+            channel_id.send_message(ctx, message).await?;
+        }
+    }
 
     // Set up a handler for when the track ends
     let ctx = ctx.clone();
