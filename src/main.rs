@@ -1,20 +1,14 @@
-use poise::serenity_prelude as serenity;
+use ::serenity::all::ClientBuilder;
 use dotenv::dotenv;
+use poise::serenity_prelude as serenity;
 use std::env;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 mod commands;
-mod database;
-mod brave;
+mod utils;
 
 use commands::{
-    ai::{
-        chat::*,
-        list_models::*,
-        set_model::*,
-        search::*,
-        get_model::*,
-    },
+    ai::{chat::*, get_model::*, list_models::*, set_model::*},
     coingecko::coin::*,
     general::ping::*,
 };
@@ -58,7 +52,7 @@ async fn main() -> Result<(), Error> {
     FmtSubscriber::builder()
         .with_env_filter(
             EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("rusty=debug,warn"))
+                .unwrap_or_else(|_| EnvFilter::new("rusty=debug,warn")),
         )
         .with_thread_ids(true)
         .with_line_number(true)
@@ -71,13 +65,15 @@ async fn main() -> Result<(), Error> {
     dotenv().ok();
 
     // Initialize the SQLite database
-    if let Err(e) = database::init_db() {
+    if let Err(e) = utils::database::init_db() {
         eprintln!("Failed to initialize database: {}", e);
     }
 
     let token = env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN");
 
-    let intents = serenity::GatewayIntents::non_privileged() | serenity::GatewayIntents::MESSAGE_CONTENT | serenity::GatewayIntents::GUILD_VOICE_STATES;
+    let intents = serenity::GatewayIntents::non_privileged()
+        | serenity::GatewayIntents::MESSAGE_CONTENT
+        | serenity::GatewayIntents::GUILD_VOICE_STATES;
 
     // Create a vector to hold our commands
     let mut commands = vec![
@@ -90,27 +86,29 @@ async fn main() -> Result<(), Error> {
         chat(),
         get_model(),
         list_models(),
-        search(),
         set_model(),
         // Coingecko commands
         coin(),
     ];
 
+    // Handle brave search feature
+    #[cfg(feature = "brave_search")]
+    {
+        use commands::ai::search::*;
+
+        commands.extend(vec![search()]);
+    }
+
     // Handle Music feature
     #[cfg(feature = "music")]
     {
         use commands::music::{
-            play::*,
-            queue::*,
-            skip::*,
-            stop::*,
-            leave::*,
-            pause::*,
-            remove::*,
+            autoplay::*, leave::*, pause::*, play::*, queue::*, remove::*, skip::*, stop::*,
         };
 
         // Add music commands
         commands.extend(vec![
+            autoplay(),
             play(),
             pause(),
             queue(),
@@ -133,39 +131,24 @@ async fn main() -> Result<(), Error> {
             })
         });
 
-    let framework_built = framework.build();
-    
+    let client_builder = ClientBuilder::new(token, intents).framework(framework.build());
+
     // Create and run client
-    let client_builder = serenity::ClientBuilder::new(token, intents)
-        .framework(framework_built);
-    
+    build_and_start_client(client_builder).await
+}
+
+async fn build_and_start_client(client_builder: ClientBuilder) -> Result<(), Error> {
     #[cfg(feature = "music")]
-    return run_with_music(client_builder).await;
-    
+    {
+        use songbird::SerenityInit;
+
+        let mut client = client_builder.register_songbird().await?;
+        client.start().await.map_err(Into::into)
+    }
+
     #[cfg(not(feature = "music"))]
-    return run_without_music(client_builder).await;
-}
-
-// Only compiled when the music feature is enabled
-#[cfg(feature = "music")]
-async fn run_with_music(
-    client_builder: serenity::ClientBuilder
-) -> Result<(), Error> {
-    // Required for music functionality
-    use songbird::SerenityInit;
-    
-    let mut client = client_builder
-        .register_songbird()
-        .await?;
-        
-    client.start().await.map_err(Into::into)
-}
-
-// Only compiled when the music feature is disabled
-#[cfg(not(feature = "music"))]
-async fn run_without_music(
-    client_builder: serenity::ClientBuilder
-) -> Result<(), Error> {
-    let mut client = client_builder.await?;
-    client.start().await.map_err(Into::into)
+    {
+        let mut client = client_builder.await?;
+        client.start().await.map_err(Into::into)
+    }
 }

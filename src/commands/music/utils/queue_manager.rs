@@ -1,10 +1,12 @@
+use lazy_static::lazy_static;
+use serenity::model::id::ChannelId;
+use serenity::model::id::GuildId;
+use songbird::input::Input;
+use songbird::tracks::TrackHandle;
+use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use songbird::input::Input;
-use songbird::tracks::TrackHandle;
-use serenity::model::id::GuildId;
-use std::collections::HashMap;
 
 use super::audio_sources::TrackMetadata;
 use super::music_manager::MusicError;
@@ -46,7 +48,7 @@ impl QueueManager {
     pub fn next(&mut self, guild_id: GuildId) -> Option<QueueItem> {
         // Remove the current track handle if it exists
         self.current_tracks.remove(&guild_id);
-        
+
         // Get the queue for this guild
         if let Some(queue) = self.queues.get_mut(&guild_id) {
             queue.pop_front()
@@ -73,7 +75,12 @@ impl QueueManager {
     }
 
     /// Set the current track for a guild
-    pub fn set_current_track(&mut self, guild_id: GuildId, track: TrackHandle, metadata: TrackMetadata) {
+    pub fn set_current_track(
+        &mut self,
+        guild_id: GuildId,
+        track: TrackHandle,
+        metadata: TrackMetadata,
+    ) {
         self.current_tracks.insert(guild_id, (track, metadata));
     }
 
@@ -108,8 +115,12 @@ impl QueueManager {
 }
 
 // Create a global queue manager wrapped in a mutex for thread safety
-lazy_static::lazy_static! {
+lazy_static! {
     pub static ref QUEUE_MANAGER: Arc<Mutex<QueueManager>> = Arc::new(Mutex::new(QueueManager::new()));
+    // Track whether a guild has been manually stopped
+    static ref MANUAL_STOP_FLAGS: Mutex<HashMap<GuildId, bool>> = Mutex::new(HashMap::new());
+    // Store channel IDs for each guild
+    static ref CHANNEL_IDS: Mutex<HashMap<GuildId, ChannelId>> = Mutex::new(HashMap::new());
 }
 
 /// Helper functions for working with the global queue manager
@@ -138,13 +149,19 @@ pub async fn get_queue(guild_id: GuildId) -> QueueResult<Vec<TrackMetadata>> {
     Ok(queue)
 }
 
-pub async fn set_current_track(guild_id: GuildId, track: TrackHandle, metadata: TrackMetadata) -> QueueResult<()> {
+pub async fn set_current_track(
+    guild_id: GuildId,
+    track: TrackHandle,
+    metadata: TrackMetadata,
+) -> QueueResult<()> {
     let mut manager = QUEUE_MANAGER.lock().await;
     manager.set_current_track(guild_id, track, metadata);
     Ok(())
 }
 
-pub async fn get_current_track(guild_id: GuildId) -> QueueResult<Option<(TrackHandle, TrackMetadata)>> {
+pub async fn get_current_track(
+    guild_id: GuildId,
+) -> QueueResult<Option<(TrackHandle, TrackMetadata)>> {
     let manager = QUEUE_MANAGER.lock().await;
     Ok(manager.get_current_track(guild_id).cloned())
 }
@@ -154,7 +171,40 @@ pub async fn queue_length(guild_id: GuildId) -> QueueResult<usize> {
     Ok(manager.len(guild_id))
 }
 
-pub async fn remove_track(guild_id: GuildId, position: usize) -> QueueResult<Option<TrackMetadata>> {
+pub async fn remove_track(
+    guild_id: GuildId,
+    position: usize,
+) -> QueueResult<Option<TrackMetadata>> {
     let mut manager = QUEUE_MANAGER.lock().await;
     Ok(manager.remove_track(guild_id, position))
+}
+
+/// Set the manual stop flag for a guild
+pub async fn set_manual_stop_flag(guild_id: GuildId, value: bool) {
+    let mut flags = MANUAL_STOP_FLAGS.lock().await;
+    flags.insert(guild_id, value);
+}
+
+/// Check if manual stop flag is set
+pub async fn is_manual_stop_flag_set(guild_id: GuildId) -> bool {
+    let flags = MANUAL_STOP_FLAGS.lock().await;
+    *flags.get(&guild_id).unwrap_or(&false)
+}
+
+/// Clear the manual stop flag for a guild
+pub async fn clear_manual_stop_flag(guild_id: GuildId) {
+    let mut flags = MANUAL_STOP_FLAGS.lock().await;
+    flags.remove(&guild_id);
+}
+
+/// Store the channel ID for a guild
+pub async fn store_channel_id(guild_id: GuildId, channel_id: ChannelId) {
+    let mut channels = CHANNEL_IDS.lock().await;
+    channels.insert(guild_id, channel_id);
+}
+
+/// Get the channel ID for a guild
+pub async fn get_channel_id(guild_id: GuildId) -> Option<ChannelId> {
+    let channels = CHANNEL_IDS.lock().await;
+    channels.get(&guild_id).copied()
 }

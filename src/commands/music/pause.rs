@@ -1,6 +1,7 @@
 use super::*;
 use crate::commands::music::utils::{
-    music_manager::{MusicManager, MusicError},
+    embedded_messages,
+    music_manager::{MusicError, MusicManager},
     queue_manager::get_current_track,
 };
 use songbird::tracks::PlayMode;
@@ -16,11 +17,7 @@ pub async fn pause(ctx: Context<'_>) -> CommandResult {
     let _call = match MusicManager::get_call(ctx.serenity_context(), guild_id).await {
         Ok(call) => call,
         Err(err) => {
-            ctx.send(CreateReply::default()
-                .embed(CreateEmbed::new()
-                    .title("❌ Error")
-                    .description(format!("Not connected to a voice channel: {}", err))
-                    .color(0xff0000)))
+            ctx.send(embedded_messages::bot_not_in_voice_channel(err))
                 .await?;
             return Ok(());
         }
@@ -28,53 +25,29 @@ pub async fn pause(ctx: Context<'_>) -> CommandResult {
 
     // Get the current track
     let current_track = get_current_track(guild_id).await?;
-    
+
     match current_track {
         Some((track, metadata)) => {
             let track_info = track.get_info().await?;
-            
+
             match track_info.playing {
                 PlayMode::Play => {
                     track.pause()?;
-                    ctx.send(CreateReply::default()
-                        .embed(CreateEmbed::new()
-                            .title("⏸️ Paused")
-                            .description(format!("Paused [{}]({})",
-                                metadata.title,
-                                metadata.url.as_deref().unwrap_or("#")))
-                            .color(0x00ff00)))
-                        .await?;
-                },
+                    ctx.send(embedded_messages::paused(&metadata)).await?;
+                }
                 PlayMode::Pause => {
                     track.play()?;
-                    ctx.send(CreateReply::default()
-                        .embed(CreateEmbed::new()
-                            .title("▶️ Resumed")
-                            .description(format!("Resumed [{}]({})",
-                                metadata.title,
-                                metadata.url.as_deref().unwrap_or("#")))
-                            .color(0x00ff00)))
-                        .await?;
-                },
+                    ctx.send(embedded_messages::resumed(&metadata)).await?;
+                }
                 _ => {
-                    ctx.send(CreateReply::default()
-                        .embed(CreateEmbed::new()
-                            .title("❌ Error")
-                            .description("The track is not in a pausable state")
-                            .color(0xff0000)))
-                        .await?;
+                    ctx.send(embedded_messages::not_pausable()).await?;
                 }
             }
-        },
+        }
         None => {
-            ctx.send(CreateReply::default()
-                .embed(CreateEmbed::new()
-                    .title("❌ Error")
-                    .description("No track is currently playing")
-                    .color(0xff0000)))
-                .await?;
+            ctx.send(embedded_messages::no_track_playing()).await?;
         }
     }
 
     Ok(())
-} 
+}

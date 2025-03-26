@@ -1,15 +1,17 @@
 pub(crate) mod chat;
-pub(crate) mod list_models;
-pub(crate) mod set_model;
-pub(crate) mod search;
 pub(crate) mod get_model;
+pub(crate) mod list_models;
+#[cfg(feature = "brave_search")]
+pub(crate) mod search;
+pub(crate) mod set_model;
 
-mod utils;
+#[cfg(feature = "brave_search")]
+use crate::utils::brave;
+
+use crate::utils::database;
 
 use crate::CommandResult;
 use crate::Context;
-use crate::brave;
-use crate::database::{self, UserPreference};
 
 const MAX_MESSAGE_LENGTH: usize = 2000;
 

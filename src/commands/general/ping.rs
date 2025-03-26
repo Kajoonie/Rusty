@@ -1,5 +1,5 @@
-use poise::{serenity_prelude as serenity, CreateReply};
 use ::serenity::all::CreateEmbed;
+use poise::{serenity_prelude as serenity, CreateReply};
 use std::time::Duration;
 
 use crate::{CommandResult, Context};
@@ -17,9 +17,7 @@ pub async fn ping(ctx: Context<'_>) -> CommandResult {
         .thumbnail("attachment://pong.png")
         .field("API Latency", format!("{} ms", latency), false);
 
-    let reply = CreateReply::default()
-        .embed(embed)
-        .ephemeral(false);
+    let reply = CreateReply::default().embed(embed).ephemeral(false);
 
     ctx.send(reply).await?;
 

@@ -1,7 +1,8 @@
 use super::*;
 use crate::commands::music::utils::{
+    embedded_messages,
     music_manager::MusicError,
-    queue_manager::{remove_track, get_queue},
+    queue_manager::{get_queue, remove_track},
 };
 
 /// Remove a track from the queue by its position
@@ -20,44 +21,24 @@ pub async fn remove(
     // Get the current queue length for validation
     let queue = get_queue(guild_id).await?;
     if queue.is_empty() {
-        ctx.send(CreateReply::default()
-            .embed(CreateEmbed::new()
-                .title("❌ Error")
-                .description("The queue is empty")
-                .color(0xff0000)))
-            .await?;
+        ctx.send(embedded_messages::queue_is_empty()).await?;
         return Ok(());
     }
 
     if index >= queue.len() {
-        ctx.send(CreateReply::default()
-            .embed(CreateEmbed::new()
-                .title("❌ Error")
-                .description(format!("Invalid position. The queue has {} tracks", queue.len()))
-                .color(0xff0000)))
+        ctx.send(embedded_messages::invalid_queue_position(queue.len()))
             .await?;
         return Ok(());
     }
 
     // Remove the track
     if let Some(removed_track) = remove_track(guild_id, index).await? {
-        ctx.send(CreateReply::default()
-            .embed(CreateEmbed::new()
-                .title("🗑️ Track Removed")
-                .description(format!("Removed [{}]({}) from position #{}", 
-                    removed_track.title,
-                    removed_track.url.unwrap_or_else(|| "#".to_string()),
-                    position))
-                .color(0x00ff00)))
+        ctx.send(embedded_messages::track_removed(&removed_track, position))
             .await?;
     } else {
-        ctx.send(CreateReply::default()
-            .embed(CreateEmbed::new()
-                .title("❌ Error")
-                .description("Failed to remove track")
-                .color(0xff0000)))
+        ctx.send(embedded_messages::failed_to_remove_track())
             .await?;
     }
 
     Ok(())
-} 
+}

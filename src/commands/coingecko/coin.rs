@@ -89,9 +89,7 @@ async fn price(
             .timestamp(Utc::now())
             .footer(CreateEmbedFooter::new("via CoinGecko"));
 
-        let reply = CreateReply::default()
-            .embed(embed)
-            .ephemeral(false);
+        let reply = CreateReply::default().embed(embed).ephemeral(false);
 
         ctx.send(reply).await?;
 
@@ -118,14 +116,14 @@ async fn list_coin_ids() -> Vec<String> {
     let query = vec![("localization", "false")];
 
     let result = send_request(&url, &query).await;
-    
+
     if let Ok(value) = result {
         if let Some(arr) = value.as_array() {
             results = arr
                 .iter()
                 .map(|coin| coin["id"].to_string().trim_matches('"').to_string())
                 .collect();
-            
+
             // Now update the cache with a write lock
             let mut cache = COIN_CACHE.write().await;
             *cache = results.clone(); // Replace the cache content
@@ -144,10 +142,6 @@ async fn autocomplete_coin_id<'a>(
     let coin_id_list = list_coin_ids().await;
 
     futures::stream::iter(coin_id_list.into_iter())
-        .map(|id| 
-            id.trim_start_matches('"')
-              .trim_end_matches('"')
-              .to_string()
-        )
+        .map(|id| id.trim_start_matches('"').trim_end_matches('"').to_string())
         .filter(move |id| futures::future::ready(id.starts_with(partial)))
 }
