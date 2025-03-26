@@ -136,6 +136,7 @@ async fn list_coin_ids() -> Vec<String> {
     results
 }
 
+// This function is a bit slow when it comes to showing matching autocomplete values to user's input. Let's speed it up, AI!
 async fn autocomplete_coin_id<'a>(
     _ctx: Context<'_>,
     partial: &'a str,
