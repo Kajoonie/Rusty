@@ -5,11 +5,11 @@ pub(crate) mod list_models;
 pub(crate) mod search;
 pub(crate) mod set_model;
 
-mod utils;
-
 #[cfg(feature = "brave_search")]
-use crate::brave;
-use crate::database::{self, UserPreference};
+use crate::utils::brave;
+
+use crate::utils::database;
+
 use crate::CommandResult;
 use crate::Context;
 

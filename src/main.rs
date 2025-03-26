@@ -3,9 +3,8 @@ use dotenv::dotenv;
 use poise::serenity_prelude as serenity;
 use std::env;
 
-mod brave;
 mod commands;
-mod database;
+mod utils;
 
 use commands::{
     ai::{chat::*, get_model::*, list_models::*, set_model::*},
@@ -54,7 +53,7 @@ async fn main() -> Result<(), Error> {
     dotenv().ok();
 
     // Initialize the SQLite database
-    if let Err(e) = database::init_db() {
+    if let Err(e) = utils::database::init_db() {
         eprintln!("Failed to initialize database: {}", e);
     }
 
