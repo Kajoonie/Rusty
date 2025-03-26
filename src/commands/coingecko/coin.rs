@@ -1,12 +1,13 @@
+use std::sync::LazyLock;
+
 use chrono::Utc;
 use futures::{Stream, StreamExt};
-use once_cell::sync::Lazy;
-use poise::{serenity_prelude::Color, CreateReply};
+use poise::{CreateReply, serenity_prelude::Color};
 use serenity::builder::CreateEmbedFooter;
 use thousands::Separable;
 use tokio::sync::RwLock;
 
-use crate::{serenity::CreateEmbed, CommandResult, Context};
+use crate::{CommandResult, Context, serenity::CreateEmbed};
 
 use super::*;
 
@@ -99,7 +100,7 @@ async fn price(
     }
 }
 
-static COIN_CACHE: Lazy<RwLock<Vec<String>>> = Lazy::new(|| RwLock::new(Vec::new()));
+static COIN_CACHE: LazyLock<RwLock<Vec<String>>> = LazyLock::new(|| RwLock::new(Vec::new()));
 
 async fn list_coin_ids() -> Vec<String> {
     // First check if cache is already populated

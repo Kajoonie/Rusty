@@ -1,4 +1,3 @@
-use lazy_static::lazy_static;
 use serenity::model::id::ChannelId;
 use serenity::model::id::GuildId;
 use songbird::input::Input;
@@ -6,6 +5,7 @@ use songbird::tracks::TrackHandle;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::sync::Arc;
+use std::sync::LazyLock;
 use tokio::sync::Mutex;
 
 use super::audio_sources::TrackMetadata;
@@ -115,13 +115,16 @@ impl QueueManager {
 }
 
 // Create a global queue manager wrapped in a mutex for thread safety
-lazy_static! {
-    pub static ref QUEUE_MANAGER: Arc<Mutex<QueueManager>> = Arc::new(Mutex::new(QueueManager::new()));
-    // Track whether a guild has been manually stopped
-    static ref MANUAL_STOP_FLAGS: Mutex<HashMap<GuildId, bool>> = Mutex::new(HashMap::new());
-    // Store channel IDs for each guild
-    static ref CHANNEL_IDS: Mutex<HashMap<GuildId, ChannelId>> = Mutex::new(HashMap::new());
-}
+pub static QUEUE_MANAGER: LazyLock<Arc<Mutex<QueueManager>>> =
+    LazyLock::new(|| Arc::new(Mutex::new(QueueManager::new())));
+
+// Track whether a guild has been manually stopped
+static MANUAL_STOP_FLAGS: LazyLock<Mutex<HashMap<GuildId, bool>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+// Store channel IDs for each guild
+static CHANNEL_IDS: LazyLock<Mutex<HashMap<GuildId, ChannelId>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Helper functions for working with the global queue manager
 pub async fn add_to_queue(guild_id: GuildId, item: QueueItem) -> QueueResult<()> {

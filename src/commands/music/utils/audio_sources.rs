@@ -1,13 +1,12 @@
 use super::spotify_api::{SpotifyApi, SpotifyTrack};
 use crate::commands::music::utils::music_manager::MusicError;
-use lazy_static::lazy_static;
+use crate::HTTP_CLIENT;
 use regex::Regex;
-use reqwest::Client;
 use serde_json;
 use serpapi_search_rust::serp_api_search::SerpApiSearch;
 #[cfg(feature = "music")]
 use songbird::input::{HttpRequest, Input, YoutubeDl};
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::LazyLock};
 use std::process::Command;
 use std::time::Duration;
 use tracing::{debug, info};
@@ -36,14 +35,10 @@ impl Default for TrackMetadata {
     }
 }
 
-lazy_static! {
-    static ref YOUTUBE_REGEX: Regex = Regex::new(
-        r"^((?:https?:)?//)?((?:www|m)\.)?((?:youtube\.com|youtu.be))(/(?:[\w\-]+\?v=|embed/|v/)?)([\w\-]+)(\S+)?$"
-    ).unwrap();
-
-    // Create a shared HTTP client for reuse
-    static ref HTTP_CLIENT: Client = Client::new();
-}
+static YOUTUBE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^((?:https?:)?//)?((?:www|m)\.)?((?:youtube\.com|youtu.be))(/(?:[\w\-]+\?v=|embed/|v/)?)([\w\-]+)(\S+)?$")
+        .unwrap()
+});
 
 /// Audio source utilities for handling different types of audio inputs
 pub struct AudioSource;

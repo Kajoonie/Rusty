@@ -1,13 +1,14 @@
-use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
-use lazy_static::lazy_static;
+use base64::prelude::BASE64_STANDARD;
 use regex::Regex;
-use reqwest::{header, Client};
+use reqwest::header;
 use serde::{Deserialize, Serialize};
 use std::env;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
+
+use crate::HTTP_CLIENT;
 
 use super::music_manager::MusicError;
 
@@ -42,19 +43,21 @@ impl SpotifyToken {
     }
 }
 
-lazy_static! {
-    static ref HTTP_CLIENT: Client = Client::new();
-    static ref SPOTIFY_TOKEN: Arc<Mutex<Option<SpotifyToken>>> = Arc::new(Mutex::new(None));
-    static ref SPOTIFY_TRACK_REGEX: Regex =
-        Regex::new(r"^(https?://)?(open\.spotify\.com|spotify)/track/([a-zA-Z0-9]+)(\?.*)?$")
-            .unwrap();
-    static ref SPOTIFY_PLAYLIST_REGEX: Regex =
-        Regex::new(r"^(https?://)?(open\.spotify\.com|spotify)/playlist/([a-zA-Z0-9]+)(\?.*)?$")
-            .unwrap();
-    static ref SPOTIFY_ALBUM_REGEX: Regex =
-        Regex::new(r"^(https?://)?(open\.spotify\.com|spotify)/album/([a-zA-Z0-9]+)(\?.*)?$")
-            .unwrap();
-}
+static SPOTIFY_TOKEN: LazyLock<Arc<Mutex<Option<SpotifyToken>>>> =
+    LazyLock::new(|| Arc::new(Mutex::new(None)));
+
+static SPOTIFY_TRACK_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^(https?://)?(open\.spotify\.com|spotify)/track/([a-zA-Z0-9]+)(\?.*)?$").unwrap()
+});
+
+static SPOTIFY_PLAYLIST_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^(https?://)?(open\.spotify\.com|spotify)/playlist/([a-zA-Z0-9]+)(\?.*)?$")
+        .unwrap()
+});
+
+static SPOTIFY_ALBUM_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^(https?://)?(open\.spotify\.com|spotify)/album/([a-zA-Z0-9]+)(\?.*)?$").unwrap()
+});
 
 /// Spotify API client
 pub struct SpotifyApi;

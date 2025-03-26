@@ -1,6 +1,6 @@
 use serenity::model::id::GuildId;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use tokio::sync::Mutex;
 
 use crate::utils::database;
@@ -46,9 +46,9 @@ impl AutoplayManager {
 }
 
 // Create a global autoplay manager wrapped in a mutex for thread safety
-lazy_static::lazy_static! {
-    pub static ref AUTOPLAY_MANAGER: Arc<Mutex<AutoplayManager>> = Arc::new(Mutex::new(AutoplayManager::new()));
-}
+pub static AUTOPLAY_MANAGER: LazyLock<Arc<Mutex<AutoplayManager>>> = LazyLock::new(|| {
+    Arc::new(Mutex::new(AutoplayManager::new()))
+});
 
 // Helper functions for working with the global autoplay manager
 pub async fn set_autoplay(guild_id: GuildId, enabled: bool) {

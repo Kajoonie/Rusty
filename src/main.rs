@@ -1,7 +1,7 @@
 use ::serenity::all::ClientBuilder;
 use dotenv::dotenv;
 use poise::serenity_prelude as serenity;
-use std::env;
+use std::{env, sync::LazyLock};
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 mod commands;
@@ -16,6 +16,8 @@ use commands::{
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 type CommandResult = Result<(), Error>;
+
+pub static HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::new);
 
 // Define the user data type we'll be using in our bot
 struct Data {} // User data, which is stored and accessible in all command invocations
