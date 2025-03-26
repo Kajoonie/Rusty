@@ -23,6 +23,7 @@ async fn price(
     ctx: Context<'_>,
     #[description = "Coin symbol"]
     #[autocomplete = "autocomplete_coin_id"]
+    #[rest]
     symbol: String,
 ) -> CommandResult {
     ctx.defer().await?;
