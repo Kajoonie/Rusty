@@ -11,28 +11,8 @@ pub struct AutoplayManager {
 
 impl AutoplayManager {
     pub fn new() -> Self {
-        let mut manager = Self {
+        Self {
             autoplay_settings: HashMap::new(),
-        };
-
-        // Load settings from database
-        if let Err(e) = manager.load_settings() {
-            eprintln!("Error loading autoplay settings: {}. Using defaults.", e);
-        }
-
-        manager
-    }
-
-    // Load settings from database into memory
-    fn load_settings(&mut self) -> Result<(), rusqlite::Error> {
-        match database::load_all_autoplay_settings() {
-            Ok(settings) => {
-                for (guild_id, enabled) in settings {
-                    self.autoplay_settings.insert(guild_id, enabled);
-                }
-                Ok(())
-            }
-            Err(e) => Err(e),
         }
     }
 
@@ -46,11 +26,21 @@ impl AutoplayManager {
         }
     }
 
-    pub fn is_autoplay_enabled(&self, guild_id: GuildId) -> bool {
-        *self
-            .autoplay_settings
-            .get(&guild_id.get())
-            .unwrap_or(&false)
+    pub fn is_autoplay_enabled(&mut self, guild_id: GuildId) -> bool {
+        let guild_id_u64 = guild_id.get();
+
+        // Check if the setting is in the cache
+        if let Some(&enabled) = self.autoplay_settings.get(&guild_id_u64) {
+            return enabled;
+        }
+
+        // If not in cache, query from database
+        let enabled = database::get_autoplay_setting(guild_id);
+
+        // Store in cache for future use
+        self.autoplay_settings.insert(guild_id_u64, enabled);
+
+        enabled
     }
 }
 
@@ -66,6 +56,6 @@ pub async fn set_autoplay(guild_id: GuildId, enabled: bool) {
 }
 
 pub async fn is_autoplay_enabled(guild_id: GuildId) -> bool {
-    let manager = AUTOPLAY_MANAGER.lock().await;
+    let mut manager = AUTOPLAY_MANAGER.lock().await;
     manager.is_autoplay_enabled(guild_id)
 }
