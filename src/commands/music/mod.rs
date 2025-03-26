@@ -9,7 +9,6 @@ pub(crate) mod stop;
 
 pub(crate) mod utils;
 
-use poise::{serenity_prelude as serenity, CreateReply};
-use serenity::all::CreateEmbed;
+use poise::CreateReply;
 
 use crate::{CommandResult, Context};

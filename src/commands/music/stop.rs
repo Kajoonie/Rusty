@@ -1,6 +1,7 @@
 use super::*;
 use crate::commands::music::utils::{
     autoplay_manager::is_autoplay_enabled,
+    embedded_messages,
     music_manager::{MusicError, MusicManager},
     queue_manager::{clear_queue, get_current_track, set_manual_stop_flag},
 };
@@ -16,15 +17,8 @@ pub async fn stop(ctx: Context<'_>) -> CommandResult {
     match MusicManager::get_call(ctx.serenity_context(), guild_id).await {
         Ok(call) => call,
         Err(err) => {
-            ctx.send(
-                CreateReply::default().embed(
-                    CreateEmbed::new()
-                        .title("❌ Error")
-                        .description(format!("Not connected to a voice channel: {}", err))
-                        .color(0xff0000),
-                ),
-            )
-            .await?;
+            ctx.send(embedded_messages::bot_not_in_voice_channel(err))
+                .await?;
             return Ok(());
         }
     };
@@ -47,21 +41,8 @@ pub async fn stop(ctx: Context<'_>) -> CommandResult {
     clear_queue(guild_id).await?;
 
     // Send success message
-    let mut embed = CreateEmbed::new()
-        .title("⏹️ Stopped")
-        .description("Playback stopped and queue cleared")
-        .color(0x00ff00);
-
-    // Add information about autoplay if it's enabled
-    if autoplay_is_enabled {
-        embed = embed.field(
-            "Autoplay",
-            "Autoplay is paused and will resume on next play",
-            false,
-        );
-    }
-
-    ctx.send(CreateReply::default().embed(embed)).await?;
+    ctx.send(embedded_messages::stopped(autoplay_is_enabled))
+        .await?;
 
     Ok(())
 }

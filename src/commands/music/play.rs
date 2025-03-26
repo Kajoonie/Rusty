@@ -1,11 +1,11 @@
 use super::*;
 use crate::commands::music::utils::{
     audio_sources::AudioSource,
+    embedded_messages,
     event_handlers::play_next_track,
     music_manager::{MusicError, MusicManager},
     queue_manager::{add_to_queue, get_current_track, get_queue, queue_length, QueueItem},
 };
-use poise::serenity_prelude::CreateEmbed;
 use std::time::Duration;
 use tracing::{debug, error, info};
 
@@ -26,17 +26,8 @@ pub async fn play(
         match MusicManager::get_user_voice_channel(ctx.serenity_context(), guild_id, user_id) {
             Ok(channel_id) => channel_id,
             Err(err) => {
-                ctx.send(
-                    CreateReply::default()
-                        .embed(
-                            CreateEmbed::new()
-                                .title("❌ Error")
-                                .description(format!("You need to be in a voice channel: {}", err))
-                                .color(0xff0000),
-                        )
-                        .ephemeral(true),
-                )
-                .await?;
+                ctx.send(embedded_messages::user_not_in_voice_channel(err))
+                    .await?;
                 return Ok(());
             }
         };
@@ -52,15 +43,8 @@ pub async fn play(
             match MusicManager::join_channel(ctx.serenity_context(), guild_id, channel_id).await {
                 Ok(call) => call,
                 Err(err) => {
-                    ctx.send(
-                        CreateReply::default().embed(
-                            CreateEmbed::new()
-                                .title("❌ Error")
-                                .description(format!("Failed to join voice channel: {}", err))
-                                .color(0xff0000),
-                        ),
-                    )
-                    .await?;
+                    ctx.send(embedded_messages::failed_to_join_voice_channel(err))
+                        .await?;
                     return Ok(());
                 }
             }
@@ -105,15 +89,8 @@ pub async fn play(
         }
         Err(err) => {
             error!("Failed to create audio source: {}", err);
-            ctx.send(
-                CreateReply::default().embed(
-                    CreateEmbed::new()
-                        .title("❌ Error")
-                        .description(format!("Failed to process audio source: {}", err))
-                        .color(0xff0000),
-                ),
-            )
-            .await?;
+            ctx.send(embedded_messages::failed_to_process_audio_source(err))
+                .await?;
             return Ok(());
         }
     };
@@ -131,15 +108,8 @@ pub async fn play(
 
     // Add the first track to the queue
     if let Err(err) = add_to_queue(guild_id, queue_item).await {
-        ctx.send(
-            CreateReply::default().embed(
-                CreateEmbed::new()
-                    .title("❌ Error")
-                    .description(format!("Failed to add track to queue: {}", err))
-                    .color(0xff0000),
-            ),
-        )
-        .await?;
+        ctx.send(embedded_messages::failed_to_add_to_queue(err))
+            .await?;
         return Ok(());
     }
 
@@ -151,29 +121,10 @@ pub async fn play(
     // Get the queue length
     let position = queue_length(guild_id).await.unwrap_or(0);
 
-    // Send a success message
-    let title = metadata.title.clone();
-    let url = metadata.url.clone().unwrap_or_else(|| "#".to_string());
-    let duration_str = metadata
-        .duration
-        .map(format_duration)
-        .unwrap_or_else(|| "Unknown duration".to_string());
-
     let mut embed = if position == 0 {
-        // Playing now
-        CreateEmbed::new()
-            .title("🎵 Now Playing")
-            .description(format!("[{}]({})", title, url))
-            .field("Duration", format!("`{}`", duration_str), true)
-            .color(0x00ff00)
+        embedded_messages::now_playing(&metadata)
     } else {
-        // Added to queue
-        CreateEmbed::new()
-            .title("🎵 Added to Queue")
-            .description(format!("[{}]({})", title, url))
-            .field("Duration", format!("`{}`", duration_str), true)
-            .field("Position", format!("`#{}`", position), true)
-            .color(0x00ff00)
+        embedded_messages::added_to_queue(&metadata, &position)
     };
 
     // Add thumbnail if available
@@ -196,7 +147,7 @@ pub async fn play(
                 format!(
                     "`{} tracks` • Total Length: `{}`",
                     queue_length,
-                    format_duration(total_duration)
+                    utils::format_duration(total_duration)
                 ),
                 false,
             );
@@ -208,19 +159,4 @@ pub async fn play(
     ctx.send(CreateReply::default().embed(embed)).await?;
 
     Ok(())
-}
-
-/// Format a duration into a human-readable string
-fn format_duration(duration: Duration) -> String {
-    let seconds = duration.as_secs();
-    let minutes = seconds / 60;
-    let seconds = seconds % 60;
-
-    if minutes >= 60 {
-        let hours = minutes / 60;
-        let minutes = minutes % 60;
-        format!("{}:{:02}:{:02}", hours, minutes, seconds)
-    } else {
-        format!("{}:{:02}", minutes, seconds)
-    }
 }

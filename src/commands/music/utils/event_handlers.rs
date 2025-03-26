@@ -93,6 +93,8 @@ impl songbird::EventHandler for SongEndNotifier {
                                     }
                                 }
                             }
+                        } else {
+                            info!("Autoplay disabled, stopping playback");
                         }
                     }
                 }
