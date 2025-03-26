@@ -69,7 +69,35 @@ pub async fn play(
 
     // Process the query to get an audio source
     info!("Processing audio source for query: {}", query);
-    let (source, metadata) = match AudioSource::from_query(&query).await {
+
+    // Create a callback to add tracks to the queue
+    let guild_id_clone = guild_id;
+    let queue_callback: Box<
+        dyn Fn(songbird::input::Input, crate::commands::music::utils::audio_sources::TrackMetadata)
+            + Send
+            + Sync,
+    > = Box::new(move |input, metadata| {
+        // Clone values for the async block
+        let guild_id = guild_id_clone;
+
+        tokio::spawn(async move {
+            // Create a queue item for this track
+            let queue_item = QueueItem {
+                input,
+                metadata: metadata.clone(),
+            };
+
+            // Add track to queue
+            if let Err(err) = add_to_queue(guild_id, queue_item).await {
+                error!("Failed to add track to queue: {}", err);
+                return;
+            }
+
+            info!("Added track to queue: {}", metadata.title);
+        });
+    });
+
+    let (source, metadata) = match AudioSource::from_query(&query, Some(queue_callback)).await {
         Ok(result) => {
             let (src, meta) = result;
             info!("Successfully created audio source. Metadata: {:?}", meta);
@@ -90,7 +118,7 @@ pub async fn play(
         }
     };
 
-    // Create a queue item
+    // Create a queue item for the first track
     debug!("Creating queue item with metadata: {:?}", metadata);
     let queue_item = QueueItem {
         input: source,
@@ -101,7 +129,7 @@ pub async fn play(
     let current_track = get_current_track(guild_id).await?;
     let should_start_playing = current_track.is_none();
 
-    // Add the track to the queue
+    // Add the first track to the queue
     if let Err(err) = add_to_queue(guild_id, queue_item).await {
         ctx.send(
             CreateReply::default().embed(

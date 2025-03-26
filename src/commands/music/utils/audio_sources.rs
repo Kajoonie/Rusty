@@ -50,11 +50,14 @@ pub struct AudioSource;
 
 impl AudioSource {
     /// Create an audio source from a URL or search term
-    pub async fn from_query(query: &str) -> AudioSourceResult<(Input, TrackMetadata)> {
+    pub async fn from_query(
+        query: &str,
+        queue_track_callback: Option<Box<dyn Fn(Input, TrackMetadata) + Send + Sync>>,
+    ) -> AudioSourceResult<(Input, TrackMetadata)> {
         debug!("Creating audio source from query: {}", query);
         // Check if the query is a URL
         if Self::is_url(query) {
-            Self::from_url(query).await
+            Self::from_url(query, queue_track_callback).await
         } else {
             // Treat as a search term
             Self::from_search(query).await
@@ -82,12 +85,15 @@ impl AudioSource {
     }
 
     /// Create an audio source from a URL
-    pub async fn from_url(url: &str) -> AudioSourceResult<(Input, TrackMetadata)> {
+    pub async fn from_url(
+        url: &str,
+        queue_track_callback: Option<Box<dyn Fn(Input, TrackMetadata) + Send + Sync>>,
+    ) -> AudioSourceResult<(Input, TrackMetadata)> {
         debug!("Creating audio source from URL: {}", url);
 
         // Handle Spotify URLs
         if SpotifyApi::is_spotify_url(url) {
-            return Self::from_spotify_url(url).await;
+            return Self::from_spotify_url(url, queue_track_callback).await;
         }
 
         // Handle YouTube URLs with ytdl
@@ -433,7 +439,10 @@ impl AudioSource {
     }
 
     /// Create an audio source from a Spotify URL
-    pub async fn from_spotify_url(url: &str) -> AudioSourceResult<(Input, TrackMetadata)> {
+    pub async fn from_spotify_url(
+        url: &str,
+        queue_track_callback: Option<Box<dyn Fn(Input, TrackMetadata) + Send + Sync>>,
+    ) -> AudioSourceResult<(Input, TrackMetadata)> {
         info!("Creating audio source from Spotify URL: {}", url);
 
         // Determine the type of Spotify URL (track, playlist, album)
@@ -453,15 +462,19 @@ impl AudioSource {
             // Return the first track and queue the rest
             let first_track = tracks[0].clone();
 
-            // Queue the remaining tracks in the background
-            if tracks.len() > 1 {
+            // Queue the remaining tracks if we have a callback
+            if tracks.len() > 1 && queue_track_callback.is_some() {
                 let remaining_tracks = tracks[1..].to_vec();
+                let callback = queue_track_callback.unwrap();
 
                 // Start a background task to process and queue these tracks
                 tokio::spawn(async move {
                     for track in remaining_tracks {
-                        // We don't want to block on each track, so ignore errors
-                        let _ = Self::from_spotify_track(track).await;
+                        // Process each track and add it to the queue
+                        if let Ok((input, metadata)) = Self::from_spotify_track(track).await {
+                            // Use the callback to queue this track
+                            (callback)(input, metadata);
+                        }
                     }
                 });
             }
@@ -479,15 +492,19 @@ impl AudioSource {
             // Return the first track and queue the rest
             let first_track = tracks[0].clone();
 
-            // Queue the remaining tracks in the background
-            if tracks.len() > 1 {
+            // Queue the remaining tracks if we have a callback
+            if tracks.len() > 1 && queue_track_callback.is_some() {
                 let remaining_tracks = tracks[1..].to_vec();
+                let callback = queue_track_callback.unwrap();
 
                 // Start a background task to process and queue these tracks
                 tokio::spawn(async move {
                     for track in remaining_tracks {
-                        // We don't want to block on each track, so ignore errors
-                        let _ = Self::from_spotify_track(track).await;
+                        // Process each track and add it to the queue
+                        if let Ok((input, metadata)) = Self::from_spotify_track(track).await {
+                            // Use the callback to queue this track
+                            (callback)(input, metadata);
+                        }
                     }
                 });
             }

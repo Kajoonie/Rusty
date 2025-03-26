@@ -35,9 +35,7 @@ fn create_tables() -> SqlResult<()> {
 
 pub fn get_user_model(user: &User) -> String {
     if let Ok(conn) = Connection::open(DB_PATH) {
-        if let Ok(mut statement) =
-            conn.prepare("SELECT model FROM user_preferences WHERE user_id = ?1")
-        {
+        if let Ok(mut statement) = conn.prepare("SELECT model FROM user_preferences WHERE user_id = ?1") {
             if let Ok(mut rows) = statement.query([user.id.to_string()]) {
                 if let Ok(Some(row)) = rows.next() {
                     if let Ok(model) = row.get(0) {

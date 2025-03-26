@@ -1,14 +1,14 @@
+use ::serenity::all::ClientBuilder;
 use dotenv::dotenv;
 use poise::serenity_prelude as serenity;
 use std::env;
-use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 mod brave;
 mod commands;
 mod database;
 
 use commands::{
-    ai::{chat::*, get_model::*, list_models::*, search::*, set_model::*},
+    ai::{chat::*, get_model::*, list_models::*, set_model::*},
     coingecko::coin::*,
     general::ping::*,
 };
@@ -48,19 +48,8 @@ async fn register(ctx: Context<'_>) -> Result<(), Error> {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    // Initialize logging with debug level for our crate
-    FmtSubscriber::builder()
-        .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("rusty=debug,warn")),
-        )
-        .with_thread_ids(true)
-        .with_line_number(true)
-        .with_file(true)
-        .with_target(true)
-        .with_ansi(true)
-        .pretty()
-        .init();
+    // Initialize logging
+    tracing_subscriber::fmt::init();
 
     dotenv().ok();
 
@@ -86,11 +75,18 @@ async fn main() -> Result<(), Error> {
         chat(),
         get_model(),
         list_models(),
-        search(),
         set_model(),
         // Coingecko commands
         coin(),
     ];
+
+    // Handle brave search feature
+    #[cfg(feature = "brave_search")]
+    {
+        use commands::ai::search::*;
+
+        commands.extend(vec![search()]);
+    }
 
     // Handle Music feature
     #[cfg(feature = "music")]
@@ -124,32 +120,24 @@ async fn main() -> Result<(), Error> {
             })
         });
 
-    let framework_built = framework.build();
+    let client_builder = ClientBuilder::new(token, intents).framework(framework.build());
 
     // Create and run client
-    let client_builder = serenity::ClientBuilder::new(token, intents).framework(framework_built);
+    build_and_start_client(client_builder).await
+}
 
+async fn build_and_start_client(client_builder: ClientBuilder) -> Result<(), Error> {
     #[cfg(feature = "music")]
-    return run_with_music(client_builder).await;
+    {
+        use songbird::SerenityInit;
+
+        let mut client = client_builder.register_songbird().await?;
+        client.start().await.map_err(Into::into)
+    }
 
     #[cfg(not(feature = "music"))]
-    return run_without_music(client_builder).await;
-}
-
-// Only compiled when the music feature is enabled
-#[cfg(feature = "music")]
-async fn run_with_music(client_builder: serenity::ClientBuilder) -> Result<(), Error> {
-    // Required for music functionality
-    use songbird::SerenityInit;
-
-    let mut client = client_builder.register_songbird().await?;
-
-    client.start().await.map_err(Into::into)
-}
-
-// Only compiled when the music feature is disabled
-#[cfg(not(feature = "music"))]
-async fn run_without_music(client_builder: serenity::ClientBuilder) -> Result<(), Error> {
-    let mut client = client_builder.await?;
-    client.start().await.map_err(Into::into)
+    {
+        let mut client = client_builder.await?;
+        client.start().await.map_err(Into::into)
+    }
 }
