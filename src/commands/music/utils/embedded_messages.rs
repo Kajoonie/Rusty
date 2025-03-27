@@ -1,9 +1,14 @@
-use poise::{serenity_prelude as serenity, CreateReply};
+use poise::{CreateReply, serenity_prelude as serenity};
 use serenity::all::CreateEmbed;
 use songbird::tracks::TrackHandle;
 use std::time::Duration;
 
-use super::{audio_sources::TrackMetadata, format_duration, music_manager::MusicError};
+use super::{
+    audio_sources::TrackMetadata,
+    button_controls::{create_music_control_buttons, create_updated_buttons},
+    format_duration,
+    music_manager::MusicError,
+};
 
 /// Create a progress bar for the current track
 fn format_progress_bar(position: Duration, total: Duration) -> String {
@@ -33,7 +38,7 @@ fn parse_metadata(metadata: &TrackMetadata) -> (String, String, String) {
 }
 
 /// Create an embed for when a song is now playing
-pub fn now_playing(metadata: &TrackMetadata) -> CreateEmbed {
+pub fn now_playing(metadata: &TrackMetadata) -> CreateReply {
     let (title, url, duration_str) = parse_metadata(metadata);
 
     let mut embed = CreateEmbed::new()
@@ -47,11 +52,14 @@ pub fn now_playing(metadata: &TrackMetadata) -> CreateEmbed {
         embed = embed.thumbnail(thumbnail);
     }
 
-    embed
+    // Create reply with embed and music control buttons
+    CreateReply::default()
+        .embed(embed)
+        .components(create_music_control_buttons())
 }
 
 /// Create an embed for when a song is added to the queue
-pub fn added_to_queue(metadata: &TrackMetadata, position: &usize) -> CreateEmbed {
+pub fn added_to_queue(metadata: &TrackMetadata, position: &usize) -> CreateReply {
     let (title, url, duration_str) = parse_metadata(metadata);
 
     let mut embed = CreateEmbed::new()
@@ -66,7 +74,10 @@ pub fn added_to_queue(metadata: &TrackMetadata, position: &usize) -> CreateEmbed
         embed = embed.thumbnail(thumbnail);
     }
 
-    embed
+    // Create reply with embed and music control buttons
+    CreateReply::default()
+        .embed(embed)
+        .components(create_music_control_buttons())
 }
 
 /// Create an embed for the music queue

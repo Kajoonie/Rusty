@@ -5,9 +5,10 @@ use crate::commands::music::utils::{
     event_handlers::play_next_track,
     music_manager::{MusicError, MusicManager},
     queue_manager::{
-        add_to_queue, get_current_track, get_queue, queue_length, store_channel_id, QueueItem,
+        QueueItem, add_to_queue, get_current_track, get_queue, queue_length, store_channel_id,
     },
 };
+use serenity::builder::CreateEmbed;
 use std::time::Duration;
 use tracing::{debug, error, info};
 
@@ -126,7 +127,7 @@ pub async fn play(
     // Get the queue length
     let position = queue_length(guild_id).await.unwrap_or(0);
 
-    let mut embed = if position == 0 {
+    let mut reply = if position == 0 {
         embedded_messages::now_playing(&metadata)
     } else {
         embedded_messages::added_to_queue(&metadata, &position)
@@ -141,22 +142,26 @@ pub async fn play(
             .filter_map(|track| track.duration)
             .sum();
 
-        if total_duration.as_secs() > 0 {
-            embed = embed.field(
-                "Queue Info",
-                format!(
-                    "`{} tracks` • Total Length: `{}`",
-                    queue_length,
-                    utils::format_duration(total_duration)
-                ),
-                false,
-            );
+        // Create a new embed with the queue info field
+        let queue_info = if total_duration.as_secs() > 0 {
+            format!(
+                "`{} tracks` • Total Length: `{}`",
+                queue_length,
+                utils::format_duration(total_duration)
+            )
         } else {
-            embed = embed.field("Queue Info", format!("`{} tracks`", queue_length), false);
+            format!("`{} tracks`", queue_length)
+        };
+
+        // Update the reply with the new embed
+        if let Some(first_embed) = reply.embeds.first() {
+            let mut new_embed = first_embed.clone();
+            new_embed = new_embed.field("Queue Info", queue_info, false);
+            reply.embeds = vec![new_embed];
         }
     }
 
-    ctx.send(CreateReply::default().embed(embed)).await?;
+    ctx.send(reply).await?;
 
     Ok(())
 }

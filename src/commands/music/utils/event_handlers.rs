@@ -7,8 +7,8 @@ use crate::commands::music::utils::{
         is_manual_stop_flag_set, set_current_track,
     },
 };
-use serenity::async_trait;
 use poise::serenity_prelude as serenity;
+use serenity::async_trait;
 use tracing::{error, info};
 
 /// Event handler for when a song ends
@@ -33,12 +33,9 @@ impl SongEndNotifier {
     async fn handle_track_end(&self) {
         info!("Track ended for guild {}", self.guild_id);
 
-        let track_played = play_next_track(
-            &self.ctx,
-            self.guild_id,
-            self.call.clone(),
-            true,
-        ).await.is_ok();
+        let track_played = play_next_track(&self.ctx, self.guild_id, self.call.clone(), true)
+            .await
+            .is_ok();
 
         if !track_played {
             self.handle_empty_queue().await;
@@ -77,13 +74,8 @@ impl SongEndNotifier {
                     };
 
                     add_to_queue(self.guild_id, queue_item).await?;
-                    play_next_track(
-                        &self.ctx,
-                        self.guild_id,
-                        self.call.clone(),
-                        true,
-                    ).await?;
-                    
+                    play_next_track(&self.ctx, self.guild_id, self.call.clone(), true).await?;
+
                     break;
                 }
             }
@@ -128,8 +120,10 @@ pub async fn play_next_track(
     if send_message {
         // Send a now playing message
         if let Some(channel_id) = get_channel_id(guild_id).await {
-            let embed = embedded_messages::now_playing(&queue_item.metadata);
-            let message = serenity::CreateMessage::default().embeds(vec![embed]);
+            let reply = embedded_messages::now_playing(&queue_item.metadata);
+            let message = serenity::CreateMessage::default()
+                .embeds(reply.embeds)
+                .components(reply.components.unwrap_or_default());
             channel_id.send_message(ctx, message).await?;
         }
     }

@@ -126,7 +126,7 @@ async fn main() -> Result<(), Error> {
             commands,
             ..Default::default()
         })
-        .setup(|ctx, _ready, framework| {
+        .setup(|_ctx, _ready, _framework| {
             Box::pin(async move {
                 Ok(Data {})
             })
