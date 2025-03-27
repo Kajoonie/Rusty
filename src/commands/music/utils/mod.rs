@@ -3,6 +3,7 @@ use std::time::Duration;
 // Export music utilities
 pub mod audio_sources;
 pub mod autoplay_manager;
+pub mod button_controls;
 pub mod embedded_messages;
 pub mod event_handlers;
 pub mod music_manager;
