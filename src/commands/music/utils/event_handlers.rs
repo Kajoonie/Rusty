@@ -7,7 +7,7 @@ use crate::commands::music::utils::{
         is_manual_stop_flag_set, set_current_track,
     },
 };
-use async_trait::async_trait;
+use serenity::async_trait;
 use poise::serenity_prelude as serenity;
 use tracing::{error, info};
 

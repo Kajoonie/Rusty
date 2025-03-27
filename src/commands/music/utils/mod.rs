@@ -7,6 +7,7 @@ pub mod embedded_messages;
 pub mod event_handlers;
 pub mod music_manager;
 pub mod queue_manager;
+pub mod song_fetchers;
 pub mod spotify_api;
 
 /// Format a duration into a human-readable string (e.g., "3:45" or "1:23:45")
