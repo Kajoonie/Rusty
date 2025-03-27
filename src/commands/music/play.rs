@@ -8,7 +8,6 @@ use crate::commands::music::utils::{
         QueueItem, add_to_queue, get_current_track, get_queue, queue_length, store_channel_id,
     },
 };
-use serenity::builder::CreateEmbed;
 use std::time::Duration;
 use tracing::{debug, error, info};
 

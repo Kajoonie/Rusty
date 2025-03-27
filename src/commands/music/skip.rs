@@ -16,9 +16,11 @@ pub async fn skip(ctx: Context<'_>) -> CommandResult {
     // Stop the current track if there is one
     if let Some((track, metadata)) = current_track {
         track.stop()?;
-        ctx.send(embedded_messages::skipped(&metadata)).await?;
+        ctx.send(CreateReply::default().embed(embedded_messages::skipped(&metadata)))
+            .await?;
     } else {
-        ctx.send(embedded_messages::no_track_to_skip()).await?;
+        ctx.send(CreateReply::default().embed(embedded_messages::no_track_to_skip()))
+            .await?;
     }
 
     Ok(())

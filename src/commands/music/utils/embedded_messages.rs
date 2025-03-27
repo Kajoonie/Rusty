@@ -4,9 +4,7 @@ use songbird::tracks::TrackHandle;
 use std::time::Duration;
 
 use super::{
-    audio_sources::TrackMetadata,
-    button_controls::{create_music_control_buttons, create_updated_buttons},
-    format_duration,
+    audio_sources::TrackMetadata, button_controls::create_music_control_buttons, format_duration,
     music_manager::MusicError,
 };
 
@@ -157,13 +155,11 @@ pub async fn music_queue(
 }
 
 /// Create an embed for when the bot is not connected to a voice channel
-pub fn bot_not_in_voice_channel(err: MusicError) -> CreateReply {
-    CreateReply::default().embed(
-        CreateEmbed::new()
-            .title("❌ Error")
-            .description(format!("Not connected to a voice channel: {}", err))
-            .color(0xff0000),
-    )
+pub fn bot_not_in_voice_channel(err: MusicError) -> CreateEmbed {
+    CreateEmbed::new()
+        .title("❌ Error")
+        .description(format!("Not connected to a voice channel: {}", err))
+        .color(0xff0000)
 }
 
 /// Create an embed for when a user is not connected to a voice channel
@@ -179,51 +175,43 @@ pub fn user_not_in_voice_channel(err: MusicError) -> CreateReply {
 }
 
 /// Create an embed for when a track is paused
-pub fn paused(metadata: &TrackMetadata) -> CreateReply {
-    CreateReply::default().embed(
-        CreateEmbed::new()
-            .title("⏸️ Paused")
-            .description(format!(
-                "Paused [{}]({})",
-                metadata.title,
-                metadata.url.as_deref().unwrap_or("#")
-            ))
-            .color(0x00ff00),
-    )
+pub fn paused(metadata: &TrackMetadata) -> CreateEmbed {
+    CreateEmbed::new()
+        .title("⏸️ Paused")
+        .description(format!(
+            "Paused [{}]({})",
+            metadata.title,
+            metadata.url.as_deref().unwrap_or("#")
+        ))
+        .color(0x00ff00)
 }
 
 /// Create an embed for when a track is resumed
-pub fn resumed(metadata: &TrackMetadata) -> CreateReply {
-    CreateReply::default().embed(
-        CreateEmbed::new()
-            .title("▶️ Resumed")
-            .description(format!(
-                "Resumed [{}]({})",
-                metadata.title,
-                metadata.url.as_deref().unwrap_or("#")
-            ))
-            .color(0x00ff00),
-    )
+pub fn resumed(metadata: &TrackMetadata) -> CreateEmbed {
+    CreateEmbed::new()
+        .title("▶️ Resumed")
+        .description(format!(
+            "Resumed [{}]({})",
+            metadata.title,
+            metadata.url.as_deref().unwrap_or("#")
+        ))
+        .color(0x00ff00)
 }
 
 /// Create an embed for when a track is not in a pausable state
-pub fn not_pausable() -> CreateReply {
-    CreateReply::default().embed(
-        CreateEmbed::new()
-            .title("❌ Error")
-            .description("The track is not in a pausable state")
-            .color(0xff0000),
-    )
+pub fn not_pausable() -> CreateEmbed {
+    CreateEmbed::new()
+        .title("❌ Error")
+        .description("The track is not in a pausable state")
+        .color(0xff0000)
 }
 
 /// Create an embed for when no track is playing
-pub fn no_track_playing() -> CreateReply {
-    CreateReply::default().embed(
-        CreateEmbed::new()
-            .title("❌ Error")
-            .description("No track is currently playing")
-            .color(0xff0000),
-    )
+pub fn no_track_playing() -> CreateEmbed {
+    CreateEmbed::new()
+        .title("❌ Error")
+        .description("No track is currently playing")
+        .color(0xff0000)
 }
 
 /// Create an embed for when autoplay is enabled or disabled
@@ -343,7 +331,7 @@ pub fn failed_to_remove_track() -> CreateReply {
 }
 
 /// Create an embed for when the bot stops playing music
-pub fn stopped(autoplay_enabled: bool) -> CreateReply {
+pub fn stopped(autoplay_enabled: bool) -> CreateEmbed {
     let mut embed = CreateEmbed::new()
         .title("⏹️ Stopped")
         .description("Playback stopped and queue cleared")
@@ -358,25 +346,21 @@ pub fn stopped(autoplay_enabled: bool) -> CreateReply {
         );
     }
 
-    CreateReply::default().embed(embed)
+    embed
 }
 
 /// Create an embed for when a track is skipped
-pub fn skipped(metadata: &TrackMetadata) -> CreateReply {
+pub fn skipped(metadata: &TrackMetadata) -> CreateEmbed {
     let (title, url, _) = parse_metadata(metadata);
 
-    CreateReply::default().embed(
-        CreateEmbed::new()
-            .title("⏭️ Skipped")
-            .description(format!("Skipped [{}]({})", title, url)),
-    )
+    CreateEmbed::new()
+        .title("⏭️ Skipped")
+        .description(format!("Skipped [{}]({})", title, url))
 }
 
 /// Create an embed for when there is no track to skip
-pub fn no_track_to_skip() -> CreateReply {
-    CreateReply::default().embed(
-        CreateEmbed::new()
-            .title("❌ Error")
-            .description("No track is currently playing"),
-    )
+pub fn no_track_to_skip() -> CreateEmbed {
+    CreateEmbed::new()
+        .title("❌ Error")
+        .description("No track is currently playing")
 }

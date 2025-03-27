@@ -17,8 +17,10 @@ pub async fn stop(ctx: Context<'_>) -> CommandResult {
     match MusicManager::get_call(ctx.serenity_context(), guild_id).await {
         Ok(call) => call,
         Err(err) => {
-            ctx.send(embedded_messages::bot_not_in_voice_channel(err))
-                .await?;
+            ctx.send(
+                CreateReply::default().embed(embedded_messages::bot_not_in_voice_channel(err)),
+            )
+            .await?;
             return Ok(());
         }
     };
@@ -41,7 +43,7 @@ pub async fn stop(ctx: Context<'_>) -> CommandResult {
     clear_queue(guild_id).await?;
 
     // Send success message
-    ctx.send(embedded_messages::stopped(autoplay_is_enabled))
+    ctx.send(CreateReply::default().embed(embedded_messages::stopped(autoplay_is_enabled)))
         .await?;
 
     Ok(())

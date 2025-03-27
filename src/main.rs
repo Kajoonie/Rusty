@@ -1,10 +1,12 @@
 use ::serenity::all::ClientBuilder;
 use dotenv::dotenv;
 use poise::serenity_prelude as serenity;
-use std::{env, sync::LazyLock};
+use tracing::debug;
+use std::{env, sync::{Arc, LazyLock}, time::Duration};
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 mod commands;
+mod events;
 mod utils;
 
 use commands::{
@@ -124,21 +126,47 @@ async fn main() -> Result<(), Error> {
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands,
+            prefix_options: poise::PrefixFrameworkOptions {
+                prefix: Some("~".into()),
+                edit_tracker: Some(Arc::new(poise::EditTracker::for_timespan(
+                    Duration::from_secs(3600),
+                ))),
+                additional_prefixes: vec![
+                    poise::Prefix::Literal("Rusty,"),
+                    poise::Prefix::Literal("Hey Rusty,")
+                ],
+                ..Default::default()
+            },
+            pre_command: |ctx| {
+                Box::pin(async move {
+                    debug!("Executing command {}...", ctx.command().qualified_name);
+                })
+            },
+            post_command: |ctx| {
+                Box::pin(async move {
+                    debug!("Executed command {}!", ctx.command().qualified_name);
+                })
+            },
+            event_handler: |ctx, event, framework, data| {
+                Box::pin(async move {
+                    events::handle_event(ctx, event, framework, data).await
+                })
+            },
             ..Default::default()
         })
-        .setup(|_ctx, _ready, _framework| {
+        .setup(|ctx, _ready, framework| {
             Box::pin(async move {
+                poise::builtins::register_globally(ctx, &framework.options().commands).await?;
                 Ok(Data {})
             })
         });
 
     let client_builder = ClientBuilder::new(token, intents).framework(framework.build());
 
-    // Create and run client
     build_and_start_client(client_builder).await
 }
 
-async fn build_and_start_client(client_builder: ClientBuilder) -> Result<(), Error> {
+async fn build_and_start_client(client_builder: serenity::ClientBuilder) -> Result<(), Error> {
     #[cfg(feature = "music")]
     {
         use songbird::SerenityInit;

@@ -4,6 +4,7 @@ use std::time::Duration;
 pub mod audio_sources;
 pub mod autoplay_manager;
 pub mod button_controls;
+pub mod button_handlers;
 pub mod embedded_messages;
 pub mod event_handlers;
 pub mod music_manager;
