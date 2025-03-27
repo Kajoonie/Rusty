@@ -36,8 +36,7 @@ impl Default for TrackMetadata {
 }
 
 static YOUTUBE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^((?:https?:)?//)?((?:www|m)\.)?((?:youtube\.com|youtu.be))(/(?:[\w\-]+\?v=|embed/|v/)?)([\w\-]+)(\S+)?$")
-        .unwrap()
+    Regex::new(r"^((?:https?:)?//)?((?:www|m)\.)?((?:youtube\.com|youtu.be))(/(?:[\w\-]+\?v=|embed/|v/)?)([\w\-]+)(\S+)?$").unwrap()
 });
 
 /// Audio source utilities for handling different types of audio inputs
@@ -232,26 +231,39 @@ impl AudioSource {
         info!("Fetching related songs for URL: {}", url);
 
         // Extract video ID from URL
-        let video_id = if let Some(captures) = YOUTUBE_REGEX.captures(url) {
-            captures.get(5).map(|m| m.as_str().to_string())
-        } else {
-            return Err(MusicError::AudioSourceError(
-                "Not a valid YouTube URL".to_string(),
-            ));
-        };
+        let video_id = Self::extract_video_id(url)?;
 
-        let video_id = match video_id {
-            Some(id) => id,
-            None => {
-                return Err(MusicError::AudioSourceError(
+        // Try using SerpAPI to get related videos
+        let related_songs = Self::fetch_related_songs_with_serpapi(video_id).await?;
+
+        if related_songs.is_empty() {
+            // Fallback to the search approach
+            let related_songs = Self::fetch_related_songs_with_ytdlp(url).await?;
+            Ok(related_songs)
+        } else {
+            Ok(related_songs)
+        }
+    }
+
+    /// Extract the video ID from a YouTube URL
+    fn extract_video_id(url: &str) -> AudioSourceResult<String> {
+        if let Some(captures) = YOUTUBE_REGEX.captures(url) {
+            if let Some(id) = captures.get(5).map(|m| m.as_str().to_string()) {
+                Ok(id)
+            } else {
+                Err(MusicError::AudioSourceError(
                     "Could not extract video ID".to_string(),
                 ))
             }
-        };
+        } else {
+            Err(MusicError::AudioSourceError(
+                "Not a valid YouTube URL".to_string(),
+            ))
+        }
+    }
 
-        debug!("Extracted video ID: {}", video_id);
-
-        // Try using SerpAPI to get related videos
+    /// Fetch related songs using SerpAPI
+    async fn fetch_related_songs_with_serpapi(video_id: String) -> AudioSourceResult<Vec<TrackMetadata>> {
         let serpapi_key = std::env::var("SERP_API_KEY")
             .map_err(|_| MusicError::AudioSourceError("SerpAPI key not set".to_string()))?;
 
@@ -307,103 +319,106 @@ impl AudioSource {
             }
         }
 
-        // If we didn't get any related videos, fall back to the search approach
-        if related_songs.is_empty() {
-            debug!("No related videos from SerpAPI, falling back to search approach");
+        Ok(related_songs)
+    }
 
-            // First, get information about the current video to extract title, artist, etc.
-            let output = Command::new("yt-dlp")
-                .args([
-                    "-j", // Output metadata as JSON
-                    "--no-playlist",
-                    url,
-                ])
-                .output()
-                .map_err(|e| {
-                    MusicError::AudioSourceError(format!("Failed to get video metadata: {}", e))
-                })?;
+    /// Fetch related songs using yt-dlp
+    async fn fetch_related_songs_with_ytdlp(url: &str) -> AudioSourceResult<Vec<TrackMetadata>> {
+        debug!("No related videos from SerpAPI, falling back to search approach");
 
-            let metadata_str = String::from_utf8_lossy(&output.stdout);
-            let metadata_json: serde_json::Value =
-                serde_json::from_str(&metadata_str).map_err(|e| {
-                    MusicError::AudioSourceError(format!("Failed to parse video metadata: {}", e))
-                })?;
+        // First, get information about the current video to extract title, artist, etc.
+        let output = Command::new("yt-dlp")
+            .args([
+                "-j", // Output metadata as JSON
+                "--no-playlist",
+                url,
+            ])
+            .output()
+            .map_err(|e| {
+                MusicError::AudioSourceError(format!("Failed to get video metadata: {}", e))
+            })?;
 
-            // Extract title for search
-            let title = metadata_json["title"].as_str().unwrap_or("").to_string();
+        let metadata_str = String::from_utf8_lossy(&output.stdout);
+        let metadata_json: serde_json::Value =
+            serde_json::from_str(&metadata_str).map_err(|e| {
+                MusicError::AudioSourceError(format!("Failed to parse video metadata: {}", e))
+            })?;
 
-            // Use title as search term
-            let search_term = if title.contains(" - ") {
-                // Likely artist - title format, use artist
-                title.split(" - ").next().unwrap_or(&title).to_string() + " music"
+        // Extract title for search
+        let title = metadata_json["title"].as_str().unwrap_or("").to_string();
+
+        // Use title as search term
+        let search_term = if title.contains(" - ") {
+            // Likely artist - title format, use artist
+            title.split(" - ").next().unwrap_or(&title).to_string() + " music"
+        } else {
+            // Use whole title or part of it
+            let words: Vec<&str> = title.split_whitespace().collect();
+            if words.len() > 2 {
+                words[0..2].join(" ")
             } else {
-                // Use whole title or part of it
-                let words: Vec<&str> = title.split_whitespace().collect();
-                if words.len() > 2 {
-                    words[0..2].join(" ")
-                } else {
-                    "music".to_string()
+                "music".to_string()
+            }
+        };
+
+        debug!("Falling back to search with term: {}", search_term);
+
+        // Use yt-dlp to search for videos
+        let search_output = Command::new("yt-dlp")
+            .args([
+                "-j",              // Output metadata as JSON
+                "--flat-playlist", // Don't get full metadata for each video
+                "--no-download",
+                "--default-search",
+                "ytsearch5", // Search for 5 videos
+                &search_term,
+            ])
+            .output()
+            .map_err(|e| {
+                MusicError::AudioSourceError(format!(
+                    "Failed to search for related videos: {}",
+                    e
+                ))
+            })?;
+
+        let search_str = String::from_utf8_lossy(&search_output.stdout);
+        let orig_url = url.to_string();
+
+        // Parse each line as a separate JSON object (one per video)
+        let mut related_songs = Vec::new();
+        for line in search_str.lines() {
+            if let Ok(video_json) = serde_json::from_str::<serde_json::Value>(line) {
+                // Skip the original video if it appears in results
+                let video_url = video_json["webpage_url"].as_str().map(|s| s.to_string());
+
+                if let Some(ref video_url) = video_url {
+                    // Skip original video or non-video URLs (like channels)
+                    if video_url == &orig_url || !Self::is_youtube_video_url(video_url) {
+                        continue;
+                    }
                 }
-            };
 
-            debug!("Falling back to search with term: {}", search_term);
+                // Extract metadata from JSON
+                let title = video_json["title"]
+                    .as_str()
+                    .unwrap_or("Unknown Title")
+                    .to_string();
 
-            // Use yt-dlp to search for videos
-            let search_output = Command::new("yt-dlp")
-                .args([
-                    "-j",              // Output metadata as JSON
-                    "--flat-playlist", // Don't get full metadata for each video
-                    "--no-download",
-                    "--default-search",
-                    "ytsearch5", // Search for 5 videos
-                    &search_term,
-                ])
-                .output()
-                .map_err(|e| {
-                    MusicError::AudioSourceError(format!(
-                        "Failed to search for related videos: {}",
-                        e
-                    ))
-                })?;
+                let duration = video_json["duration"].as_f64().map(Duration::from_secs_f64);
 
-            let search_str = String::from_utf8_lossy(&search_output.stdout);
-            let orig_url = url.to_string();
+                let thumbnail = video_json["thumbnail"].as_str().map(|s| s.to_string());
 
-            // Parse each line as a separate JSON object (one per video)
-            for line in search_str.lines() {
-                if let Ok(video_json) = serde_json::from_str::<serde_json::Value>(line) {
-                    // Skip the original video if it appears in results
-                    let video_url = video_json["webpage_url"].as_str().map(|s| s.to_string());
+                // Add to related songs
+                related_songs.push(TrackMetadata {
+                    title,
+                    url: video_url,
+                    duration,
+                    thumbnail,
+                });
 
-                    if let Some(ref video_url) = video_url {
-                        // Skip original video or non-video URLs (like channels)
-                        if video_url == &orig_url || !Self::is_youtube_video_url(video_url) {
-                            continue;
-                        }
-                    }
-
-                    // Extract metadata from JSON
-                    let title = video_json["title"]
-                        .as_str()
-                        .unwrap_or("Unknown Title")
-                        .to_string();
-
-                    let duration = video_json["duration"].as_f64().map(Duration::from_secs_f64);
-
-                    let thumbnail = video_json["thumbnail"].as_str().map(|s| s.to_string());
-
-                    // Add to related songs
-                    related_songs.push(TrackMetadata {
-                        title,
-                        url: video_url,
-                        duration,
-                        thumbnail,
-                    });
-
-                    // Stop if we have enough related songs
-                    if related_songs.len() >= 5 {
-                        break;
-                    }
+                // Stop if we have enough related songs
+                if related_songs.len() >= 5 {
+                    break;
                 }
             }
         }
