@@ -4,9 +4,9 @@ use serenity::all::{ButtonStyle, CreateActionRow, CreateButton, ReactionType};
 pub fn create_music_control_buttons() -> Vec<CreateActionRow> {
     // Create buttons with appropriate styles and emojis
     let play_pause = CreateButton::new("music_play_pause")
-        .emoji(ReactionType::Unicode("⏯️".to_string()))
+        .emoji(ReactionType::Unicode("⏸️".to_string()))
         .style(ButtonStyle::Primary)
-        .label("Play/Pause");
+        .label("Pause");
 
     let stop = CreateButton::new("music_stop")
         .emoji(ReactionType::Unicode("⏹️".to_string()))
