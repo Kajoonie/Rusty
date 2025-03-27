@@ -12,8 +12,6 @@ use super::{
     queue_manager::{self, get_current_track},
 };
 
-const BUTTON_TIMEOUT: Duration = Duration::from_secs(3600); // 1 hour timeout
-
 /// Handle a button interaction
 pub async fn handle_button_interaction(
     ctx: &Context,

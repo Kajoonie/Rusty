@@ -11,8 +11,8 @@ pub async fn handle_event(
     _user_data: &Data,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     if let FullEvent::InteractionCreate { interaction } = event {
-        if let Interaction::Component(component) = interaction {
-            if let Err(e) = handle_button_interaction(ctx, component).await {
+        if let Interaction::Component(mut component) = interaction.clone() {
+            if let Err(e) = handle_button_interaction(ctx, &mut component).await {
                 error!("Error handling button interaction: {}", e);
             }
         }
