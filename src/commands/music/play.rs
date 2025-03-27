@@ -12,10 +12,12 @@ use std::time::Duration;
 use tracing::{debug, error, info};
 
 /// Play a song from YouTube or a direct URL
-#[poise::command(slash_command, category = "Music")]
+#[poise::command(slash_command, prefix_command, category = "Music")]
 pub async fn play(
     ctx: Context<'_>,
-    #[description = "URL or search query"] query: String,
+    #[description = "URL or search query"]
+    #[rest]
+    query: String,
 ) -> CommandResult {
     info!("Received play command with query: {}", query);
     let guild_id = ctx.guild_id().ok_or_else(|| {

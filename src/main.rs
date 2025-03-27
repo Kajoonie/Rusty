@@ -1,3 +1,4 @@
+use regex::Regex;
 use ::serenity::all::ClientBuilder;
 use dotenv::dotenv;
 use poise::serenity_prelude as serenity;
@@ -132,8 +133,7 @@ async fn main() -> Result<(), Error> {
                     Duration::from_secs(3600),
                 ))),
                 additional_prefixes: vec![
-                    poise::Prefix::Literal("Rusty,"),
-                    poise::Prefix::Literal("Hey Rusty,")
+                    poise::Prefix::Regex(Regex::new(r"(?i)\brusty\b,?").unwrap()),
                 ],
                 ..Default::default()
             },
@@ -154,9 +154,8 @@ async fn main() -> Result<(), Error> {
             },
             ..Default::default()
         })
-        .setup(|ctx, _ready, framework| {
+        .setup(|_ctx, _ready, _framework| {
             Box::pin(async move {
-                poise::builtins::register_globally(ctx, &framework.options().commands).await?;
                 Ok(Data {})
             })
         });
