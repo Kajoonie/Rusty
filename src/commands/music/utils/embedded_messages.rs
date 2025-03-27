@@ -76,6 +76,7 @@ pub fn added_to_queue(metadata: &TrackMetadata, position: &usize) -> CreateReply
     CreateReply::default()
         .embed(embed)
         .components(create_music_control_buttons())
+        .ephemeral(true)
 }
 
 /// Create an embed for the music queue
