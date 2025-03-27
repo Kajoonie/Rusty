@@ -1,4 +1,5 @@
 use poise::serenity_prelude::{self as serenity, Context, Message};
+use ::serenity::all::CreateEmbed;
 use serenity::{ComponentInteraction, CreateInteractionResponseMessage};
 use songbird::tracks::PlayMode;
 use std::time::Duration;
@@ -24,14 +25,14 @@ pub async fn handle_button_interaction(
         return create_response(
             ctx,
             interaction,
-            embedded_messages::bot_not_in_voice_channel(err.into()),
+            embedded_messages::bot_not_in_voice_channel(err),
         )
         .await;
     }
 
     // Get the current track
     let current_track = get_current_track(guild_id).await?;
-    let has_queue = queue_manager::get_queue(guild_id).await?.len() > 0;
+    let has_queue = !queue_manager::get_queue(guild_id).await?.is_empty();
 
     match interaction.data.custom_id.as_str() {
         "music_play_pause" => {
@@ -48,7 +49,7 @@ pub async fn handle_button_interaction(
                 }
 
                 // Update button states
-                update_message_components(ctx, &mut *interaction.message, !is_playing, has_queue)
+                update_message_components(ctx, &mut interaction.message, !is_playing, has_queue)
                     .await?;
             } else {
                 create_response(ctx, interaction, embedded_messages::no_track_playing()).await?;
@@ -60,7 +61,7 @@ pub async fn handle_button_interaction(
                 create_response(ctx, interaction, embedded_messages::stopped(false)).await?;
 
                 // Update button states
-                update_message_components(ctx, &mut *interaction.message, false, false).await?;
+                update_message_components(ctx, &mut interaction.message, false, false).await?;
             } else {
                 create_response(ctx, interaction, embedded_messages::no_track_playing()).await?;
             }
@@ -74,7 +75,7 @@ pub async fn handle_button_interaction(
 
                 // Update button states after a short delay to allow the next track to start
                 sleep(Duration::from_millis(100)).await;
-                update_message_components(ctx, &mut *interaction.message, is_playing, has_queue)
+                update_message_components(ctx, &mut interaction.message, is_playing, has_queue)
                     .await?;
             } else {
                 create_response(ctx, interaction, embedded_messages::no_track_to_skip()).await?;
@@ -94,7 +95,7 @@ async fn create_response(
     ctx: &Context,
     interaction: &mut ComponentInteraction,
     embed: CreateEmbed,
-) -> Result<(), serenity::Error> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     interaction
         .create_response(
             ctx,
