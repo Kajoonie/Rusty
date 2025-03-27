@@ -13,15 +13,11 @@ pub async fn pause(ctx: Context<'_>) -> CommandResult {
         Box::new(MusicError::NotInGuild) as Box<dyn std::error::Error + Send + Sync>
     })?;
 
-    // Get the current voice call
-    let _call = match MusicManager::get_call(ctx.serenity_context(), guild_id).await {
-        Ok(call) => call,
-        Err(err) => {
-            ctx.send(embedded_messages::bot_not_in_voice_channel(err))
-                .await?;
-            return Ok(());
-        }
-    };
+    // Ensure we're in a call
+    if let Err(err) = MusicManager::get_call(ctx.serenity_context(), guild_id).await {
+        ctx.send(embedded_messages::bot_not_in_voice_channel(err)).await?;
+        return Ok(());
+    }
 
     // Get the current track
     let current_track = get_current_track(guild_id).await?;
