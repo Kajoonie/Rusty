@@ -6,9 +6,7 @@ use tokio::time::sleep;
 use tracing::error;
 
 use super::{
-    button_controls::create_updated_buttons,
-    music_manager::MusicManager,
-    queue_manager::{self, get_current_track},
+    button_controls::create_updated_buttons, embedded_messages, music_manager::MusicManager, queue_manager::{self, get_current_track}
 };
 
 /// Handle a button interaction
@@ -89,10 +87,12 @@ async fn update_with_response(
             ctx,
             CreateInteractionResponse::UpdateMessage(
                 CreateInteractionResponseMessage::new()
+                    .embeds(embedded_messages::music_player_message(interaction.guild_id.unwrap()).await?.embeds)
                     .components(create_updated_buttons(is_playing, has_queue)),
             ),
         )
         .await?;
+
     Ok(())
 }
 

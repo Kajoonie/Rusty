@@ -102,45 +102,11 @@ pub async fn play(
         play_next_track(ctx.serenity_context(), guild_id, call, false).await?;
     }
 
-    // Get the queue length
-    let position = queue_length(guild_id).await.unwrap_or(0);
-
-    let mut reply = if position == 0 {
-        embedded_messages::now_playing(&metadata)
-    } else {
-        embedded_messages::added_to_queue(&metadata, &position)
-    };
-
-    // Add queue information
-    let queue_length = queue_length(guild_id).await?;
-    if queue_length > 1 {
-        let total_duration: Duration = get_queue(guild_id)
-            .await?
-            .iter()
-            .filter_map(|track| track.duration)
-            .sum();
-
-        // Create a new embed with the queue info field
-        let queue_info = if total_duration.as_secs() > 0 {
-            format!(
-                "`{} tracks` • Total Length: `{}`",
-                queue_length,
-                utils::format_duration(total_duration)
-            )
-        } else {
-            format!("`{} tracks`", queue_length)
-        };
-
-        // Update the reply with the new embed
-        if let Some(first_embed) = reply.embeds.first() {
-            let mut new_embed = first_embed.clone();
-            new_embed = new_embed.field("Queue Info", queue_info, false);
-            reply.embeds = vec![new_embed];
-        }
-    }
+    ctx.send(CreateReply::default().content("Added song").reply(true).ephemeral(true))
+        .await?;
 
     // Check if we need to update an existing message or send a new one
-    music_manager::send_or_update_message(ctx.serenity_context(), guild_id, &metadata).await?;
+    music_manager::send_or_update_message(ctx.serenity_context(), guild_id).await?;
 
     Ok(())
 }

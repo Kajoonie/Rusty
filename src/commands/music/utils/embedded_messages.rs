@@ -1,11 +1,21 @@
 use poise::{CreateReply, serenity_prelude as serenity};
 use serenity::all::CreateEmbed;
-use songbird::tracks::TrackHandle;
+use serenity::model::id::GuildId;
+use songbird::tracks::{PlayMode, TrackHandle};
 use std::time::Duration;
+use tracing::debug;
+
+use crate::{
+    Error,
+    commands::music::utils::queue_manager::{get_current_track, queue_length},
+};
 
 use super::{
-    audio_sources::TrackMetadata, button_controls::create_music_control_buttons, format_duration,
+    audio_sources::TrackMetadata,
+    button_controls::{self, create_music_control_buttons},
+    format_duration,
     music_manager::MusicError,
+    queue_manager,
 };
 
 /// Create a progress bar for the current track
@@ -20,7 +30,7 @@ fn format_progress_bar(position: Duration, total: Duration) -> String {
     let filled = (progress * BAR_LENGTH as f64).round() as usize;
     let empty = BAR_LENGTH - filled;
 
-    format!("▬{}🔘{}▬", "▬".repeat(filled), "▬".repeat(empty))
+    format!("{}🔘{}", "▬".repeat(filled), "▬".repeat(empty))
 }
 
 /// Parse the metadata for the now playing and added to queue embeds
@@ -33,6 +43,64 @@ fn parse_metadata(metadata: &TrackMetadata) -> (String, String, String) {
         .unwrap_or_else(|| "Unknown duration".to_string());
 
     (title, url, duration_str)
+}
+
+pub async fn music_player_message(guild_id: GuildId) -> Result<CreateReply, Error> {
+    let mut reply = CreateReply::default();
+    let mut embed = CreateEmbed::new().color(0x00ff00);
+
+    let current_track = get_current_track(guild_id).await?;
+
+    // something is playing
+    if let Some((track_handle, metadata)) = current_track {
+        embed = embed.title("🎵 Now Playing");
+
+        // Add thumbnail if available
+        if let Some(thumbnail) = &metadata.thumbnail {
+            embed = embed.thumbnail(thumbnail);
+        }
+
+        let track_info = track_handle.get_info().await?;
+        let duration = metadata.duration.unwrap_or(Duration::from_secs(0));
+        let position = track_info.position;
+        let is_playing = track_info.playing == PlayMode::Play;
+
+        let queue = queue_manager::get_queue(guild_id).await?;
+        let has_queue = !queue.is_empty();
+
+        reply = reply.components(button_controls::create_updated_buttons(
+            is_playing, has_queue,
+        ));
+
+        let (title, url, _) = parse_metadata(&metadata);
+
+        let mut description = format!("[{}]({})\n", title, url);
+
+        let progress = format_progress_bar(position, duration);
+        let pos_str = format_duration(position);
+        let dur_str = format_duration(duration);
+        description.push_str(&format!("{} `{}/{}`\n", progress, pos_str, dur_str));
+
+        if queue.len() > 0 {
+            let remaining_in_current_track = duration - position;
+            let queue_duration: Duration = queue.iter().filter_map(|track| track.duration).sum();
+            let total_duration_str = format_duration(queue_duration + remaining_in_current_track);
+
+            embed = embed
+                .field(
+                    "Remaining Play Time",
+                    format!("`{}`", total_duration_str),
+                    true,
+                )
+                .field("Songs in Queue", format!("`{}`", queue.len()), true);
+        }
+
+        embed = embed.description(description);
+    } else {
+        embed = embed.description("**🔇 Nothing playing**");
+    }
+
+    Ok(reply.embed(embed))
 }
 
 /// Create an embed for when a song is now playing

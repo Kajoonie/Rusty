@@ -121,7 +121,7 @@ pub async fn play_next_track(
     set_current_track(guild_id, track_handle.clone(), queue_item.metadata.clone()).await?;
 
     if send_message {
-        music_manager::send_or_update_message(ctx, guild_id, &queue_item.metadata).await?;
+        music_manager::send_or_update_message(ctx, guild_id).await?;
     }
 
     // Set up a handler for when the track ends
