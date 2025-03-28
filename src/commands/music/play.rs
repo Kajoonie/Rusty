@@ -3,7 +3,7 @@ use crate::commands::music::utils::{
     audio_sources::AudioSource,
     embedded_messages,
     event_handlers::play_next_track,
-    music_manager::{self, MusicError, MusicManager},
+    music_manager::{MusicError, MusicManager},
     queue_manager::{
         self, QueueCallback, QueueItem, add_to_queue, get_current_track, store_channel_id,
     },
@@ -98,7 +98,7 @@ pub async fn play(
 
     // If nothing is currently playing, start playback
     if should_start_playing {
-        play_next_track(ctx.serenity_context(), guild_id, call, false).await?;
+        play_next_track(ctx.serenity_context(), guild_id, call).await?;
     }
 
     // Send an ephemeral confirmation message
@@ -109,9 +109,6 @@ pub async fn play(
     };
     ctx.send(embedded_messages::generic_success("Music", &reply_content))
         .await?;
-
-    // Check if we need to update an existing message or send a new one
-    music_manager::send_or_update_message(ctx.serenity_context(), guild_id).await?;
 
     Ok(())
 }

@@ -127,7 +127,6 @@ impl MusicManager {
 pub async fn send_or_update_message(
     ctx: &Context,
     guild_id: GuildId,
-    // metadata: &TrackMetadata,
 ) -> Result<(), Error> {
     let reply = embedded_messages::music_player_message(guild_id).await?;
 

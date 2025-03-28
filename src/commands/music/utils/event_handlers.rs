@@ -38,7 +38,7 @@ impl SongEndNotifier {
     async fn handle_track_end(&self) {
         info!("Track ended for guild {}", self.guild_id);
 
-        let track_played = play_next_track(&self.ctx, self.guild_id, self.call.clone(), true)
+        let track_played = play_next_track(&self.ctx, self.guild_id, self.call.clone())
             .await
             .is_ok();
 
@@ -79,7 +79,7 @@ impl SongEndNotifier {
                     };
 
                     add_to_queue(self.guild_id, queue_item).await?;
-                    play_next_track(&self.ctx, self.guild_id, self.call.clone(), true).await?;
+                    play_next_track(&self.ctx, self.guild_id, self.call.clone()).await?;
 
                     break;
                 }
@@ -96,7 +96,6 @@ pub async fn play_next_track(
     ctx: &serenity::Context,
     guild_id: serenity::GuildId,
     call: std::sync::Arc<serenity::prelude::Mutex<songbird::Call>>,
-    send_message: bool,
 ) -> Result<bool, Error> {
     info!("Attempting to play next track for guild {}", guild_id);
 
@@ -128,9 +127,7 @@ pub async fn play_next_track(
         error!("Failed to start update task for guild {}: {}", guild_id, e);
     }
 
-    if send_message {
-        music_manager::send_or_update_message(ctx, guild_id).await?;
-    }
+    music_manager::send_or_update_message(ctx, guild_id).await?;
 
     // Set up a handler for when the track ends
     let ctx = ctx.clone();
