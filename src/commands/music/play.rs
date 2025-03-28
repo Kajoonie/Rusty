@@ -38,8 +38,9 @@ pub async fn play(
             }
         };
 
-    // Defer the response since audio processing might take time
-    ctx.defer().await?;
+    // Defer the response ephemerally since audio processing might take time
+    // and we want the final confirmation to be ephemeral.
+    ctx.defer_ephemeral().await?;
 
     // Join the voice channel if not already connected
     let call = match MusicManager::get_call(ctx.serenity_context(), guild_id).await {
