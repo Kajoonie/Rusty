@@ -153,42 +153,6 @@ pub async fn music_player_message(guild_id: GuildId) -> Result<CreateReply, Erro
 
 // --- Simple Ephemeral Messages ---
 
-/// Create an embed for when a track is not in a pausable state (ephemeral)
-pub fn not_pausable() -> CreateReply {
-    CreateReply::default()
-        .embed(
-            CreateEmbed::new()
-                .title("❌ Error")
-                .description("The track is not in a pausable state")
-                .color(0xff0000),
-        )
-        .ephemeral(true)
-}
-
-/// Create an embed for when no track is playing (ephemeral)
-pub fn no_track_playing() -> CreateReply {
-    CreateReply::default()
-        .embed(
-            CreateEmbed::new()
-                .title("❌ Error")
-                .description("No track is currently playing")
-                .color(0xff0000),
-        )
-        .ephemeral(true)
-}
-
-/// Create an embed for when the bot is not connected to a voice channel (ephemeral)
-pub fn bot_not_in_voice_channel(err: MusicError) -> CreateReply {
-    CreateReply::default()
-        .embed(
-            CreateEmbed::new()
-                .title("❌ Error")
-                .description(format!("Not connected to a voice channel: {}", err))
-                .color(0xff0000), // Red color
-        )
-        .ephemeral(true)
-}
-
 /// Create an embed for when a user is not connected to a voice channel (ephemeral)
 pub fn user_not_in_voice_channel(err: MusicError) -> CreateReply {
     CreateReply::default()
@@ -308,44 +272,6 @@ pub fn failed_to_remove_track() -> CreateReply {
             CreateEmbed::new()
                 .title("❌ Error")
                 .description("Failed to remove track.")
-                .color(0xff0000), // Red color
-        )
-        .ephemeral(true)
-}
-
-/// Create an embed for when the bot stops playing music (ephemeral)
-pub fn stopped() -> CreateReply {
-    CreateReply::default()
-        .embed(
-            CreateEmbed::new()
-                .title("⏹️ Stopped")
-                .description("Playback stopped and queue cleared.")
-                .color(0x00ff00), // Green color
-        )
-        .ephemeral(true)
-}
-
-/// Create an embed for when a track is skipped (ephemeral)
-pub fn skipped(metadata: &TrackMetadata) -> CreateReply {
-    let (title, url, _) = parse_metadata(metadata);
-
-    CreateReply::default()
-        .embed(
-            CreateEmbed::new()
-                .title("⏭️ Skipped")
-                .description(format!("Skipped [{}]({})", title, url))
-                .color(0x00ff00), // Green color
-        )
-        .ephemeral(true)
-}
-
-/// Create an embed for when there is no track to skip (ephemeral)
-pub fn no_track_to_skip() -> CreateReply {
-    CreateReply::default()
-        .embed(
-            CreateEmbed::new()
-                .title("❌ Error")
-                .description("No track is currently playing to skip.")
                 .color(0xff0000), // Red color
         )
         .ephemeral(true)

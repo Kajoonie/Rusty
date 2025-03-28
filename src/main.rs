@@ -111,21 +111,10 @@ async fn main() -> Result<(), Error> {
     // Handle Music feature
     #[cfg(feature = "music")]
     {
-        use commands::music::{
-            autoplay::*, pause::*, play::*, remove::*, skip::*, stop::*,
-        };
+        use commands::music::{autoplay::*, play::*, remove::*};
 
         // Add music commands
-        commands.extend(vec![
-            autoplay(),
-            play(),
-            pause(),
-            // queue(), // Removed
-            remove(),
-            skip(),
-            stop(),
-            // leave(), // Removed as functionality is merged into stop
-        ]);
+        commands.extend(vec![autoplay(), play(), remove()]);
     }
 
     let framework = poise::Framework::builder()
