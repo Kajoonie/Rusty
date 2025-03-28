@@ -9,6 +9,4 @@ pub(crate) mod stop;
 
 pub(crate) mod utils;
 
-use poise::CreateReply;
-
 use crate::{CommandResult, Context};

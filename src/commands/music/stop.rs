@@ -1,11 +1,9 @@
 use super::*;
 use crate::commands::music::utils::{
-    autoplay_manager::is_autoplay_enabled,
     embedded_messages,
     music_manager::{self, MusicError, MusicManager},
     queue_manager::{clear_queue, get_current_track, set_manual_stop_flag},
 };
-use poise::CreateReply;
 
 /// Stop the music and clear the queue
 #[poise::command(slash_command, category = "Music")]
@@ -23,9 +21,6 @@ pub async fn stop(ctx: Context<'_>) -> CommandResult {
             return Ok(());
         }
     };
-
-    // Check if autoplay is enabled to show in the message
-    let autoplay_is_enabled = is_autoplay_enabled(guild_id).await;
 
     // Set the manual stop flag to prevent autoplay from triggering
     set_manual_stop_flag(guild_id, true).await;

@@ -134,38 +134,6 @@ pub async fn music_player_message(guild_id: GuildId) -> Result<CreateReply, Erro
 
 // --- Simple Ephemeral Messages ---
 
-/// Create an embed for when a track is paused (ephemeral)
-pub fn paused(metadata: &TrackMetadata) -> CreateReply {
-    CreateReply::default()
-        .embed(
-            CreateEmbed::new()
-                .title("⏸️ Paused")
-                .description(format!(
-                    "Paused [{}]({})",
-                    metadata.title,
-                    metadata.url.as_deref().unwrap_or("#")
-                ))
-                .color(0x00ff00),
-        )
-        .ephemeral(true)
-}
-
-/// Create an embed for when a track is resumed (ephemeral)
-pub fn resumed(metadata: &TrackMetadata) -> CreateReply {
-    CreateReply::default()
-        .embed(
-            CreateEmbed::new()
-                .title("▶️ Resumed")
-                .description(format!(
-                    "Resumed [{}]({})",
-                    metadata.title,
-                    metadata.url.as_deref().unwrap_or("#")
-                ))
-                .color(0x00ff00),
-        )
-        .ephemeral(true)
-}
-
 /// Create an embed for when a track is not in a pausable state (ephemeral)
 pub fn not_pausable() -> CreateReply {
     CreateReply::default()
@@ -396,18 +364,6 @@ pub fn generic_success(title: &str, description: &str) -> CreateReply {
                 .title(title)
                 .description(description)
                 .color(0x00ff00), // Green color
-        )
-        .ephemeral(true)
-}
-
-/// Generic error message (ephemeral)
-pub fn generic_error(description: &str) -> CreateReply {
-    CreateReply::default()
-        .embed(
-            CreateEmbed::new()
-                .title("❌ Error")
-                .description(description)
-                .color(0xff0000), // Red color
         )
         .ephemeral(true)
 }

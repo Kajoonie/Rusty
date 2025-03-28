@@ -4,7 +4,6 @@ use crate::commands::music::utils::{
     music_manager::{self, MusicError},
     queue_manager::{get_queue, remove_track},
 };
-use poise::CreateReply;
 
 /// Remove a track from the queue by its position
 #[poise::command(slash_command, category = "Music")]

@@ -8,7 +8,6 @@ use crate::commands::music::utils::{
         self, QueueCallback, QueueItem, add_to_queue, get_current_track, store_channel_id,
     },
 };
-use poise::CreateReply;
 use tracing::{debug, error, info};
 
 /// Play a song from YouTube or a direct URL

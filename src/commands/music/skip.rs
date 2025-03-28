@@ -7,7 +7,6 @@ use crate::commands::music::utils::{
     music_manager::{self, MusicError},
     queue_manager::get_current_track,
 };
-use poise::CreateReply;
 
 /// Skip the currently playing song
 #[poise::command(slash_command, category = "Music")]

@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::sync::LazyLock;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
+use tracing::debug;
 use tracing::{error, info, warn};
 
 /// A queue item containing the audio input and metadata
@@ -65,7 +66,7 @@ impl QueueManager {
     }
 
     /// Clear the queue for a guild
-    pub fn clear(&mut self, guild_id: GuildId) {
+    pub async fn clear(&mut self, guild_id: GuildId) {
         // Remove the queue
         self.queues.remove(&guild_id);
         // Remove the current track
@@ -73,7 +74,7 @@ impl QueueManager {
         // Reset queue view state
         self.show_queue.remove(&guild_id);
         // Stop update task if running
-        self.stop_update_task(guild_id);
+        self.stop_update_task(guild_id).await;
     }
 
     /// Get the current queue for a guild
@@ -118,16 +119,17 @@ impl QueueManager {
     /// Start the periodic update task for a guild (async)
     pub async fn start_update_task(&mut self, ctx: Arc<serenity::Context>, guild_id: GuildId) {
         // Stop existing task if any
-        self.stop_update_task(guild_id);
+        self.stop_update_task(guild_id).await;
 
         info!("Starting update task for guild {}", guild_id);
         let task = tokio::spawn(async move {
             loop {
-                info!("Update task running for guild {}", guild_id); // Add log
+                info!("Update task running for guild {}", guild_id);
                 // Use a weak reference to avoid cycles if ctx holds manager
                 let ctx_clone = ctx.clone();
+                debug!("Attempting to send/update message for guild {}", guild_id); // Added debug log
                 match music_manager::send_or_update_message(&ctx_clone, guild_id).await {
-                    Ok(_) => info!("Successfully updated player message for guild {}", guild_id), // Add log
+                    Ok(_) => info!("Successfully updated player message for guild {}", guild_id),
                     Err(e) => {
                         warn!(
                             "Error updating music player message for guild {}: {}",
@@ -143,6 +145,10 @@ impl QueueManager {
                     let manager = QUEUE_MANAGER.lock().await;
                     manager.current_tracks.contains_key(&guild_id)
                 };
+                debug!(
+                    "Update task continue check for guild {}: {}",
+                    guild_id, should_continue
+                ); // Added debug log
 
                 if !should_continue {
                     info!(
@@ -152,8 +158,10 @@ impl QueueManager {
                     break;
                 }
 
+                debug!("Update task sleeping for 5s for guild {}", guild_id); // Added debug log
                 tokio::time::sleep(std::time::Duration::from_secs(5)).await;
             }
+            info!("Update task loop finished for guild {}", guild_id); // Added info log
         });
         self.update_tasks.insert(guild_id, task);
     }
@@ -161,16 +169,16 @@ impl QueueManager {
     /// Stop the periodic update task for a guild (async)
     pub async fn stop_update_task(&mut self, guild_id: GuildId) {
         if let Some(task) = self.update_tasks.remove(&guild_id) {
-            info!("Stopping update task for guild {}", guild_id);
+            info!("Aborting update task for guild {}", guild_id); // Changed log message slightly
             task.abort();
-        }
-    }
-
-    /// Get the number of tracks in the queue for a guild
-    pub fn len(&self, guild_id: GuildId) -> usize {
-        match self.queues.get(&guild_id) {
-            Some(queue) => queue.len(),
-            None => 0,
+            // Optionally, await the task handle to ensure it's fully stopped, though abort() is usually sufficient
+            // if let Err(e) = task.await {
+            //     if !e.is_cancelled() {
+            //         error!("Update task for guild {} panicked: {:?}", guild_id, e);
+            //     }
+            // }
+        } else {
+            info!("No active update task found to stop for guild {}", guild_id); // Added log for case where no task exists
         }
     }
 
@@ -221,7 +229,7 @@ pub async fn get_next_track(guild_id: GuildId) -> QueueResult<Option<QueueItem>>
 
 pub async fn clear_queue(guild_id: GuildId) -> QueueResult<()> {
     let mut manager = QUEUE_MANAGER.lock().await;
-    manager.clear(guild_id);
+    manager.clear(guild_id).await;
     Ok(())
 }
 
@@ -250,11 +258,6 @@ pub async fn get_current_track(
     Ok(manager.get_current_track(guild_id).cloned())
 }
 
-pub async fn queue_length(guild_id: GuildId) -> QueueResult<usize> {
-    let manager = QUEUE_MANAGER.lock().await;
-    Ok(manager.len(guild_id))
-}
-
 pub async fn remove_track(
     guild_id: GuildId,
     position: usize,
@@ -278,14 +281,7 @@ pub async fn toggle_queue_view(guild_id: GuildId) -> QueueResult<()> {
 /// Start the periodic update task for a guild
 pub async fn start_update_task(ctx: Arc<serenity::Context>, guild_id: GuildId) -> QueueResult<()> {
     let mut manager = QUEUE_MANAGER.lock().await;
-    manager.start_update_task(ctx, guild_id);
-    Ok(())
-}
-
-/// Stop the periodic update task for a guild
-pub async fn stop_update_task(guild_id: GuildId) -> QueueResult<()> {
-    let mut manager = QUEUE_MANAGER.lock().await;
-    manager.stop_update_task(guild_id);
+    manager.start_update_task(ctx, guild_id).await;
     Ok(())
 }
 

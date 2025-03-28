@@ -1,12 +1,14 @@
 use poise::serenity_prelude::{self as serenity, Context};
-use serenity::{ComponentInteraction, CreateInteractionResponse, CreateInteractionResponseMessage};
+use serenity::ComponentInteraction;
 use songbird::tracks::PlayMode;
 use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{error, info};
 
 use super::{
-    button_controls::create_updated_buttons, embedded_messages, music_manager::{self, MusicManager}, queue_manager::{self, clear_queue, get_current_track, queue_length}
+    embedded_messages,
+    music_manager::MusicManager,
+    queue_manager::{self, clear_queue, get_current_track},
 };
 
 /// Handle a button interaction
@@ -20,7 +22,7 @@ pub async fn handle_button_interaction(
     interaction.defer(ctx).await?;
 
     // Ensure we're in a call
-    let call = match MusicManager::get_call(ctx, guild_id).await {
+    match MusicManager::get_call(ctx, guild_id).await {
         Ok(call) => call,
         Err(_) => {
             return error_followup(ctx, interaction, "I'm not in a voice channel.").await;
@@ -112,7 +114,6 @@ async fn update_player_message(
 
     Ok(())
 }
-
 
 /// Send an ephemeral error followup message for failed interactions
 async fn error_followup(
