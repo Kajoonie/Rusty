@@ -1,7 +1,7 @@
 use serenity::all::{ButtonStyle, CreateActionRow, CreateButton, ReactionType};
 
 /// Creates updated music control buttons based on player status
-pub fn create_updated_buttons(is_playing: bool, has_queue: bool) -> Vec<CreateActionRow> {
+pub fn create_updated_buttons(is_playing: bool, has_queue: bool, no_track: bool) -> Vec<CreateActionRow> {
     // Create buttons with appropriate states
     let play_pause = CreateButton::new("music_play_pause")
         .emoji(ReactionType::Unicode(
@@ -9,13 +9,13 @@ pub fn create_updated_buttons(is_playing: bool, has_queue: bool) -> Vec<CreateAc
         ))
         .style(ButtonStyle::Primary)
         .label(if is_playing { "Pause" } else { "Play" })
-        .disabled(false);
+        .disabled(no_track); // Disable play/pause if there's no track
 
     let stop = CreateButton::new("music_stop")
         .emoji(ReactionType::Unicode("⏹️".to_string()))
         .style(ButtonStyle::Danger)
         .label("Stop")
-        .disabled(!is_playing && !has_queue);
+        .disabled(false); // Disable stop if nothing playing/queued
 
     let skip = CreateButton::new("music_skip")
         .emoji(ReactionType::Unicode("⏭️".to_string()))

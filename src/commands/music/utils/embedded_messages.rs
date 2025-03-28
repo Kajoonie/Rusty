@@ -44,7 +44,6 @@ fn parse_metadata(metadata: &TrackMetadata) -> (String, String, String) {
 
 /// Generates the main music player message embed and components.
 pub async fn music_player_message(guild_id: GuildId) -> Result<CreateReply, Error> {
-    let mut reply = CreateReply::default();
     let mut embed = CreateEmbed::new().color(0x00ff00); // Green color
 
     let current_track_opt = get_current_track(guild_id).await?;
@@ -54,82 +53,102 @@ pub async fn music_player_message(guild_id: GuildId) -> Result<CreateReply, Erro
     let has_queue = !queue.is_empty();
 
     // Determine button states
-    let is_playing = match &current_track_opt {
-        Some((handle, _)) => handle.get_info().await?.playing == PlayMode::Play,
-        None => false,
-    };
+    let mut is_playing = false;
 
-    reply = reply.components(button_controls::create_updated_buttons(
-        is_playing, has_queue,
-    ));
+    // Build the embed content based on whether a track is currently playing
+    // We need to handle the case where get_info() fails because the track just ended
+    let mut track_ended_or_is_none = false;
+    if let Some((track_handle, metadata)) = &current_track_opt {
+        match track_handle.get_info().await {
+            Ok(track_info) => {
+                is_playing = track_info.playing == PlayMode::Play;
 
-    // Build the embed content
-    if let Some((track_handle, metadata)) = current_track_opt {
-        embed = embed.title("🎵 Music Player");
+                // Track is valid and playing/paused, build the detailed embed
+                embed = embed.title("🎵 Music Player");
 
-        // Add thumbnail if available
-        if let Some(thumbnail) = &metadata.thumbnail {
-            embed = embed.thumbnail(thumbnail);
-        }
-
-        let track_info = track_handle.get_info().await?;
-        let duration = metadata.duration.unwrap_or(Duration::from_secs(0));
-        let position = track_info.position;
-
-        let (title, url, _) = parse_metadata(&metadata);
-
-        let mut description = format!("**Now Playing:** [{}]({})\n", title, url);
-
-        // Progress Bar and Timings
-        let progress = format_progress_bar(position, duration);
-        let pos_str = format_duration(position);
-        let dur_str = format_duration(duration);
-        description.push_str(&format!("{} `{}/{}`\n\n", progress, pos_str, dur_str));
-
-        // Queue Information (Total)
-        if !queue.is_empty() {
-            let remaining_in_current_track = duration.saturating_sub(position);
-            let queue_duration: Duration = queue.iter().filter_map(|track| track.duration).sum();
-            let total_duration_str = format_duration(queue_duration + remaining_in_current_track);
-
-            description.push_str(&format!(
-                "**Queue:** {} tracks (`{}` remaining)\n",
-                queue.len(),
-                total_duration_str
-            ));
-        } else {
-            description.push_str("**Queue:** Empty\n");
-        }
-
-        // Detailed Queue View (if toggled)
-        if show_queue && !queue.is_empty() {
-            description.push_str("\n**Upcoming Tracks:**\n");
-            for (index, track) in queue.iter().take(10).enumerate() {
-                // Limit display
-                let number = format!("{}.", index + 1);
-                description.push_str(&format!(
-                    "{} [{}]({})",
-                    number,
-                    track.title,
-                    track.url.as_deref().unwrap_or("#")
-                ));
-                if let Some(dur) = track.duration {
-                    description.push_str(&format!(" `{}`", format_duration(dur)));
+                // Add thumbnail if available
+                if let Some(thumbnail) = &metadata.thumbnail {
+                    embed = embed.thumbnail(thumbnail);
                 }
-                description.push('\n');
+
+                let duration = metadata.duration.unwrap_or(Duration::from_secs(0));
+                let position = track_info.position;
+                let (title, url, _) = parse_metadata(metadata);
+
+                let mut description = format!("**Now Playing:** [{}]({})\n", title, url);
+
+                // Progress Bar and Timings
+                let progress = format_progress_bar(position, duration);
+                let pos_str = format_duration(position);
+                let dur_str = format_duration(duration);
+                description.push_str(&format!("{} `{}/{}`\n\n", progress, pos_str, dur_str));
+
+                // Queue Information (Total)
+                if !queue.is_empty() {
+                    let remaining_in_current_track = duration.saturating_sub(position);
+                    let queue_duration: Duration =
+                        queue.iter().filter_map(|track| track.duration).sum();
+                    let total_duration_str =
+                        format_duration(queue_duration + remaining_in_current_track);
+
+                    description.push_str(&format!(
+                        "**Queue:** {} tracks (`{}` remaining)\n",
+                        queue.len(),
+                        total_duration_str
+                    ));
+                } else {
+                    description.push_str("**Queue:** Empty\n");
+                }
+
+                // Detailed Queue View (if toggled)
+                if show_queue && !queue.is_empty() {
+                    description.push_str("\n**Upcoming Tracks:**\n");
+                    for (index, track) in queue.iter().take(10).enumerate() {
+                        // Limit display
+                        let number = format!("{}.", index + 1);
+                        description.push_str(&format!(
+                            "{} [{}]({})",
+                            number,
+                            track.title,
+                            track.url.as_deref().unwrap_or("#")
+                        ));
+                        if let Some(dur) = track.duration {
+                            description.push_str(&format!(" `{}`", format_duration(dur)));
+                        }
+                        description.push('\n');
+                    }
+                    if queue.len() > 10 {
+                        description.push_str(&format!("... and {} more\n", queue.len() - 10));
+                    }
+                }
+
+                embed = embed.description(description);
             }
-            if queue.len() > 10 {
-                description.push_str(&format!("... and {} more\n", queue.len() - 10));
+            Err(songbird::error::ControlError::Finished) => {
+                // Track just finished, treat as if nothing is playing for this update cycle
+                track_ended_or_is_none = true;
+            }
+            Err(e) => {
+                // Propagate other errors
+                return Err(e.into());
             }
         }
-
-        embed = embed.description(description);
     } else {
-        // Nothing playing or queued
+        track_ended_or_is_none = true;
+    }
+
+    if track_ended_or_is_none {
+        // Nothing playing or track just ended
         embed = embed.description("**🔇 Nothing playing or queued.**");
     }
 
-    Ok(reply.embed(embed))
+    Ok(CreateReply::default()
+        .embed(embed)
+        .components(button_controls::create_updated_buttons(
+            is_playing,
+            has_queue,
+            track_ended_or_is_none,
+        )))
 }
 
 // --- Simple Ephemeral Messages ---

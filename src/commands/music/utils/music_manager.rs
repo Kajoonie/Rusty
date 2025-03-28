@@ -141,7 +141,8 @@ pub async fn send_or_update_message(
     if let Some(message_id) = message_id {
         let message = EditMessage::new()
             .embeds(reply.embeds.clone())
-            .components(reply.components.clone().unwrap());
+            .components(reply.components.clone().unwrap_or_default());
+
         let result = channel_id.edit_message(ctx, message_id, message).await;
 
         if result.is_err() {
@@ -163,7 +164,8 @@ async fn send_and_store_new_message(
     // send new message
     let create_message = CreateMessage::new()
         .embeds(reply.embeds)
-        .components(reply.components.unwrap());
+        .components(reply.components.unwrap_or_default());
+    
     let message = channel_id.send_message(ctx, create_message).await?;
     // store the new message id
     queue_manager::store_message_id(guild_id, message.id).await;

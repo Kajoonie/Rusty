@@ -5,7 +5,6 @@ use crate::{
     commands::music::utils::{
         audio_sources::{AudioSource, TrackMetadata},
         autoplay_manager::is_autoplay_enabled,
-        music_manager,
         queue_manager::{
             self, QueueItem, add_to_queue, clear_manual_stop_flag, get_next_track,
             is_manual_stop_flag_set, set_current_track,
