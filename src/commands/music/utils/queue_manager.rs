@@ -1,5 +1,8 @@
+use super::audio_sources::TrackMetadata;
+use super::music_manager::MusicError;
 use serenity::model::id::ChannelId;
 use serenity::model::id::GuildId;
+use serenity::model::id::MessageId;
 use songbird::input::Input;
 use songbird::tracks::TrackHandle;
 use std::collections::HashMap;
@@ -7,9 +10,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::LazyLock;
 use tokio::sync::Mutex;
-
-use super::audio_sources::TrackMetadata;
-use super::music_manager::MusicError;
+use tracing::{error, info};
 
 /// A queue item containing the audio input and metadata
 pub struct QueueItem {
@@ -126,6 +127,10 @@ static MANUAL_STOP_FLAGS: LazyLock<Mutex<HashMap<GuildId, bool>>> =
 static CHANNEL_IDS: LazyLock<Mutex<HashMap<GuildId, ChannelId>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
+// Store message IDs for each guild
+static MESSAGE_IDS: LazyLock<Mutex<HashMap<GuildId, MessageId>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
 /// Helper functions for working with the global queue manager
 pub async fn add_to_queue(guild_id: GuildId, item: QueueItem) -> QueueResult<()> {
     let mut manager = QUEUE_MANAGER.lock().await;
@@ -210,4 +215,38 @@ pub async fn store_channel_id(guild_id: GuildId, channel_id: ChannelId) {
 pub async fn get_channel_id(guild_id: GuildId) -> Option<ChannelId> {
     let channels = CHANNEL_IDS.lock().await;
     channels.get(&guild_id).copied()
+}
+
+/// Store the message ID for a guild
+pub async fn store_message_id(guild_id: GuildId, message_id: MessageId) {
+    let mut messages = MESSAGE_IDS.lock().await;
+    messages.insert(guild_id, message_id);
+}
+
+/// Get the message ID for a guild
+pub async fn get_message_id(guild_id: GuildId) -> Option<MessageId> {
+    let messages = MESSAGE_IDS.lock().await;
+    messages.get(&guild_id).copied()
+}
+
+pub type QueueCallback = Box<dyn Fn(songbird::input::Input, TrackMetadata) + Send + Sync>;
+
+pub async fn get_queue_callback(guild_id: GuildId) -> QueueCallback {
+    Box::new(move |input, metadata| {
+        tokio::spawn(async move {
+            // Create a queue item for this track
+            let queue_item = QueueItem {
+                input,
+                metadata: metadata.clone(),
+            };
+
+            // Add track to queue
+            if let Err(err) = add_to_queue(guild_id, queue_item).await {
+                error!("Failed to add track to queue: {}", err);
+                return;
+            }
+
+            info!("Added track to queue: {}", metadata.title);
+        });
+    })
 }

@@ -5,7 +5,6 @@ use crate::commands::music::utils::song_fetchers::{
     RelatedSongsFetcher, SerpApiFetcher, YtDlpFetcher,
 };
 use regex::Regex;
-use serde_json;
 #[cfg(feature = "music")]
 use songbird::input::{HttpRequest, Input, YoutubeDl};
 use std::process::Command;

@@ -1,10 +1,13 @@
-use crate::commands::music::utils::{
-    audio_sources::{AudioSource, TrackMetadata},
-    autoplay_manager::is_autoplay_enabled,
-    embedded_messages,
-    queue_manager::{
-        add_to_queue, clear_manual_stop_flag, get_channel_id, get_next_track,
-        is_manual_stop_flag_set, set_current_track,
+use crate::{
+    Error,
+    commands::music::utils::{
+        audio_sources::{AudioSource, TrackMetadata},
+        autoplay_manager::is_autoplay_enabled,
+        music_manager,
+        queue_manager::{
+            QueueItem, add_to_queue, clear_manual_stop_flag, get_next_track,
+            is_manual_stop_flag_set, set_current_track,
+        },
     },
 };
 use poise::serenity_prelude as serenity;
@@ -92,7 +95,7 @@ pub async fn play_next_track(
     guild_id: serenity::GuildId,
     call: std::sync::Arc<serenity::prelude::Mutex<songbird::Call>>,
     send_message: bool,
-) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<bool, Error> {
     info!("Attempting to play next track for guild {}", guild_id);
 
     // Get the next track from the queue
@@ -118,14 +121,7 @@ pub async fn play_next_track(
     set_current_track(guild_id, track_handle.clone(), queue_item.metadata.clone()).await?;
 
     if send_message {
-        // Send a now playing message
-        if let Some(channel_id) = get_channel_id(guild_id).await {
-            let reply = embedded_messages::now_playing(&queue_item.metadata);
-            let message = serenity::CreateMessage::default()
-                .embeds(reply.embeds)
-                .components(reply.components.unwrap_or_default());
-            channel_id.send_message(ctx, message).await?;
-        }
+        music_manager::send_or_update_message(ctx, guild_id, &queue_item.metadata).await?;
     }
 
     // Set up a handler for when the track ends
@@ -144,6 +140,3 @@ pub async fn play_next_track(
 
     Ok(true) // Indicate a track was played
 }
-
-/// Struct needed for QueueItem
-pub use crate::commands::music::utils::queue_manager::QueueItem;

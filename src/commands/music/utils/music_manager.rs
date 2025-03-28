@@ -1,10 +1,16 @@
-use poise::serenity_prelude as serenity;
+use ::serenity::all::{CreateMessage, EditMessage};
+use poise::{CreateReply, serenity_prelude as serenity};
 use serenity::client::Context;
 use serenity::model::id::{ChannelId, GuildId};
 use serenity::prelude::Mutex as SerenityMutex;
 use songbird::{Call, Songbird};
 use std::sync::Arc;
 use thiserror::Error;
+
+use crate::Error;
+
+use super::audio_sources::TrackMetadata;
+use super::{embedded_messages, queue_manager};
 
 /// Errors that can occur during music operations
 #[derive(Error, Debug)]
@@ -117,4 +123,52 @@ impl MusicManager {
 
         Ok(channel_id)
     }
+}
+
+pub async fn send_or_update_message(
+    ctx: &Context,
+    guild_id: GuildId,
+    metadata: &TrackMetadata,
+) -> Result<(), Error> {
+    let reply = embedded_messages::now_playing(metadata);
+
+    let channel_id = match queue_manager::get_channel_id(guild_id).await {
+        Some(channel_id) => channel_id,
+        None => {
+            return Err(Box::new(serenity::Error::Other("No channel id found")));
+        }
+    };
+
+    let message_id = queue_manager::get_message_id(guild_id).await;
+    if let Some(message_id) = message_id {
+        let message = EditMessage::new()
+            .embeds(reply.embeds.clone())
+            .components(reply.components.clone().unwrap());
+        let result = channel_id.edit_message(ctx, message_id, message).await;
+
+        if result.is_err() {
+            send_and_store_new_message(ctx, guild_id, channel_id, reply).await?;
+        }
+    } else {
+        send_and_store_new_message(ctx, guild_id, channel_id, reply).await?;
+    }
+
+    Ok(())
+}
+
+async fn send_and_store_new_message(
+    ctx: &Context,
+    guild_id: GuildId,
+    channel_id: ChannelId,
+    reply: CreateReply,
+) -> Result<(), Error> {
+    // send new message
+    let create_message = CreateMessage::new()
+        .embeds(reply.embeds)
+        .components(reply.components.unwrap());
+    let message = channel_id.send_message(ctx, create_message).await?;
+    // store the new message id
+    queue_manager::store_message_id(guild_id, message.id).await;
+
+    Ok(())
 }
