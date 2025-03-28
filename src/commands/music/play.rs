@@ -107,14 +107,8 @@ pub async fn play(
     } else {
         format!("✅ Added to queue: {}", metadata.title)
     };
-    // ctx.send(embedded_messages::generic_success("Music", &reply_content))
-    //     .await?;
-    ctx.send(
-        CreateReply::default()
-            .content(reply_content)
-            .ephemeral(true),
-    )
-    .await?;
+    ctx.send(embedded_messages::generic_success("Music", &reply_content))
+        .await?;
 
     // Check if we need to update an existing message or send a new one
     music_manager::send_or_update_message(ctx.serenity_context(), guild_id).await?;
