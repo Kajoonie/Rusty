@@ -15,7 +15,7 @@ pub async fn pause(ctx: Context<'_>) -> CommandResult {
 
     // Ensure we're in a call
     if let Err(err) = MusicManager::get_call(ctx.serenity_context(), guild_id).await {
-        ctx.send(CreateReply::default().embed(embedded_messages::bot_not_in_voice_channel(err)))
+        ctx.send(embedded_messages::bot_not_in_voice_channel(err))
             .await?;
         return Ok(());
     }
@@ -30,22 +30,22 @@ pub async fn pause(ctx: Context<'_>) -> CommandResult {
             match track_info.playing {
                 PlayMode::Play => {
                     track.pause()?;
-                    ctx.send(CreateReply::default().embed(embedded_messages::paused(&metadata)))
+                    ctx.send(embedded_messages::paused(&metadata))
                         .await?;
                 }
                 PlayMode::Pause => {
                     track.play()?;
-                    ctx.send(CreateReply::default().embed(embedded_messages::resumed(&metadata)))
+                    ctx.send(embedded_messages::resumed(&metadata))
                         .await?;
                 }
                 _ => {
-                    ctx.send(CreateReply::default().embed(embedded_messages::not_pausable()))
+                    ctx.send(embedded_messages::not_pausable())
                         .await?;
                 }
             }
         }
         None => {
-            ctx.send(CreateReply::default().embed(embedded_messages::no_track_playing()))
+            ctx.send(embedded_messages::no_track_playing())
                 .await?;
         }
     }

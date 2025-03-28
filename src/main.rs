@@ -1,9 +1,13 @@
-use regex::Regex;
 use ::serenity::all::ClientBuilder;
 use dotenv::dotenv;
 use poise::serenity_prelude as serenity;
+use regex::Regex;
+use std::{
+    env,
+    sync::{Arc, LazyLock},
+    time::Duration,
+};
 use tracing::debug;
-use std::{env, sync::{Arc, LazyLock}, time::Duration};
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 mod commands;
@@ -108,18 +112,22 @@ async fn main() -> Result<(), Error> {
     #[cfg(feature = "music")]
     {
         use commands::music::{
-            autoplay::*, leave::*, pause::*, play::*, queue::*, remove::*, skip::*, stop::*,
+            // autoplay::*, leave::*, pause::*, play::*, queue::*, remove::*, skip::*, stop::*,
+            autoplay::*,
+            leave::*,
+            play::*,
+            remove::*,
         };
 
         // Add music commands
         commands.extend(vec![
             autoplay(),
             play(),
-            pause(),
-            queue(),
+            // pause(),
+            // queue(),
             remove(),
-            skip(),
-            stop(),
+            // skip(),
+            // stop(),
             leave(),
         ]);
     }
@@ -132,9 +140,9 @@ async fn main() -> Result<(), Error> {
                 edit_tracker: Some(Arc::new(poise::EditTracker::for_timespan(
                     Duration::from_secs(3600),
                 ))),
-                additional_prefixes: vec![
-                    poise::Prefix::Regex(Regex::new(r"(?i)\brusty\b,?").unwrap()),
-                ],
+                additional_prefixes: vec![poise::Prefix::Regex(
+                    Regex::new(r"(?i)\brusty\b,?").unwrap(),
+                )],
                 ..Default::default()
             },
             pre_command: |ctx| {
@@ -148,17 +156,11 @@ async fn main() -> Result<(), Error> {
                 })
             },
             event_handler: |ctx, event, framework, data| {
-                Box::pin(async move {
-                    events::handle_event(ctx, event, framework, data).await
-                })
+                Box::pin(async move { events::handle_event(ctx, event, framework, data).await })
             },
             ..Default::default()
         })
-        .setup(|_ctx, _ready, _framework| {
-            Box::pin(async move {
-                Ok(Data {})
-            })
-        });
+        .setup(|_ctx, _ready, _framework| Box::pin(async move { Ok(Data {}) }));
 
     let client_builder = ClientBuilder::new(token, intents).framework(framework.build());
 

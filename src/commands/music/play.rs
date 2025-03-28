@@ -5,11 +5,9 @@ use crate::commands::music::utils::{
     event_handlers::play_next_track,
     music_manager::{self, MusicError, MusicManager},
     queue_manager::{
-        self, QueueCallback, QueueItem, add_to_queue, get_current_track, get_queue, queue_length,
-        store_channel_id,
+        self, QueueCallback, QueueItem, add_to_queue, get_current_track, store_channel_id,
     },
 };
-use std::time::Duration;
 use tracing::{debug, error, info};
 
 /// Play a song from YouTube or a direct URL
@@ -102,8 +100,13 @@ pub async fn play(
         play_next_track(ctx.serenity_context(), guild_id, call, false).await?;
     }
 
-    ctx.send(CreateReply::default().content("Added song").reply(true).ephemeral(true))
-        .await?;
+    ctx.send(
+        CreateReply::default()
+            .content("Added song")
+            .reply(true)
+            .ephemeral(true),
+    )
+    .await?;
 
     // Check if we need to update an existing message or send a new one
     music_manager::send_or_update_message(ctx.serenity_context(), guild_id).await?;

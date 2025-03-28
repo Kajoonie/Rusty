@@ -9,7 +9,6 @@ use thiserror::Error;
 
 use crate::Error;
 
-use super::audio_sources::TrackMetadata;
 use super::{embedded_messages, queue_manager};
 
 /// Errors that can occur during music operations
