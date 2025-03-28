@@ -112,7 +112,7 @@ async fn main() -> Result<(), Error> {
     #[cfg(feature = "music")]
     {
         use commands::music::{
-            autoplay::*, leave::*, pause::*, play::*, remove::*, skip::*, stop::*,
+            autoplay::*, pause::*, play::*, remove::*, skip::*, stop::*,
         };
 
         // Add music commands
@@ -124,7 +124,7 @@ async fn main() -> Result<(), Error> {
             remove(),
             skip(),
             stop(),
-            leave(),
+            // leave(), // Removed as functionality is merged into stop
         ]);
     }
 

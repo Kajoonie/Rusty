@@ -124,7 +124,6 @@ impl QueueManager {
         info!("Starting update task for guild {}", guild_id);
         let task = tokio::spawn(async move {
             loop {
-                info!("Update task running for guild {}", guild_id);
                 // Use a weak reference to avoid cycles if ctx holds manager
                 let ctx_clone = ctx.clone();
                 debug!("Attempting to send/update message for guild {}", guild_id); // Added debug log

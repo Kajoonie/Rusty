@@ -202,30 +202,6 @@ pub fn autoplay_status(enabled: bool) -> CreateReply {
         .ephemeral(true)
 }
 
-/// Create an embed for when the bot leaves a voice channel (ephemeral)
-pub fn left_voice_channel() -> CreateReply {
-    CreateReply::default()
-        .embed(
-            CreateEmbed::new()
-                .title("👋 Left Voice Channel")
-                .description("Successfully disconnected and cleared the queue.")
-                .color(0x00ff00), // Green color
-        )
-        .ephemeral(true)
-}
-
-/// Create an embed for when the bot fails to leave a voice channel (ephemeral)
-pub fn failed_to_leave_voice_channel(err: MusicError) -> CreateReply {
-    CreateReply::default()
-        .embed(
-            CreateEmbed::new()
-                .title("❌ Error")
-                .description(format!("Failed to leave voice channel: {}", err))
-                .color(0xff0000), // Red color
-        )
-        .ephemeral(true)
-}
-
 /// Create an embed for when the bot fails to join a voice channel (ephemeral)
 pub fn failed_to_join_voice_channel(err: MusicError) -> CreateReply {
     CreateReply::default()
