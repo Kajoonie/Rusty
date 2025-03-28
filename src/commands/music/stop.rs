@@ -2,9 +2,10 @@ use super::*;
 use crate::commands::music::utils::{
     autoplay_manager::is_autoplay_enabled,
     embedded_messages,
-    music_manager::{MusicError, MusicManager},
+    music_manager::{self, MusicError, MusicManager},
     queue_manager::{clear_queue, get_current_track, set_manual_stop_flag},
 };
+use poise::CreateReply;
 
 /// Stop the music and clear the queue
 #[poise::command(slash_command, category = "Music")]
@@ -17,10 +18,8 @@ pub async fn stop(ctx: Context<'_>) -> CommandResult {
     match MusicManager::get_call(ctx.serenity_context(), guild_id).await {
         Ok(call) => call,
         Err(err) => {
-            ctx.send(
-                CreateReply::default().embed(embedded_messages::bot_not_in_voice_channel(err)),
-            )
-            .await?;
+            ctx.send(embedded_messages::bot_not_in_voice_channel(err))
+                .await?;
             return Ok(());
         }
     };
@@ -42,9 +41,11 @@ pub async fn stop(ctx: Context<'_>) -> CommandResult {
     // Clear the queue
     clear_queue(guild_id).await?;
 
-    // Send success message
-    ctx.send(CreateReply::default().embed(embedded_messages::stopped(autoplay_is_enabled)))
-        .await?;
+    // Send ephemeral success message
+    ctx.send(embedded_messages::stopped()).await?;
+
+    // Update the main player message
+    music_manager::send_or_update_message(ctx.serenity_context(), guild_id).await?;
 
     Ok(())
 }

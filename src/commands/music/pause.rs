@@ -1,7 +1,10 @@
+use std::time::Duration;
+use tokio::time::sleep;
+
 use super::*;
 use crate::commands::music::utils::{
     embedded_messages,
-    music_manager::{MusicError, MusicManager},
+    music_manager::{self, MusicError, MusicManager},
     queue_manager::get_current_track,
 };
 use songbird::tracks::PlayMode;
@@ -21,32 +24,41 @@ pub async fn pause(ctx: Context<'_>) -> CommandResult {
     }
 
     // Get the current track
-    let current_track = get_current_track(guild_id).await?;
+    let current_track_opt = get_current_track(guild_id).await?;
 
-    match current_track {
+    match current_track_opt {
         Some((track, metadata)) => {
             let track_info = track.get_info().await?;
+            let current_state = track_info.playing;
 
-            match track_info.playing {
-                PlayMode::Play => {
-                    track.pause()?;
-                    ctx.send(embedded_messages::paused(&metadata))
+            let action_result = match current_state {
+                PlayMode::Play => track.pause(),
+                PlayMode::Pause => track.play(),
+                _ => Err(songbird::tracks::ControlError::Finished), // Treat other states as not pausable/resumable
+            };
+
+            match action_result {
+                Ok(_) => {
+                    let message = if current_state == PlayMode::Play {
+                        format!("⏸️ Paused: {}", metadata.title)
+                    } else {
+                        format!("▶️ Resumed: {}", metadata.title)
+                    };
+                    // Send ephemeral confirmation
+                    ctx.send(embedded_messages::generic_success("Music", &message))
                         .await?;
+
+                    // Update the main player message after a short delay
+                    sleep(Duration::from_millis(100)).await;
+                    music_manager::send_or_update_message(ctx.serenity_context(), guild_id).await?;
                 }
-                PlayMode::Pause => {
-                    track.play()?;
-                    ctx.send(embedded_messages::resumed(&metadata))
-                        .await?;
-                }
-                _ => {
-                    ctx.send(embedded_messages::not_pausable())
-                        .await?;
+                Err(_) => {
+                    ctx.send(embedded_messages::not_pausable()).await?;
                 }
             }
         }
         None => {
-            ctx.send(embedded_messages::no_track_playing())
-                .await?;
+            ctx.send(embedded_messages::no_track_playing()).await?;
         }
     }
 

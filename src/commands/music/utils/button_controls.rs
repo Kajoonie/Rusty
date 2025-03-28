@@ -29,7 +29,8 @@ pub fn create_updated_buttons(is_playing: bool, has_queue: bool) -> Vec<CreateAc
         .label("Queue")
         .disabled(!is_playing && !has_queue); // Disable queue if nothing playing/queued
 
-
     // Create an action row containing our buttons
-    vec![CreateActionRow::Buttons(vec![play_pause, stop, skip, queue])]
+    vec![CreateActionRow::Buttons(vec![
+        play_pause, stop, skip, queue,
+    ])]
 }

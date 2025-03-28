@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     Error,
     commands::music::utils::{
@@ -5,7 +7,7 @@ use crate::{
         autoplay_manager::is_autoplay_enabled,
         music_manager,
         queue_manager::{
-            QueueItem, add_to_queue, clear_manual_stop_flag, get_next_track,
+            self, QueueItem, add_to_queue, clear_manual_stop_flag, get_next_track,
             is_manual_stop_flag_set, set_current_track,
         },
     },
@@ -119,6 +121,12 @@ pub async fn play_next_track(
 
     // Store the current track
     set_current_track(guild_id, track_handle.clone(), queue_item.metadata.clone()).await?;
+
+    // Start the update task now that a track is playing
+    let ctx_arc = Arc::new(ctx.clone());
+    if let Err(e) = queue_manager::start_update_task(ctx_arc, guild_id).await {
+        error!("Failed to start update task for guild {}: {}", guild_id, e);
+    }
 
     if send_message {
         music_manager::send_or_update_message(ctx, guild_id).await?;

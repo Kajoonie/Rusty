@@ -1,9 +1,10 @@
 use super::*;
 use crate::commands::music::utils::{
     embedded_messages,
-    music_manager::MusicError,
+    music_manager::{self, MusicError},
     queue_manager::{get_queue, remove_track},
 };
+use poise::CreateReply;
 
 /// Remove a track from the queue by its position
 #[poise::command(slash_command, category = "Music")]
@@ -32,12 +33,19 @@ pub async fn remove(
     }
 
     // Remove the track
-    if let Some(removed_track) = remove_track(guild_id, index).await? {
-        ctx.send(embedded_messages::track_removed(&removed_track, position))
-            .await?;
-    } else {
-        ctx.send(embedded_messages::failed_to_remove_track())
-            .await?;
+    match remove_track(guild_id, index).await? {
+        Some(removed_track) => {
+            // Send ephemeral confirmation
+            ctx.send(embedded_messages::track_removed(&removed_track, position))
+                .await?;
+            // Update the main player message
+            music_manager::send_or_update_message(ctx.serenity_context(), guild_id).await?;
+        }
+        None => {
+            // Send ephemeral error
+            ctx.send(embedded_messages::failed_to_remove_track())
+                .await?;
+        }
     }
 
     Ok(())

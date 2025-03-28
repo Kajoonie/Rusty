@@ -102,19 +102,20 @@ impl QueueManager {
         self.current_tracks.get(&guild_id)
     }
 
-    /// Toggle the queue view state for a guild
+    /// Toggle the queue view state for a guild (async)
     pub fn toggle_queue_view(&mut self, guild_id: GuildId) {
         let current_state = self.show_queue.entry(guild_id).or_insert(false);
         *current_state = !*current_state;
+        info!("Toggled queue view for guild {}: {}", guild_id, *current_state);
     }
 
-    /// Check if the queue view is enabled for a guild
+    /// Check if the queue view is enabled for a guild (async)
     pub fn is_queue_view_enabled(&self, guild_id: GuildId) -> bool {
         *self.show_queue.get(&guild_id).unwrap_or(&false)
     }
 
-    /// Start the periodic update task for a guild
-    pub fn start_update_task(
+    /// Start the periodic update task for a guild (async)
+    pub async fn start_update_task(
         &mut self,
         ctx: Arc<serenity::Context>,
         guild_id: GuildId,
@@ -151,8 +152,8 @@ impl QueueManager {
     }
 
 
-    /// Stop the periodic update task for a guild
-    pub fn stop_update_task(&mut self, guild_id: GuildId) {
+    /// Stop the periodic update task for a guild (async)
+    pub async fn stop_update_task(&mut self, guild_id: GuildId) {
         if let Some(task) = self.update_tasks.remove(&guild_id) {
             info!("Stopping update task for guild {}", guild_id);
             task.abort();
@@ -260,6 +261,27 @@ pub async fn remove_track(
 pub async fn is_queue_view_enabled(guild_id: GuildId) -> bool {
     let manager = QUEUE_MANAGER.lock().await;
     manager.is_queue_view_enabled(guild_id)
+}
+
+/// Toggle the queue view state for a guild
+pub async fn toggle_queue_view(guild_id: GuildId) -> QueueResult<()> {
+    let mut manager = QUEUE_MANAGER.lock().await;
+    manager.toggle_queue_view(guild_id);
+    Ok(())
+}
+
+/// Start the periodic update task for a guild
+pub async fn start_update_task(ctx: Arc<serenity::Context>, guild_id: GuildId) -> QueueResult<()> {
+    let mut manager = QUEUE_MANAGER.lock().await;
+    manager.start_update_task(ctx, guild_id);
+    Ok(())
+}
+
+/// Stop the periodic update task for a guild
+pub async fn stop_update_task(guild_id: GuildId) -> QueueResult<()> {
+    let mut manager = QUEUE_MANAGER.lock().await;
+    manager.stop_update_task(guild_id);
+    Ok(())
 }
 
 /// Set the manual stop flag for a guild

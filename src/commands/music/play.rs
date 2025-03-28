@@ -8,6 +8,7 @@ use crate::commands::music::utils::{
         self, QueueCallback, QueueItem, add_to_queue, get_current_track, store_channel_id,
     },
 };
+use poise::CreateReply;
 use tracing::{debug, error, info};
 
 /// Play a song from YouTube or a direct URL
@@ -100,10 +101,17 @@ pub async fn play(
         play_next_track(ctx.serenity_context(), guild_id, call, false).await?;
     }
 
+    // Send an ephemeral confirmation message
+    let reply_content = if should_start_playing {
+        format!("▶️ Playing: {}", metadata.title)
+    } else {
+        format!("✅ Added to queue: {}", metadata.title)
+    };
+    // ctx.send(embedded_messages::generic_success("Music", &reply_content))
+    //     .await?;
     ctx.send(
         CreateReply::default()
-            .content("Added song")
-            .reply(true)
+            .content(reply_content)
             .ephemeral(true),
     )
     .await?;
