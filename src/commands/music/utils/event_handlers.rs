@@ -127,8 +127,6 @@ pub async fn play_next_track(
         error!("Failed to start update task for guild {}: {}", guild_id, e);
     }
 
-    music_manager::send_or_update_message(ctx, guild_id).await?;
-
     // Set up a handler for when the track ends
     let ctx = ctx.clone();
     let call = call.clone();
