@@ -4,10 +4,10 @@ use crate::commands::music::utils::{
     embedded_messages,
     event_handlers::play_next_track,
     music_manager::{MusicError, MusicManager},
-    queue_manager::{self, add_to_queue, get_current_track, store_channel_id, QueueCallback, QueueItem},
-    track_cache::{
-        cache_metadata, create_input_from_url, get_cached_metadata, is_youtube_url,
+    queue_manager::{
+        self, QueueCallback, QueueItem, add_to_queue, get_current_track, store_channel_id,
     },
+    track_cache::{cache_metadata, create_input_from_url, get_cached_metadata, is_youtube_url},
 };
 use songbird::input::Input;
 use tracing::{debug, error, info};
@@ -75,8 +75,10 @@ pub async fn play(
                 }
                 Err(err) => {
                     error!("Failed to create input from cached URL {}: {}", query, err);
-                    ctx.send(embedded_messages::failed_to_process_audio_source(err))
-                        .await?;
+                    ctx.send(embedded_messages::failed_to_process_audio_source(
+                        MusicError::CacheError(err),
+                    ))
+                    .await?;
                     return Ok(());
                 }
             }
@@ -87,12 +89,21 @@ pub async fn play(
             let queue_callback: QueueCallback = queue_manager::get_queue_callback(guild_id).await;
             match AudioSource::from_query(&query, Some(queue_callback)).await {
                 Ok((fetched_source, fetched_metadata)) => {
-                    info!("Successfully created audio source. Metadata: {:?}", fetched_metadata);
+                    info!(
+                        "Successfully created audio source. Metadata: {:?}",
+                        fetched_metadata
+                    );
                     // Cache the metadata for the primary track
                     if is_youtube_url(fetched_metadata.url.as_deref().unwrap_or("")) {
-                         cache_metadata(fetched_metadata.url.as_ref().unwrap(), fetched_metadata.clone());
+                        cache_metadata(
+                            fetched_metadata.url.as_ref().unwrap(),
+                            fetched_metadata.clone(),
+                        );
                     } else {
-                        debug!("Fetched metadata URL is not a cacheable YouTube URL: {:?}", fetched_metadata.url);
+                        debug!(
+                            "Fetched metadata URL is not a cacheable YouTube URL: {:?}",
+                            fetched_metadata.url
+                        );
                     }
                     source = fetched_source;
                     metadata = fetched_metadata;
@@ -114,12 +125,21 @@ pub async fn play(
         let queue_callback: QueueCallback = queue_manager::get_queue_callback(guild_id).await;
         match AudioSource::from_query(&query, Some(queue_callback)).await {
             Ok((fetched_source, fetched_metadata)) => {
-                info!("Successfully created audio source. Metadata: {:?}", fetched_metadata);
-                 // Cache the metadata if it resolved to a YouTube URL
+                info!(
+                    "Successfully created audio source. Metadata: {:?}",
+                    fetched_metadata
+                );
+                // Cache the metadata if it resolved to a YouTube URL
                 if is_youtube_url(fetched_metadata.url.as_deref().unwrap_or("")) {
-                    cache_metadata(fetched_metadata.url.as_ref().unwrap(), fetched_metadata.clone());
+                    cache_metadata(
+                        fetched_metadata.url.as_ref().unwrap(),
+                        fetched_metadata.clone(),
+                    );
                 } else {
-                     debug!("Fetched metadata URL is not a cacheable YouTube URL: {:?}", fetched_metadata.url);
+                    debug!(
+                        "Fetched metadata URL is not a cacheable YouTube URL: {:?}",
+                        fetched_metadata.url
+                    );
                 }
                 source = fetched_source;
                 metadata = fetched_metadata;
@@ -127,7 +147,10 @@ pub async fn play(
                 is_playlist = metadata.playlist.is_some();
             }
             Err(err) => {
-                error!("Failed to create audio source from query '{}': {}", query, err);
+                error!(
+                    "Failed to create audio source from query '{}': {}",
+                    query, err
+                );
                 ctx.send(embedded_messages::failed_to_process_audio_source(err))
                     .await?;
                 return Ok(());
@@ -138,7 +161,10 @@ pub async fn play(
     // --- Queueing Logic ---
 
     // Create a queue item for the *first* track (even if it's a playlist)
-    debug!("Creating queue item for initial track with metadata: {:?}", metadata);
+    debug!(
+        "Creating queue item for initial track with metadata: {:?}",
+        metadata
+    );
     let queue_item = QueueItem {
         input: source,
         metadata: metadata.clone(),
@@ -166,8 +192,16 @@ pub async fn play(
         // The 'metadata' here refers to the *first* track of the playlist.
         format!(
             "✅ Added playlist: {} (and {} other tracks)",
-            metadata.playlist.as_ref().map(|p| p.title.as_str()).unwrap_or("Unknown Playlist"),
-            metadata.playlist.as_ref().map(|p| p.track_count.saturating_sub(1)).unwrap_or(0) // Show count of *other* tracks
+            metadata
+                .playlist
+                .as_ref()
+                .map(|p| p.title.as_str())
+                .unwrap_or("Unknown Playlist"),
+            metadata
+                .playlist
+                .as_ref()
+                .map(|p| p.track_count.saturating_sub(1))
+                .unwrap_or(0) // Show count of *other* tracks
         )
     } else if should_start_playing {
         format!("▶️ Playing: {}", metadata.title)

@@ -1,7 +1,6 @@
 use crate::commands::music::utils::audio_sources::TrackMetadata; // Correct import path
 use dashmap::DashMap;
 use std::sync::LazyLock; // Use LazyLock instead of once_cell::sync::Lazy
-use serde::{Deserialize, Serialize};
 use songbird::input::{Input, YoutubeDl};
 use std::{
     collections::HashMap,
@@ -127,7 +126,7 @@ pub async fn create_input_from_url(url: &str) -> Result<Input, Box<dyn std::erro
 pub fn is_youtube_url(query: &str) -> bool {
     match Url::parse(query) {
         Ok(url) => {
-            url.host_str().map_or(false, |host| {
+            url.host_str().is_some_and(|host| {
                 host == "www.youtube.com" || host == "youtube.com" || host == "youtu.be"
             }) && url.path().starts_with("/watch") || url.host_str() == Some("youtu.be")
             // Basic check, might need refinement for shorts, playlists etc. if needed

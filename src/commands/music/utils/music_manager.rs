@@ -37,6 +37,9 @@ pub enum MusicError {
 
     #[error("Configuration error: {0}")]
     ConfigError(String),
+
+    #[error("Cache error: {0}")]
+    CacheError(Box<dyn std::error::Error + Send + Sync>),
 }
 
 /// Result type for music operations
