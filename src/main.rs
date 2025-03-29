@@ -173,8 +173,8 @@ async fn main() -> Result<(), Error> {
                                             .get(0) // Get Option<ModalInteractionDataComponent>
                                             // Chain subsequent gets with and_then
                                             .and_then(|row_data| row_data.components.get(0)) // Get Option<ActionRow> from ModalInteractionDataComponent
-                                            // .and_then(|action_row| action_row.components.get(0)) // This line was incorrect
-                                            .and_then(|component| match component { // Match directly on the component from the row
+                                            .and_then(|action_row| action_row.components.get(0)) // Get Option<ActionRowComponent> from ActionRow
+                                            .and_then(|component| match component { // Match on ActionRowComponent
                                                 serenity::ActionRowComponent::InputText(text_input) => Some(text_input.value.clone()), // Clone the value
                                                 _ => None,
                                             });
