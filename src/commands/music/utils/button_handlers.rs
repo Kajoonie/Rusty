@@ -120,7 +120,7 @@ pub async fn handle_button_interaction(
             // No need to update the message as we are deleting it.
             // The interaction was already deferred, so we don't need to send a followup unless there's an error *before* this point.
         }
-        "music_skip" => {
+        "music_next" => {
             if let Some((track, _metadata)) = current_track_opt {
                 // Stop the current track (SongEndNotifier will handle playing the next)
                 track.stop()?;

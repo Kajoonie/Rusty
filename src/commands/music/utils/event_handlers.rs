@@ -118,7 +118,7 @@ pub async fn play_next_track(
     info!("Track handle created");
 
     // Store the current track
-    set_current_track(guild_id, track_handle.clone(), queue_item.metadata.clone()).await?;
+    set_current_track(guild_id, track_handle.clone(), queue_item.clone()).await?;
 
     // Start the update task now that a track is playing
     let ctx_arc = Arc::new(ctx.clone());

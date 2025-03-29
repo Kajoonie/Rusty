@@ -5,12 +5,13 @@ use songbird::tracks::PlayMode;
 use std::time::Duration;
 
 use crate::{
-    commands::music::utils::{
-        button_controls, format_duration,
-        music_manager::MusicError,
-        queue_manager::{self, get_current_track, has_history}, // Added has_history
-    },
     Error,
+    commands::music::utils::{
+        button_controls,
+        format_duration,
+        music_manager::MusicError,
+        queue_manager,
+    },
 };
 
 use super::{audio_sources::TrackMetadata, queue_manager::is_queue_view_enabled};
@@ -46,7 +47,7 @@ fn parse_metadata(metadata: &TrackMetadata) -> (String, String, String) {
 pub async fn music_player_message(guild_id: GuildId) -> Result<CreateReply, Error> {
     let mut embed = CreateEmbed::new().color(0x00ff00); // Green color
 
-    let current_track_opt = get_current_track(guild_id).await?;
+    let current_track_opt = queue_manager::get_current_track(guild_id).await?;
     let queue = queue_manager::get_queue(guild_id).await?;
     let show_queue = is_queue_view_enabled(guild_id).await;
 

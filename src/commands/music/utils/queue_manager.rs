@@ -28,8 +28,10 @@ pub type QueueResult<T> = Result<T, MusicError>;
 pub struct QueueManager {
     // Map of guild ID to queue
     queues: HashMap<GuildId, VecDeque<QueueItem>>,
-    // Map of guild ID to current track handle and metadata
-    current_tracks: HashMap<GuildId, (TrackHandle, TrackMetadata)>,
+    // Map of guild ID to current track handle and its QueueItem (Input + Metadata)
+    current_tracks: HashMap<GuildId, (TrackHandle, QueueItem)>,
+    // Map of guild ID to track history (most recent first)
+    history: HashMap<GuildId, VecDeque<QueueItem>>,
     // Map of guild ID to queue view toggle state
     show_queue: HashMap<GuildId, bool>,
     // Map of guild ID to periodic update task handle
@@ -42,6 +44,7 @@ impl QueueManager {
         Self {
             queues: HashMap::new(),
             current_tracks: HashMap::new(),
+            history: HashMap::new(),
             show_queue: HashMap::new(),
             update_tasks: HashMap::new(),
         }
@@ -71,6 +74,8 @@ impl QueueManager {
         self.queues.remove(&guild_id);
         // Remove the current track
         self.current_tracks.remove(&guild_id);
+        // Remove the history
+        self.history.remove(&guild_id);
         // Reset queue view state
         self.show_queue.remove(&guild_id);
         // Stop update task if running
@@ -86,19 +91,68 @@ impl QueueManager {
         }
     }
 
-    /// Set the current track for a guild
+    /// Set the current track for a guild, moving the previous current track (if any) to history
     pub fn set_current_track(
         &mut self,
         guild_id: GuildId,
-        track: TrackHandle,
-        metadata: TrackMetadata,
+        track_handle: TrackHandle,
+        item: QueueItem,
     ) {
-        self.current_tracks.insert(guild_id, (track, metadata));
+        // If there was a previous track playing, add it to the history
+        if let Some((_old_handle, old_item)) = self.current_tracks.remove(&guild_id) {
+            let history_queue = self.history.entry(guild_id).or_default();
+            // Keep history size manageable (e.g., max 50)
+            if history_queue.len() >= 50 {
+                history_queue.pop_back(); // Remove the oldest item
+            }
+            history_queue.push_front(old_item); // Add the just-finished track to the front (most recent)
+            debug!(
+                "Added track '{}' to history for guild {}",
+                history_queue.front().unwrap().metadata.title, // Safe unwrap as we just pushed
+                guild_id
+            );
+        }
+
+        // Insert the new track as the current one
+        self.current_tracks.insert(guild_id, (track_handle, item));
     }
 
-    /// Get the current track for a guild
-    pub fn get_current_track(&self, guild_id: GuildId) -> Option<&(TrackHandle, TrackMetadata)> {
+    /// Get the current track handle and its QueueItem for a guild
+    pub fn get_current_track(&self, guild_id: GuildId) -> Option<&(TrackHandle, QueueItem)> {
         self.current_tracks.get(&guild_id)
+    }
+
+    /// Get the previous track from history, putting the current track back into the main queue.
+    /// Returns the QueueItem of the track retrieved from history.
+    pub fn previous(&mut self, guild_id: GuildId) -> Option<QueueItem> {
+        // Get the history queue, return None if no history
+        let history_queue = self.history.get_mut(&guild_id)?;
+        // Pop the most recent item from history
+        let previous_item = history_queue.pop_front()?;
+        debug!(
+            "Retrieved track '{}' from history for guild {}",
+            previous_item.metadata.title, guild_id
+        );
+
+        // If there is a currently playing track, move it to the front of the main queue
+        if let Some((_handle, current_item)) = self.current_tracks.remove(&guild_id) {
+            debug!(
+                "Moving current track '{}' to front of queue for guild {}",
+                current_item.metadata.title, guild_id
+            );
+            let main_queue = self.queues.entry(guild_id).or_default();
+            main_queue.push_front(current_item);
+        }
+
+        // Return the track retrieved from history
+        Some(previous_item)
+    }
+
+    /// Check if there is any track history for the guild
+    pub fn has_history(&self, guild_id: GuildId) -> bool {
+        self.history
+            .get(&guild_id)
+            .map_or(false, |h| !h.is_empty())
     }
 
     /// Toggle the queue view state for a guild (async)
@@ -242,19 +296,33 @@ pub async fn get_queue(guild_id: GuildId) -> QueueResult<Vec<TrackMetadata>> {
 
 pub async fn set_current_track(
     guild_id: GuildId,
-    track: TrackHandle,
-    metadata: TrackMetadata,
+    track_handle: TrackHandle,
+    item: QueueItem,
 ) -> QueueResult<()> {
     let mut manager = QUEUE_MANAGER.lock().await;
-    manager.set_current_track(guild_id, track, metadata);
+    manager.set_current_track(guild_id, track_handle, item);
     Ok(())
 }
 
+/// Gets a clone of the current track handle and its QueueItem
 pub async fn get_current_track(
     guild_id: GuildId,
-) -> QueueResult<Option<(TrackHandle, TrackMetadata)>> {
+) -> QueueResult<Option<(TrackHandle, QueueItem)>> {
     let manager = QUEUE_MANAGER.lock().await;
+    // Cloning TrackHandle is cheap (Arc), QueueItem needs Input (cheap clone) and TrackMetadata (needs clone)
     Ok(manager.get_current_track(guild_id).cloned())
+}
+
+/// Gets the previous track from history, moving the current track to the front of the queue.
+pub async fn get_previous_track(guild_id: GuildId) -> QueueResult<Option<QueueItem>> {
+    let mut manager = QUEUE_MANAGER.lock().await;
+    Ok(manager.previous(guild_id))
+}
+
+/// Checks if track history exists for the guild.
+pub async fn has_history(guild_id: GuildId) -> bool {
+    let manager = QUEUE_MANAGER.lock().await;
+    manager.has_history(guild_id)
 }
 
 pub async fn remove_track(
