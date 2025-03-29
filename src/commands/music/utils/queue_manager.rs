@@ -152,7 +152,7 @@ impl QueueManager {
 
     /// Toggle the queue view state for a guild (async)
     pub fn toggle_queue_view(&mut self, guild_id: GuildId) {
-        let current_state = self.show_queue.entry(guild_id).or_insert(false);
+        let current_state = self.show_queue.entry(guild_id).or_insert(true);
         *current_state = !*current_state;
         info!(
             "Toggled queue view for guild {}: {}",
@@ -162,7 +162,7 @@ impl QueueManager {
 
     /// Check if the queue view is enabled for a guild (async)
     pub fn is_queue_view_enabled(&self, guild_id: GuildId) -> bool {
-        *self.show_queue.get(&guild_id).unwrap_or(&false)
+        *self.show_queue.get(&guild_id).unwrap_or(&true)
     }
 
     /// Start the periodic update task for a guild (async)

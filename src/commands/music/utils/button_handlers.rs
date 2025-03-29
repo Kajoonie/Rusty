@@ -136,7 +136,6 @@ pub async fn handle_button_interaction(
         "music_queue_toggle" => {
             // Toggle the queue view state
             queue_manager::toggle_queue_view(guild_id).await?;
-            info!("Toggled queue view via button for guild {}", guild_id);
 
             // Update the message to show/hide the queue
             update_player_message(ctx, interaction).await?;
