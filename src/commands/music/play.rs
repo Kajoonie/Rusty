@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::*;
 use crate::commands::music::utils::{
     audio_sources::{AudioSource, TrackMetadata}, // Correct import path for TrackMetadata
@@ -174,14 +176,18 @@ async fn process_play_request(
         // Pass http context directly
         let played = play_next_track(&ctx.serenity_context().http, guild_id, call.clone()) // Use ctx.serenity_context().http, clone call
             .await
-            .map_err(|e| MusicError::AudioSourceError(format!("Failed to start playback: {}", e)))?; // Map error to AudioSourceError
+            .map_err(|e| {
+                MusicError::AudioSourceError(format!("Failed to start playback: {}", e))
+            })?; // Map error to AudioSourceError
 
         // If playback started successfully, start the update task
         if played {
             // Pass the full context Arc by cloning the context
             queue_manager::start_update_task(Arc::new(ctx.serenity_context().clone()), guild_id)
                 .await
-                .map_err(|e| MusicError::AudioSourceError(format!("Failed to start update task: {}", e)))?; // Map QueueError
+                .map_err(|e| {
+                    MusicError::AudioSourceError(format!("Failed to start update task: {}", e))
+                })?; // Map QueueError
         }
     }
 
