@@ -5,12 +5,12 @@ use songbird::tracks::PlayMode;
 use std::time::Duration;
 
 use crate::{
-    Error,
     commands::music::utils::{
         button_controls, format_duration,
         music_manager::MusicError,
-        queue_manager::{self, get_current_track},
+        queue_manager::{self, get_current_track, has_history}, // Added has_history
     },
+    Error,
 };
 
 use super::{audio_sources::TrackMetadata, queue_manager::is_queue_view_enabled};
@@ -58,7 +58,9 @@ pub async fn music_player_message(guild_id: GuildId) -> Result<CreateReply, Erro
     // Build the embed content based on whether a track is currently playing
     // We need to handle the case where get_info() fails because the track just ended
     let mut track_ended_or_is_none = false;
-    if let Some((track_handle, metadata)) = &current_track_opt {
+    // We need the metadata from the QueueItem now
+    if let Some((track_handle, queue_item)) = &current_track_opt {
+        let metadata = &queue_item.metadata; // Extract metadata
         match track_handle.get_info().await {
             Ok(track_info) => {
                 is_playing = track_info.playing == PlayMode::Play;
@@ -147,6 +149,7 @@ pub async fn music_player_message(guild_id: GuildId) -> Result<CreateReply, Erro
         .components(button_controls::create_updated_buttons(
             is_playing,
             has_queue,
+            has_history, // Pass history status
             track_ended_or_is_none,
         )))
 }
