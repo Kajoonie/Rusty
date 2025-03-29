@@ -1,4 +1,4 @@
-use crate::commands::music::utils::audio_sources::TrackMetadata; // Correct import path
+use crate::{commands::music::utils::audio_sources::TrackMetadata, HTTP_CLIENT}; // Correct import path
 use dashmap::DashMap;
 use std::sync::LazyLock; // Use LazyLock instead of once_cell::sync::Lazy
 use songbird::input::{Input, YoutubeDl};
@@ -107,11 +107,8 @@ pub fn cache_metadata(url: &str, metadata: TrackMetadata) {
 /// Creates a Songbird Input source from a YouTube URL.
 /// Assumes the URL is valid and points to a playable YouTube video.
 pub async fn create_input_from_url(url: &str) -> Result<Input, Box<dyn std::error::Error + Send + Sync>> {
-    // Use reqwest client provided by songbird? Or create a new one?
-    // Creating a new one is simpler for now.
-    let http_client = reqwest::Client::new();
     // Create the source using YoutubeDl
-    let source = YoutubeDl::new(http_client, url.to_string());
+    let source = YoutubeDl::new(HTTP_CLIENT.clone(), url.to_string());
     // Optionally configure ytdl parameters if needed
     // source.youtube_dl_args = vec!["--format=bestaudio".to_string()];
 
