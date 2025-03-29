@@ -11,6 +11,7 @@ pub(crate) mod music_manager;
 pub(crate) mod queue_manager;
 pub(crate) mod song_fetchers;
 pub(crate) mod spotify_api;
+pub(crate) mod track_cache;
 
 /// Format a duration into a human-readable string (e.g., "3:45" or "1:23:45")
 pub fn format_duration(duration: Duration) -> String {
