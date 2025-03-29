@@ -108,7 +108,7 @@ impl SongEndNotifier {
                             self.guild_id
                         );
                         if let Err(e) =
-                            play_next_track(&self.ctx, self.guild_id, self.call.clone()).await
+                            play_next_track(&self.ctx_http, self.guild_id, self.call.clone()).await // Use ctx_http
                         {
                             error!(
                                 "Failed to play related track immediately for guild {}: {}",

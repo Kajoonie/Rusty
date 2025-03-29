@@ -272,6 +272,18 @@ pub fn track_removed(metadata: &TrackMetadata, position: usize) -> CreateReply {
         .ephemeral(true)
 }
 
+/// Generic error message (ephemeral)
+pub fn generic_error(description: &str) -> CreateReply {
+    CreateReply::default()
+        .embed(
+            CreateEmbed::new()
+                .title("❌ Error")
+                .description(description)
+                .color(0xff0000), // Red color
+        )
+        .ephemeral(true)
+}
+
 /// Create an embed for when the bot fails to remove a track (ephemeral)
 pub fn failed_to_remove_track() -> CreateReply {
     CreateReply::default()

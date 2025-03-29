@@ -22,7 +22,7 @@ use tracing::{debug, error, info, warn}; // Add warn import
 /// Handles joining voice, fetching metadata, caching, queueing, and starting playback if needed.
 /// Returns a user-friendly status message string on success.
 async fn process_play_request(
-    ctx_http: Arc<serenity::Http>,
+    ctx: Context<'_>, // Change back to full Context
     guild_id: GuildId,
     channel_id: ChannelId, // Channel to join
     query: &str,
@@ -33,13 +33,11 @@ async fn process_play_request(
     );
 
     // Join the voice channel if not already connected
-    let call = match MusicManager::get_call(&ctx_http, guild_id).await {
-        // Use ctx_http directly
+    let call = match MusicManager::get_call(ctx.serenity_context(), guild_id).await { // Use ctx.serenity_context()
         Ok(call) => call,
         Err(_) => {
             // Not connected, so join the channel
-            match MusicManager::join_channel(&ctx_http, guild_id, channel_id).await {
-                // Use ctx_http directly
+            match MusicManager::join_channel(ctx.serenity_context(), guild_id, channel_id).await { // Use ctx.serenity_context()
                 Ok(call) => call,
                 Err(err) => {
                     error!(
@@ -169,7 +167,9 @@ async fn process_play_request(
     // If nothing is currently playing, start playback
     if should_start_playing {
         // Pass http context directly
-        play_next_track(&ctx_http, guild_id, call).await?; // Return error if playing fails
+        play_next_track(&ctx.serenity_context().http, guild_id, call) // Use ctx.serenity_context().http
+            .await
+            .map_err(|e| MusicError::Other(format!("Failed to start playback: {}", e)))?; // Map error
     }
 
     // --- Generate Success Message ---
@@ -226,13 +226,13 @@ pub async fn play(
     ctx.defer_ephemeral().await?;
 
     // Call the reusable processing function
-    match process_play_request(ctx.serenity_context().http.clone(), guild_id, voice_channel_id, &query).await {
+    match process_play_request(ctx, guild_id, voice_channel_id, &query).await { // Pass full ctx
         Ok(reply_content) => {
             // Send the success message from the processing function
             ctx.send(embedded_messages::generic_success("Music", &reply_content))
                 .await?;
             // Trigger an update of the main player message *after* success
-            if let Err(e) = music_manager::send_or_update_message(ctx.serenity_context(), guild_id).await {
+            if let Err(e) = MusicManager::send_or_update_message(ctx.serenity_context(), guild_id).await { // Use MusicManager::
                 warn!("Failed to update player message after /play command: {}", e);
             }
         }
@@ -243,8 +243,10 @@ pub async fn play(
                 MusicError::AudioSourceError(_) | MusicError::CacheError(_) => {
                     embedded_messages::failed_to_process_audio_source(err)
                 }
-                MusicError::QueueError(_) => embedded_messages::failed_to_add_to_queue(err),
-                _ => embedded_messages::generic_error(&format!("An unexpected error occurred: {}", err)), // Generic fallback
+                // MusicError::QueueError(_) => embedded_messages::failed_to_add_to_queue(err), // QueueError doesn't exist
+                // Use MusicError::Other or a more specific existing error
+                MusicError::Other(msg) => embedded_messages::generic_error(&msg), // Use generic_error for Other
+                _ => embedded_messages::generic_error(&format!("An unexpected error occurred: {}", err)), // Generic fallback for others
             };
             ctx.send(reply).await?;
         }

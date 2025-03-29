@@ -214,7 +214,7 @@ impl QueueManager {
                 let mut rng = thread_rng();
                 // VecDeque doesn't directly support shuffle, so convert to Vec and back
                 // Or use make_contiguous if efficiency is critical and possible
-                let mut contiguous_slice = queue.make_contiguous();
+                let contiguous_slice = queue.make_contiguous(); // Remove mut
                 contiguous_slice.shuffle(&mut rng);
                 info!("Shuffled queue for guild {}", guild_id);
             }

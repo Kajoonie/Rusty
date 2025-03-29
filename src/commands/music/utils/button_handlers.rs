@@ -319,7 +319,7 @@ async fn handle_previous(
         songbird::Event::Track(songbird::TrackEvent::End),
         crate::commands::music::utils::event_handlers::SongEndNotifier {
             // Use full path
-            ctx: ctx_clone,
+            ctx_http: ctx.http.clone(), // Use ctx_http and clone the Arc<Http>
             guild_id,
             call: call_clone,
             track_metadata: previous_metadata, // Use the cloned metadata again
