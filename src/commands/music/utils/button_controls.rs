@@ -37,6 +37,7 @@ impl From<Emoji> for ReactionType {
     }
 }
 
+#[derive(Clone, Debug)] // Add Clone and Debug derives
 pub enum RepeatState {
     Disabled,
     RepeatAll,

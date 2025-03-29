@@ -12,8 +12,7 @@ use super::{
     music_manager::MusicManager,
     queue_manager::{
         self, clear_previous_action_flag, clear_queue, get_channel_id, get_current_track,
-        get_message_id, get_previous_track, set_current_track, set_manual_stop_flag,
-        set_previous_action_flag,
+        get_message_id, set_current_track, set_manual_stop_flag, set_previous_action_flag,
     },
     track_cache, // Import track_cache
 };
