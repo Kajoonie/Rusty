@@ -5,6 +5,7 @@ use crate::commands::music::utils::song_fetchers::{
     RelatedSongsFetcher, SerpApiFetcher, YtDlpFetcher,
 };
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 #[cfg(feature = "music")]
 use songbird::input::{HttpRequest, Input, YoutubeDl};
 use std::process::Command;
@@ -16,13 +17,23 @@ use url::Url;
 /// Result type for audio source operations
 pub type AudioSourceResult<T> = Result<T, MusicError>;
 
+/// Represents metadata for a playlist or album
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlaylistMetadata {
+    pub title: String,
+    pub track_count: usize,
+}
+
 /// Represents metadata for a track
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrackMetadata {
     pub title: String,
     pub url: Option<String>,
+    #[serde(with = "humantime_serde")] // Use humantime_serde for Duration
     pub duration: Option<Duration>,
     pub thumbnail: Option<String>,
+    // Optional field to indicate if this track is part of a playlist/album
+    pub playlist: Option<PlaylistMetadata>,
 }
 
 impl Default for TrackMetadata {
@@ -32,6 +43,7 @@ impl Default for TrackMetadata {
             url: None,
             duration: None,
             thumbnail: None,
+            playlist: None, // Default to no playlist info
         }
     }
 }
@@ -171,6 +183,7 @@ impl AudioSource {
             url: Some(url.to_string()),
             duration,
             thumbnail,
+            playlist: None, // Individual YouTube URL, not a playlist context
         };
 
         Ok((source.into(), metadata))
@@ -222,6 +235,7 @@ impl AudioSource {
             url: video_url,
             duration,
             thumbnail,
+            playlist: None, // Search result, not a playlist context
         };
 
         Ok((source.into(), metadata))
@@ -287,57 +301,78 @@ impl AudioSource {
                 ));
             }
 
-            // Return the first track and queue the rest
+            // It's a playlist URL
+            let (playlist_name, tracks) = SpotifyApi::get_playlist_tracks(&playlist_id).await?;
+            if tracks.is_empty() {
+                return Err(MusicError::AudioSourceError(
+                    "Spotify playlist is empty".to_string(),
+                ));
+            }
+
+            let total_tracks = tracks.len();
             let first_track = tracks[0].clone();
 
             // Queue the remaining tracks if we have a callback
-            if tracks.len() > 1 && queue_track_callback.is_some() {
-                let remaining_tracks = tracks[1..].to_vec();
-                let callback = queue_track_callback.unwrap();
-
-                // Start a background task to process and queue these tracks
-                tokio::spawn(async move {
-                    for track in remaining_tracks {
-                        // Process each track and add it to the queue
-                        if let Ok((input, metadata)) = Self::from_spotify_track(track).await {
-                            // Use the callback to queue this track
-                            (callback)(input, metadata);
+            if total_tracks > 1 {
+                if let Some(callback) = queue_track_callback {
+                    let remaining_tracks = tracks[1..].to_vec();
+                    tokio::spawn(async move {
+                        for track in remaining_tracks {
+                            if let Ok((input, metadata)) = Self::from_spotify_track(track).await {
+                                (callback)(input, metadata);
+                            }
                         }
-                    }
-                });
+                    });
+                }
             }
 
-            return Self::from_spotify_track(first_track).await;
+            // Get source and metadata for the *first* track
+            let (source, mut metadata) = Self::from_spotify_track(first_track).await?;
+
+            // Add playlist info to the metadata of the first track
+            metadata.playlist = Some(PlaylistMetadata {
+                title: playlist_name,
+                track_count: total_tracks,
+            });
+
+            return Ok((source, metadata));
         } else if let Some(album_id) = SpotifyApi::extract_album_id(url) {
-            // It's an album URL - get the first track
-            let tracks = SpotifyApi::get_album_tracks(&album_id).await?;
+            // It's an album URL
+            let (album_name, tracks) = SpotifyApi::get_album_tracks(&album_id).await?;
             if tracks.is_empty() {
                 return Err(MusicError::AudioSourceError(
                     "Spotify album is empty".to_string(),
                 ));
             }
 
-            // Return the first track and queue the rest
+            let total_tracks = tracks.len();
             let first_track = tracks[0].clone();
 
             // Queue the remaining tracks if we have a callback
-            if tracks.len() > 1 && queue_track_callback.is_some() {
-                let remaining_tracks = tracks[1..].to_vec();
-                let callback = queue_track_callback.unwrap();
-
-                // Start a background task to process and queue these tracks
-                tokio::spawn(async move {
-                    for track in remaining_tracks {
-                        // Process each track and add it to the queue
-                        if let Ok((input, metadata)) = Self::from_spotify_track(track).await {
-                            // Use the callback to queue this track
-                            (callback)(input, metadata);
+            if total_tracks > 1 {
+                if let Some(callback) = queue_track_callback {
+                    let remaining_tracks = tracks[1..].to_vec();
+                    tokio::spawn(async move {
+                        for track in remaining_tracks {
+                            if let Ok((input, metadata)) = Self::from_spotify_track(track).await {
+                                (callback)(input, metadata);
+                            }
                         }
-                    }
-                });
+                    });
+                }
             }
 
-            return Self::from_spotify_track(first_track).await;
+            // Get source and metadata for the *first* track
+            let (source, mut metadata) = Self::from_spotify_track(first_track).await?;
+
+            // Add album info to the metadata of the first track
+            metadata.playlist = Some(PlaylistMetadata {
+                // Reusing PlaylistMetadata for albums
+                title: album_name,
+                track_count: total_tracks,
+            });
+
+            return Ok((source, metadata));
         }
 
         Err(MusicError::AudioSourceError(
@@ -372,11 +407,13 @@ impl AudioSource {
 
         let metadata = TrackMetadata {
             title,
-            url: Some(track.url),
+            url: Some(track.url), // Keep Spotify URL here for reference
             duration,
             thumbnail: track.album_image,
+            playlist: None, // Individual track context, no playlist info here
         };
 
+        // The source is from YouTube search, but metadata is from Spotify
         Ok((source, metadata))
     }
 }
