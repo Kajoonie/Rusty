@@ -1,5 +1,4 @@
 use super::spotify_api::{SpotifyApi, SpotifyTrack};
-use crate::HTTP_CLIENT;
 use crate::commands::music::utils::music_manager::MusicError;
 use crate::commands::music::utils::queue_manager::MetadataCallback; // Import MetadataCallback
 use crate::commands::music::utils::song_fetchers::{
@@ -8,7 +7,6 @@ use crate::commands::music::utils::song_fetchers::{
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "music")]
-use songbird::input::{HttpRequest, Input, YoutubeDl};
 use std::process::Command;
 use std::sync::LazyLock;
 use std::time::Duration;
@@ -61,7 +59,7 @@ impl AudioSource {
     pub async fn from_query(
         query: &str,
         queue_track_callback: Option<MetadataCallback>, // Use MetadataCallback type
-    ) -> AudioSourceResult<(Input, TrackMetadata)> {
+    ) -> AudioSourceResult<TrackMetadata> {
         debug!("Creating audio source from query: {}", query);
         // Check if the query is a URL
         if Self::is_url(query) {
@@ -96,7 +94,7 @@ impl AudioSource {
     pub async fn from_url(
         url: &str,
         queue_track_callback: Option<MetadataCallback>, // Use MetadataCallback type
-    ) -> AudioSourceResult<(Input, TrackMetadata)> {
+    ) -> AudioSourceResult<TrackMetadata> {
         debug!("Creating audio source from URL: {}", url);
 
         // Handle Spotify URLs
@@ -109,9 +107,6 @@ impl AudioSource {
             return Self::from_youtube_url(url).await;
         }
 
-        // Handle direct audio URLs
-        let source = HttpRequest::new(HTTP_CLIENT.clone(), url.to_string());
-
         // Create basic metadata
         let metadata = TrackMetadata {
             title: url.to_string(),
@@ -119,11 +114,11 @@ impl AudioSource {
             ..Default::default()
         };
 
-        Ok((source.into(), metadata))
+        Ok(metadata)
     }
 
     /// Create an audio source from a YouTube URL
-    pub async fn from_youtube_url(url: &str) -> AudioSourceResult<(Input, TrackMetadata)> {
+    pub async fn from_youtube_url(url: &str) -> AudioSourceResult<TrackMetadata> {
         info!("Creating YouTube audio source for URL: {}", url);
 
         // First, verify yt-dlp is working
@@ -163,9 +158,6 @@ impl AudioSource {
                 MusicError::AudioSourceError(format!("Failed to parse video metadata: {}", e))
             })?;
 
-        // Create the source with default options (Songbird will use best audio quality)
-        let source = YoutubeDl::new(HTTP_CLIENT.clone(), url.to_string());
-
         // Extract metadata from JSON
         let title = metadata_json["title"]
             .as_str()
@@ -187,11 +179,11 @@ impl AudioSource {
             playlist: None, // Individual YouTube URL, not a playlist context
         };
 
-        Ok((source.into(), metadata))
+        Ok(metadata)
     }
 
     /// Create an audio source from a search term using YouTube search
-    pub async fn from_search(search_term: &str) -> AudioSourceResult<(Input, TrackMetadata)> {
+    pub async fn from_search(search_term: &str) -> AudioSourceResult<TrackMetadata> {
         info!("Creating audio source from search term: {}", search_term);
         let search_url = format!("ytsearch:{}", search_term);
 
@@ -212,9 +204,6 @@ impl AudioSource {
             serde_json::from_str(&metadata_str).map_err(|e| {
                 MusicError::AudioSourceError(format!("Failed to parse video metadata: {}", e))
             })?;
-
-        // Create the source with default options
-        let source = YoutubeDl::new(HTTP_CLIENT.clone(), search_url);
 
         // Extract metadata from JSON
         let title = metadata_json["title"]
@@ -239,7 +228,7 @@ impl AudioSource {
             playlist: None, // Search result, not a playlist context
         };
 
-        Ok((source.into(), metadata))
+        Ok(metadata)
     }
 
     /// Get related songs for a given YouTube video URL
@@ -285,7 +274,7 @@ impl AudioSource {
     pub async fn from_spotify_url(
         url: &str,
         queue_track_callback: Option<MetadataCallback>, // Use MetadataCallback type
-    ) -> AudioSourceResult<(Input, TrackMetadata)> {
+    ) -> AudioSourceResult<TrackMetadata> {
         info!("Creating audio source from Spotify URL: {}", url);
 
         // Determine the type of Spotify URL (track, playlist, album)
@@ -315,7 +304,10 @@ impl AudioSource {
                             if let Ok(metadata) = Self::create_metadata_from_spotify_track(&track) {
                                 (callback)(metadata); // Pass only metadata
                             } else {
-                                warn!("Failed to create metadata for Spotify track in playlist callback: {}", track.name);
+                                warn!(
+                                    "Failed to create metadata for Spotify track in playlist callback: {}",
+                                    track.name
+                                );
                             }
                         }
                     });
@@ -323,7 +315,7 @@ impl AudioSource {
             }
 
             // Get source and metadata for the *first* track
-            let (source, mut metadata) = Self::from_spotify_track(first_track).await?;
+            let mut metadata = Self::from_spotify_track(first_track).await?;
 
             // Add playlist info to the metadata of the first track
             metadata.playlist = Some(PlaylistMetadata {
@@ -331,7 +323,7 @@ impl AudioSource {
                 track_count: total_tracks,
             });
 
-            return Ok((source, metadata));
+            return Ok(metadata);
         } else if let Some(album_id) = SpotifyApi::extract_album_id(url) {
             // It's an album URL
             let (album_name, tracks) = SpotifyApi::get_album_tracks(&album_id).await?;
@@ -350,11 +342,14 @@ impl AudioSource {
                     let remaining_tracks = tracks[1..].to_vec();
                     tokio::spawn(async move {
                         for track in remaining_tracks {
-                             // Create metadata directly from SpotifyTrack for the callback
+                            // Create metadata directly from SpotifyTrack for the callback
                             if let Ok(metadata) = Self::create_metadata_from_spotify_track(&track) {
                                 (callback)(metadata); // Pass only metadata
                             } else {
-                                warn!("Failed to create metadata for Spotify track in album callback: {}", track.name);
+                                warn!(
+                                    "Failed to create metadata for Spotify track in album callback: {}",
+                                    track.name
+                                );
                             }
                         }
                     });
@@ -362,7 +357,7 @@ impl AudioSource {
             }
 
             // Get source and metadata for the *first* track
-            let (source, mut metadata) = Self::from_spotify_track(first_track).await?;
+            let mut metadata = Self::from_spotify_track(first_track).await?;
 
             // Add album info to the metadata of the first track
             metadata.playlist = Some(PlaylistMetadata {
@@ -371,7 +366,7 @@ impl AudioSource {
                 track_count: total_tracks,
             });
 
-            return Ok((source, metadata));
+            return Ok(metadata);
         }
 
         Err(MusicError::AudioSourceError(
@@ -380,15 +375,13 @@ impl AudioSource {
     }
 
     /// Create an audio source from a Spotify track
-    pub async fn from_spotify_track(
-        track: SpotifyTrack,
-    ) -> AudioSourceResult<(Input, TrackMetadata)> {
+    pub async fn from_spotify_track(track: SpotifyTrack) -> AudioSourceResult<TrackMetadata> {
         // Create a search query for YouTube based on the Spotify track
         let search_query = SpotifyApi::get_youtube_search_query(&track);
         info!("Searching YouTube for Spotify track: {}", search_query);
 
         // Search for the track on YouTube
-        let (source, _) = Self::from_search(&search_query).await?;
+        // let (source, _) = Self::from_search(&search_query).await?;
 
         // Create metadata from the Spotify track
         let duration = if track.duration_ms > 0 {
@@ -413,11 +406,13 @@ impl AudioSource {
         };
 
         // The source is from YouTube search, but metadata is from Spotify
-        Ok((source, metadata))
+        Ok(metadata)
     }
 
     /// Helper function to create TrackMetadata from a SpotifyTrack
-    fn create_metadata_from_spotify_track(track: &SpotifyTrack) -> AudioSourceResult<TrackMetadata> {
+    fn create_metadata_from_spotify_track(
+        track: &SpotifyTrack,
+    ) -> AudioSourceResult<TrackMetadata> {
         let duration = if track.duration_ms > 0 {
             Some(Duration::from_millis(track.duration_ms))
         } else {

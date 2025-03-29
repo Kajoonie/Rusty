@@ -14,14 +14,6 @@ use tokio::task::JoinHandle;
 use tracing::debug;
 use tracing::{error, info, warn};
 
-// Note: QueueItem now only holds metadata. Input is created on demand.
-// Consider renaming QueueItem to TrackInfo or similar in a future refactor.
-/// Represents a track in the queue or history.
-#[derive(Clone, Debug)] // Add Clone and Debug
-pub struct QueueItem {
-    pub metadata: TrackMetadata,
-}
-
 /// Result type for queue operations
 pub type QueueResult<T> = Result<T, MusicError>;
 
@@ -52,14 +44,16 @@ impl QueueManager {
     }
 
     /// Add track metadata to the queue for a guild
-    pub fn add(&mut self, guild_id: GuildId, metadata: TrackMetadata) { // Changed parameter name and type
+    pub fn add(&mut self, guild_id: GuildId, metadata: TrackMetadata) {
+        // Changed parameter name and type
         // Get or create the queue for this guild
         let queue = self.queues.entry(guild_id).or_default();
         queue.push_back(metadata); // Use metadata
     }
 
     /// Get the next track's metadata from the queue for a guild
-    pub fn next(&mut self, guild_id: GuildId) -> Option<TrackMetadata> { // Changed return type
+    pub fn next(&mut self, guild_id: GuildId) -> Option<TrackMetadata> {
+        // Changed return type
         // Get the queue for this guild
         // The current track will be overwritten by set_current_track when the new track starts
         if let Some(queue) = self.queues.get_mut(&guild_id) {
@@ -153,9 +147,7 @@ impl QueueManager {
 
     /// Check if there is any track history for the guild
     pub fn has_history(&self, guild_id: GuildId) -> bool {
-        self.history
-            .get(&guild_id)
-            .map_or(false, |h| !h.is_empty())
+        self.history.get(&guild_id).map_or(false, |h| !h.is_empty())
     }
 
     /// Toggle the queue view state for a guild (async)
@@ -400,11 +392,13 @@ pub async fn get_message_id(guild_id: GuildId) -> Option<MessageId> {
 pub type MetadataCallback = Box<dyn Fn(TrackMetadata) + Send + Sync>;
 
 pub async fn get_queue_callback(guild_id: GuildId) -> MetadataCallback {
-    Box::new(move |metadata| { // Changed signature: only metadata
+    Box::new(move |metadata| {
+        // Changed signature: only metadata
         tokio::spawn(async move {
             // Add track metadata to queue
             // Directly use the metadata passed to the callback
-            if let Err(err) = add_to_queue(guild_id, metadata.clone()).await { // Pass metadata directly
+            if let Err(err) = add_to_queue(guild_id, metadata.clone()).await {
+                // Pass metadata directly
                 error!("Failed to add track metadata to queue: {}", err); // Updated error message
                 return;
             }

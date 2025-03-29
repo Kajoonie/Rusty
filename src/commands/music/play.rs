@@ -5,11 +5,14 @@ use crate::commands::music::utils::{
     event_handlers::play_next_track,
     music_manager::{MusicError, MusicManager},
     queue_manager::{
-        self, MetadataCallback, QueueItem, add_to_queue, get_current_track, store_channel_id, // Changed QueueCallback to MetadataCallback
+        self,
+        MetadataCallback,
+        add_to_queue,
+        get_current_track,
+        store_channel_id, // Changed QueueCallback to MetadataCallback
     },
     track_cache::{cache_metadata, create_input_from_url, get_cached_metadata, is_youtube_url},
 };
-use songbird::input::Input;
 use tracing::{debug, error, info};
 
 /// Play a song from YouTube or a direct URL
@@ -61,7 +64,7 @@ pub async fn play(
     };
 
     // --- Track Processing Logic ---
-    let (source, metadata): (Input, TrackMetadata);
+    let metadata: TrackMetadata;
     let mut is_playlist = false; // Flag to track if we handled a playlist
 
     // Check if the query is a YouTube URL and if it's in the cache
@@ -69,10 +72,7 @@ pub async fn play(
         if let Some(cached_metadata) = get_cached_metadata(&query) {
             info!("Cache hit for URL: {}", query);
             match create_input_from_url(&query).await {
-                Ok(cached_source) => {
-                    source = cached_source;
-                    metadata = cached_metadata;
-                }
+                Ok(_) => metadata = cached_metadata,
                 Err(err) => {
                     error!("Failed to create input from cached URL {}: {}", query, err);
                     ctx.send(embedded_messages::failed_to_process_audio_source(
@@ -86,9 +86,10 @@ pub async fn play(
             // Not in cache, process as usual and cache later
             info!("Cache miss for URL: {}. Processing query...", query);
             // Create a callback to add tracks to the queue (for potential playlists)
-            let queue_callback: MetadataCallback = queue_manager::get_queue_callback(guild_id).await; // Use MetadataCallback
+            let queue_callback: MetadataCallback =
+                queue_manager::get_queue_callback(guild_id).await; // Use MetadataCallback
             match AudioSource::from_query(&query, Some(queue_callback)).await {
-                Ok((fetched_source, fetched_metadata)) => {
+                Ok(fetched_metadata) => {
                     info!(
                         "Successfully created audio source. Metadata: {:?}",
                         fetched_metadata
@@ -105,7 +106,6 @@ pub async fn play(
                             fetched_metadata.url
                         );
                     }
-                    source = fetched_source;
                     metadata = fetched_metadata;
                     // Check if the metadata indicates a playlist was processed
                     is_playlist = metadata.playlist.is_some();
@@ -124,7 +124,7 @@ pub async fn play(
         // Create a callback to add tracks to the queue (for potential playlists)
         let queue_callback: MetadataCallback = queue_manager::get_queue_callback(guild_id).await; // Use MetadataCallback
         match AudioSource::from_query(&query, Some(queue_callback)).await {
-            Ok((fetched_source, fetched_metadata)) => {
+            Ok(fetched_metadata) => {
                 info!(
                     "Successfully created audio source. Metadata: {:?}",
                     fetched_metadata
@@ -141,7 +141,6 @@ pub async fn play(
                         fetched_metadata.url
                     );
                 }
-                source = fetched_source;
                 metadata = fetched_metadata;
                 // Check if the metadata indicates a playlist was processed
                 is_playlist = metadata.playlist.is_some();
@@ -165,10 +164,6 @@ pub async fn play(
         "Creating queue item for initial track with metadata: {:?}",
         metadata
     );
-    // QueueItem now only holds metadata. Input is handled by play_next_track.
-    let queue_item = QueueItem {
-        metadata: metadata.clone(),
-    };
 
     // Check if we're already playing something
     let current_track = get_current_track(guild_id).await?;
@@ -176,7 +171,8 @@ pub async fn play(
 
     // Add the first track's metadata to the queue
     // Note: We pass metadata directly now, not the QueueItem struct
-    if let Err(err) = add_to_queue(guild_id, metadata.clone()).await { // Pass metadata directly
+    if let Err(err) = add_to_queue(guild_id, metadata.clone()).await {
+        // Pass metadata directly
         ctx.send(embedded_messages::failed_to_add_to_queue(err))
             .await?;
         return Ok(());
