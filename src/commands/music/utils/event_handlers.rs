@@ -18,7 +18,7 @@ use tracing::{error, info, warn};
 
 /// Event handler for when a song ends
 pub struct SongEndNotifier {
-    pub ctx: serenity::Context,
+    pub ctx_http: Arc<serenity::Http>, // Changed from Context to Arc<Http>
     pub guild_id: serenity::GuildId,
     pub call: Arc<serenity::prelude::Mutex<songbird::Call>>,
     pub track_metadata: TrackMetadata,
