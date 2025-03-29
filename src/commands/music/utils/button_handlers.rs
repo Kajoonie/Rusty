@@ -1,6 +1,9 @@
 use ::serenity::all::GuildId;
 use poise::serenity_prelude::{self as serenity, Context};
-use serenity::ComponentInteraction;
+use serenity::{
+    builder::{CreateActionRow, CreateInputText, CreateInteractionResponse, CreateModal},
+    ComponentInteraction, InputTextStyle,
+};
 use songbird::tracks::{PlayMode, TrackHandle};
 use std::time::Duration;
 use tokio::time::sleep;
@@ -44,6 +47,8 @@ pub async fn handle_button_interaction(
         "music_next" => handle_next(ctx, interaction, current_track_opt).await?,
         "music_queue_toggle" => handle_queue_toggle(ctx, interaction, guild_id).await?,
         "music_previous" => handle_previous(ctx, interaction, guild_id).await?,
+        "music_search" => handle_search(ctx, interaction).await?,
+        // Add cases for repeat and shuffle later
         _ => {
             error!("Unknown button ID: {}", interaction.data.custom_id);
             error_followup(ctx, interaction, "Unknown button action.").await?;
@@ -326,6 +331,32 @@ async fn handle_previous(
 
     // Update the message after successfully starting the previous track
     update_player_message(ctx, interaction).await
+}
+
+/// Handler for Search button - presents a modal
+async fn handle_search(
+    ctx: &Context,
+    interaction: &mut ComponentInteraction,
+) -> ButtonInteractionResult {
+    info!(
+        "Handling search button interaction for user {}",
+        interaction.user.id
+    );
+
+    let input_text = CreateInputText::new(InputTextStyle::Short, "URL or Search Query")
+        .custom_id("search_query_input") // Unique ID for the text input
+        .placeholder("Enter a song URL or search term...")
+        .required(true);
+
+    let modal = CreateModal::new("music_search_modal", "Add Track to Queue") // Unique ID for the modal
+        .components(vec![CreateActionRow::InputText(input_text)]);
+
+    // Respond to the interaction by showing the modal
+    interaction
+        .create_response(&ctx.http, CreateInteractionResponse::Modal(modal))
+        .await?;
+
+    Ok(()) // Modal presentation itself is the success case here
 }
 
 /// Update the original player message after a button interaction

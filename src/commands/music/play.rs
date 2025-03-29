@@ -13,51 +13,40 @@ use crate::commands::music::utils::{
     },
     track_cache::{cache_metadata, create_input_from_url, get_cached_metadata, is_youtube_url},
 };
-use tracing::{debug, error, info};
+use poise::serenity_prelude as serenity; // Add serenity import
+use serenity::{ChannelId, GuildId}; // Add specific imports
+use std::sync::Arc; // Add Arc import
+use tracing::{debug, error, info, warn}; // Add warn import
 
-/// Play a song from YouTube or a direct URL
-#[poise::command(slash_command, prefix_command, category = "Music")]
-pub async fn play(
-    ctx: Context<'_>,
-    #[description = "URL or search query"]
-    #[rest]
-    query: String,
-) -> CommandResult {
-    info!("Received play command with query: {}", query);
-    let guild_id = ctx.guild_id().ok_or_else(|| {
-        Box::new(MusicError::NotInGuild) as Box<dyn std::error::Error + Send + Sync>
-    })?;
-
-    // Store the channel ID where the command was invoked
-    store_channel_id(guild_id, ctx.channel_id()).await;
-
-    // Get the user's voice channel
-    let user_id = ctx.author().id;
-    let channel_id =
-        match MusicManager::get_user_voice_channel(ctx.serenity_context(), guild_id, user_id) {
-            Ok(channel_id) => channel_id,
-            Err(err) => {
-                ctx.send(embedded_messages::user_not_in_voice_channel(err))
-                    .await?;
-                return Ok(());
-            }
-        };
-
-    // Defer the response ephemerally since audio processing might take time
-    // and we want the final confirmation to be ephemeral.
-    ctx.defer_ephemeral().await?;
+/// Processes the request to play or queue a track/playlist.
+/// Handles joining voice, fetching metadata, caching, queueing, and starting playback if needed.
+/// Returns a user-friendly status message string on success.
+async fn process_play_request(
+    ctx_http: Arc<serenity::Http>,
+    guild_id: GuildId,
+    channel_id: ChannelId, // Channel to join
+    query: &str,
+) -> Result<String, MusicError> {
+    info!(
+        "Processing play request for query '{}' in guild {}",
+        query, guild_id
+    );
 
     // Join the voice channel if not already connected
-    let call = match MusicManager::get_call(ctx.serenity_context(), guild_id).await {
+    let call = match MusicManager::get_call(&ctx_http, guild_id).await {
+        // Use ctx_http directly
         Ok(call) => call,
         Err(_) => {
             // Not connected, so join the channel
-            match MusicManager::join_channel(ctx.serenity_context(), guild_id, channel_id).await {
+            match MusicManager::join_channel(&ctx_http, guild_id, channel_id).await {
+                // Use ctx_http directly
                 Ok(call) => call,
                 Err(err) => {
-                    ctx.send(embedded_messages::failed_to_join_voice_channel(err))
-                        .await?;
-                    return Ok(());
+                    error!(
+                        "Failed to join voice channel {} for guild {}: {}",
+                        channel_id, guild_id, err
+                    );
+                    return Err(err); // Return the error directly
                 }
             }
         }
@@ -71,23 +60,37 @@ pub async fn play(
     if is_youtube_url(&query) {
         if let Some(cached_metadata) = get_cached_metadata(&query) {
             info!("Cache hit for URL: {}", query);
-            match create_input_from_url(&query).await {
-                Ok(_) => metadata = cached_metadata,
-                Err(err) => {
-                    error!("Failed to create input from cached URL {}: {}", query, err);
-                    ctx.send(embedded_messages::failed_to_process_audio_source(
-                        MusicError::CacheError(err),
-                    ))
-                    .await?;
-                    return Ok(());
+            // Verify we can create input before using cached data
+            if let Err(err) = create_input_from_url(&query).await {
+                warn!(
+                    "Cache hit for {}, but failed to create input: {}. Re-fetching.",
+                    query, err
+                );
+                // Fall through to re-fetch if input creation fails
+                let queue_callback: MetadataCallback =
+                    queue_manager::get_queue_callback(guild_id).await;
+                match AudioSource::from_query(&query, Some(queue_callback)).await {
+                    Ok(fetched_metadata) => {
+                        metadata = fetched_metadata;
+                        is_playlist = metadata.playlist.is_some();
+                        // Re-cache potentially updated metadata
+                        if is_youtube_url(metadata.url.as_deref().unwrap_or("")) {
+                            cache_metadata(metadata.url.as_ref().unwrap(), metadata.clone());
+                        }
+                    }
+                    Err(err) => {
+                        error!("Failed to re-fetch audio source from URL {}: {}", query, err);
+                        return Err(err);
+                    }
                 }
+            } else {
+                metadata = cached_metadata; // Use cached metadata
             }
         } else {
             // Not in cache, process as usual and cache later
             info!("Cache miss for URL: {}. Processing query...", query);
-            // Create a callback to add tracks to the queue (for potential playlists)
             let queue_callback: MetadataCallback =
-                queue_manager::get_queue_callback(guild_id).await; // Use MetadataCallback
+                queue_manager::get_queue_callback(guild_id).await;
             match AudioSource::from_query(&query, Some(queue_callback)).await {
                 Ok(fetched_metadata) => {
                     info!(
@@ -107,22 +110,18 @@ pub async fn play(
                         );
                     }
                     metadata = fetched_metadata;
-                    // Check if the metadata indicates a playlist was processed
                     is_playlist = metadata.playlist.is_some();
                 }
                 Err(err) => {
                     error!("Failed to create audio source from URL {}: {}", query, err);
-                    ctx.send(embedded_messages::failed_to_process_audio_source(err))
-                        .await?;
-                    return Ok(());
+                    return Err(err);
                 }
             }
         }
     } else {
         // Query is not a YouTube URL (likely a search term or other URL)
         info!("Query is not a YouTube URL. Processing query: {}", query);
-        // Create a callback to add tracks to the queue (for potential playlists)
-        let queue_callback: MetadataCallback = queue_manager::get_queue_callback(guild_id).await; // Use MetadataCallback
+        let queue_callback: MetadataCallback = queue_manager::get_queue_callback(guild_id).await;
         match AudioSource::from_query(&query, Some(queue_callback)).await {
             Ok(fetched_metadata) => {
                 info!(
@@ -142,7 +141,6 @@ pub async fn play(
                     );
                 }
                 metadata = fetched_metadata;
-                // Check if the metadata indicates a playlist was processed
                 is_playlist = metadata.playlist.is_some();
             }
             Err(err) => {
@@ -150,16 +148,12 @@ pub async fn play(
                     "Failed to create audio source from query '{}': {}",
                     query, err
                 );
-                ctx.send(embedded_messages::failed_to_process_audio_source(err))
-                    .await?;
-                return Ok(());
+                return Err(err);
             }
         }
     }
 
     // --- Queueing Logic ---
-
-    // Create a queue item for the *first* track (even if it's a playlist)
     debug!(
         "Creating queue item for initial track with metadata: {:?}",
         metadata
@@ -170,23 +164,16 @@ pub async fn play(
     let should_start_playing = current_track.is_none();
 
     // Add the first track's metadata to the queue
-    // Note: We pass metadata directly now, not the QueueItem struct
-    if let Err(err) = add_to_queue(guild_id, metadata.clone()).await {
-        // Pass metadata directly
-        ctx.send(embedded_messages::failed_to_add_to_queue(err))
-            .await?;
-        return Ok(());
-    }
+    add_to_queue(guild_id, metadata.clone()).await?; // Return error if adding fails
 
     // If nothing is currently playing, start playback
     if should_start_playing {
-        play_next_track(ctx.serenity_context(), guild_id, call).await?;
+        // Pass http context directly
+        play_next_track(&ctx_http, guild_id, call).await?; // Return error if playing fails
     }
 
-    // Send an ephemeral confirmation message
+    // --- Generate Success Message ---
     let reply_content = if is_playlist {
-        // If a playlist was added, the callback handles adding subsequent tracks.
-        // The 'metadata' here refers to the *first* track of the playlist.
         format!(
             "✅ Added playlist: {} (and {} other tracks)",
             metadata
@@ -198,15 +185,70 @@ pub async fn play(
                 .playlist
                 .as_ref()
                 .map(|p| p.track_count.saturating_sub(1))
-                .unwrap_or(0) // Show count of *other* tracks
+                .unwrap_or(0)
         )
     } else if should_start_playing {
         format!("▶️ Playing: {}", metadata.title)
     } else {
         format!("✅ Added to queue: {}", metadata.title)
     };
-    ctx.send(embedded_messages::generic_success("Music", &reply_content))
-        .await?;
+
+    Ok(reply_content)
+}
+
+/// Play a song from YouTube or a direct URL
+#[poise::command(slash_command, prefix_command, category = "Music")]
+pub async fn play(
+    ctx: Context<'_>,
+    #[description = "URL or search query"]
+    #[rest]
+    query: String,
+) -> CommandResult {
+    info!("Received /play command with query: {}", query);
+    let guild_id = ctx.guild_id().ok_or(MusicError::NotInGuild)?;
+
+    // Store the channel ID where the command was invoked (for potential message updates)
+    store_channel_id(guild_id, ctx.channel_id()).await;
+
+    // Get the user's voice channel ID
+    let user_id = ctx.author().id;
+    let voice_channel_id =
+        match MusicManager::get_user_voice_channel(ctx.serenity_context(), guild_id, user_id) {
+            Ok(id) => id,
+            Err(err) => {
+                ctx.send(embedded_messages::user_not_in_voice_channel(err))
+                    .await?;
+                return Ok(());
+            }
+        };
+
+    // Defer the response ephemerally
+    ctx.defer_ephemeral().await?;
+
+    // Call the reusable processing function
+    match process_play_request(ctx.serenity_context().http.clone(), guild_id, voice_channel_id, &query).await {
+        Ok(reply_content) => {
+            // Send the success message from the processing function
+            ctx.send(embedded_messages::generic_success("Music", &reply_content))
+                .await?;
+            // Trigger an update of the main player message *after* success
+            if let Err(e) = music_manager::send_or_update_message(ctx.serenity_context(), guild_id).await {
+                warn!("Failed to update player message after /play command: {}", e);
+            }
+        }
+        Err(err) => {
+            // Send an appropriate error message
+            let reply = match err {
+                MusicError::JoinError(_) => embedded_messages::failed_to_join_voice_channel(err),
+                MusicError::AudioSourceError(_) | MusicError::CacheError(_) => {
+                    embedded_messages::failed_to_process_audio_source(err)
+                }
+                MusicError::QueueError(_) => embedded_messages::failed_to_add_to_queue(err),
+                _ => embedded_messages::generic_error(&format!("An unexpected error occurred: {}", err)), // Generic fallback
+            };
+            ctx.send(reply).await?;
+        }
+    }
 
     Ok(())
 }
