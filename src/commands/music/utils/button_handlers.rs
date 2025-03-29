@@ -14,7 +14,7 @@ use super::{
         get_channel_id,
         get_current_track,
         get_message_id,
-        set_current_track, // Add set_current_track
+        set_current_track,
         set_manual_stop_flag,
     },
     track_cache, // Import track_cache
@@ -221,7 +221,7 @@ pub async fn handle_button_interaction(
 
                     // Update the queue manager with the new current track
                     if let Err(e) =
-                        queue_manager::set_current_track(guild_id, track_handle, previous_metadata).await
+                        set_current_track(guild_id, track_handle, previous_metadata).await
                     {
                         error!("Failed to set current track after playing previous: {}", e);
                         // Don't necessarily stop here, but log the error
