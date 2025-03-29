@@ -171,7 +171,8 @@ impl QueueManager {
         self.stop_update_task(guild_id).await;
 
         info!("Starting update task for guild {}", guild_id);
-        let task = tokio::spawn(async move {
+        let task = tokio::spawn(Box::pin(async move {
+            // Pin the future to the heap
             loop {
                 // Use a weak reference to avoid cycles if ctx holds manager
                 let ctx_clone = ctx.clone();
@@ -210,7 +211,7 @@ impl QueueManager {
                 tokio::time::sleep(std::time::Duration::from_secs(5)).await;
             }
             info!("Update task loop finished for guild {}", guild_id); // Added info log
-        });
+        }));
         self.update_tasks.insert(guild_id, task);
     }
 
