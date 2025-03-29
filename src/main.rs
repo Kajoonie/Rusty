@@ -172,17 +172,17 @@ async fn main() -> Result<(), Error> {
                                             .components
                                             .get(0) // First action row (ModalInteractionDataComponent)
                                             // Use and_then to chain the next get call
+                                            .get(0) // First action row (ModalInteractionDataComponent)
                                             .and_then(|row_data| row_data.components.get(0)) // First ActionRow in row_data
-                                            .and_then(|action_row| action_row.components.get(0)) // First ActionRowComponent in ActionRow
-                                            .and_then(|component| match component {
-                                                // Match directly on ActionRowComponent
-                                                serenity::ActionRowComponent::InputText(text_input) => Some(&text_input.value),
+                                            // .and_then(|action_row| action_row.components.get(0)) // This line was incorrect
+                                            .and_then(|component| match component { // Match directly on the component from the row
+                                                serenity::ActionRowComponent::InputText(text_input) => Some(text_input.value.clone()), // Clone the value
                                                 _ => None,
-                                            })
-                                            .cloned::<String>() // Add type hint to resolve ambiguity
-                                            .unwrap_or_default();
+                                            });
+                                            // query is now Option<String>
 
-                                        if query.is_empty() {
+                                        // Check if query is None or the string inside is empty
+                                        if query.as_deref().map_or(true, str::is_empty) {
                                             error!("Extracted empty query from music search modal");
                                             let reply = embedded_messages::generic_error("Search query was empty.");
                                             if let Err(e) = modal_interaction
@@ -269,7 +269,8 @@ async fn main() -> Result<(), Error> {
                                             // data.clone(), // Pass data Arc if needed later
                                             guild_id,
                                             voice_channel_id,
-                                            &query,
+                                            // Unwrap the Option and pass as &str
+                                            query.as_deref().unwrap_or(""), // Use unwrap_or("") as a safeguard, though we checked empty above
                                         )
                                         .await
                                         {
