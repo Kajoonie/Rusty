@@ -219,18 +219,61 @@ impl SpotifyApi {
         })
     }
 
-    /// Get tracks from a Spotify playlist
-    pub async fn get_playlist_tracks(playlist_id: &str) -> SpotifyResult<Vec<SpotifyTrack>> {
+    /// Get tracks and name from a Spotify playlist
+    pub async fn get_playlist_tracks(
+        playlist_id: &str,
+    ) -> SpotifyResult<(String, Vec<SpotifyTrack>)> {
         let token = Self::get_access_token().await?;
         let mut tracks = Vec::new();
-        let mut url = format!(
+
+        // First, get playlist details to fetch the name
+        let playlist_details_url = format!("https://api.spotify.com/v1/playlists/{}", playlist_id);
+        let details_response = HTTP_CLIENT
+            .get(&playlist_details_url)
+            .header(header::AUTHORIZATION, format!("Bearer {}", token))
+            .send()
+            .await
+            .map_err(|e| {
+                MusicError::ExternalApiError(format!(
+                    "Failed to request Spotify playlist details: {}",
+                    e
+                ))
+            })?;
+
+        if !details_response.status().is_success() {
+            let status = details_response.status();
+            let text = details_response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Cannot read response".to_string());
+            return Err(MusicError::ExternalApiError(format!(
+                "Spotify API error getting playlist details: {} - {}",
+                status, text
+            )));
+        }
+
+        let playlist_details: serde_json::Value =
+            details_response.json().await.map_err(|e| {
+                MusicError::ExternalApiError(format!(
+                    "Failed to parse Spotify playlist details: {}",
+                    e
+                ))
+            })?;
+
+        let playlist_name = playlist_details["name"]
+            .as_str()
+            .unwrap_or("Unknown Playlist")
+            .to_string();
+
+        // Now, fetch the tracks
+        let mut tracks_url = format!(
             "https://api.spotify.com/v1/playlists/{}/tracks?limit=50",
             playlist_id
         );
 
         loop {
             let response = HTTP_CLIENT
-                .get(&url)
+                .get(&tracks_url)
                 .header(header::AUTHORIZATION, format!("Bearer {}", token))
                 .send()
                 .await
@@ -314,17 +357,19 @@ impl SpotifyApi {
 
             // Check if there are more pages
             if let Some(next_url) = playlist_data["next"].as_str() {
-                url = next_url.to_string();
+                tracks_url = next_url.to_string();
             } else {
                 break;
             }
         }
 
-        Ok(tracks)
+        Ok((playlist_name, tracks))
     }
 
-    /// Get tracks from a Spotify album
-    pub async fn get_album_tracks(album_id: &str) -> SpotifyResult<Vec<SpotifyTrack>> {
+    /// Get tracks and name from a Spotify album
+    pub async fn get_album_tracks(
+        album_id: &str,
+    ) -> SpotifyResult<(String, Vec<SpotifyTrack>)> {
         let token = Self::get_access_token().await?;
         let mut tracks = Vec::new();
 
@@ -354,6 +399,11 @@ impl SpotifyApi {
         let album_data: serde_json::Value = album_response.json().await.map_err(|e| {
             MusicError::ExternalApiError(format!("Failed to parse Spotify album data: {}", e))
         })?;
+
+        let album_name = album_data["name"]
+            .as_str()
+            .unwrap_or("Unknown Album")
+            .to_string();
 
         let album_image = album_data["images"]
             .as_array()
@@ -451,7 +501,7 @@ impl SpotifyApi {
             }
         }
 
-        Ok(tracks)
+        Ok((album_name, tracks))
     }
 
     /// Get search query for YouTube from a Spotify track
