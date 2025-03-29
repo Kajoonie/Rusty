@@ -63,11 +63,10 @@ pub async fn handle_button_interaction(
             if let Some((track, _)) = current_track_opt {
                 // If we successfully stopped the track or received a "track ended" error, we can continue as normal
                 match track.stop() {
-                    Ok(_) => (), // do nothing
+                    Ok(_) => (),                                        // do nothing
                     Err(songbird::error::ControlError::Finished) => (), // also do nothing
                     Err(e) => warn!("Error stopping track via button: {}", e),
                 }
-            
             }
 
             // Clear the queue (this also stops the update task)

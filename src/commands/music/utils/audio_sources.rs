@@ -12,7 +12,7 @@ use songbird::input::{HttpRequest, Input, YoutubeDl};
 use std::process::Command;
 use std::sync::LazyLock;
 use std::time::Duration;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 use url::Url;
 
 /// Result type for audio source operations
