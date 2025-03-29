@@ -170,10 +170,9 @@ async fn main() -> Result<(), Error> {
                                         let query = modal_interaction
                                             .data
                                             .components
-                                            .get(0) // First action row (ModalInteractionDataComponent)
-                                            // Use and_then to chain the next get call
-                                            .get(0) // First action row (ModalInteractionDataComponent)
-                                            .and_then(|row_data| row_data.components.get(0)) // First ActionRow in row_data
+                                            .get(0) // Get Option<ModalInteractionDataComponent>
+                                            // Chain subsequent gets with and_then
+                                            .and_then(|row_data| row_data.components.get(0)) // Get Option<ActionRow> from ModalInteractionDataComponent
                                             // .and_then(|action_row| action_row.components.get(0)) // This line was incorrect
                                             .and_then(|component| match component { // Match directly on the component from the row
                                                 serenity::ActionRowComponent::InputText(text_input) => Some(text_input.value.clone()), // Clone the value
