@@ -1,15 +1,12 @@
 use super::*;
 use crate::commands::music::utils::{
-    audio_sources::AudioSource,
+    audio_sources::{AudioSource, TrackMetadata}, // Correct import path for TrackMetadata
     embedded_messages,
     event_handlers::play_next_track,
     music_manager::{MusicError, MusicManager},
-    queue_manager::{
-        self, QueueCallback, QueueItem, TrackMetadata, add_to_queue, get_current_track,
-        store_channel_id,
-    },
+    queue_manager::{self, add_to_queue, get_current_track, store_channel_id, QueueCallback, QueueItem},
     track_cache::{
-        self, cache_metadata, create_input_from_url, get_cached_metadata, is_youtube_url,
+        cache_metadata, create_input_from_url, get_cached_metadata, is_youtube_url,
     },
 };
 use songbird::input::Input;

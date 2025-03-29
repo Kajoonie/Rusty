@@ -91,6 +91,7 @@ impl RelatedSongsFetcher for SerpApiFetcher {
                         url: Some(link.to_string()),
                         duration,
                         thumbnail,
+                        playlist: None, // Add missing playlist field
                     });
 
                     // Limit to 5 related videos

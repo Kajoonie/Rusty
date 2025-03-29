@@ -293,8 +293,8 @@ impl AudioSource {
             let track = SpotifyApi::get_track(&track_id).await?;
             return Self::from_spotify_track(track).await;
         } else if let Some(playlist_id) = SpotifyApi::extract_playlist_id(url) {
-            // It's a playlist URL - get the first track
-            let tracks = SpotifyApi::get_playlist_tracks(&playlist_id).await?;
+            // It's a playlist URL
+            let (playlist_name, tracks) = SpotifyApi::get_playlist_tracks(&playlist_id).await?;
             if tracks.is_empty() {
                 return Err(MusicError::AudioSourceError(
                     "Spotify playlist is empty".to_string(),
