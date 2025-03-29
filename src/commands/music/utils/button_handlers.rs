@@ -313,7 +313,7 @@ async fn handle_previous(
     }
 
     // Add SongEndNotifier to the *new* track handle
-    let ctx_clone = ctx.clone();
+    // let ctx_clone = ctx.clone(); // Remove unused ctx_clone
     let call_clone = call.clone();
     let _ = new_track_handle.add_event(
         songbird::Event::Track(songbird::TrackEvent::End),

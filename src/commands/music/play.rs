@@ -15,7 +15,7 @@ use crate::commands::music::utils::{
 };
 use poise::serenity_prelude as serenity; // Add serenity import
 use serenity::{ChannelId, GuildId}; // Add specific imports
-use std::sync::Arc; // Add Arc import
+// Remove unused Arc import
 use tracing::{debug, error, info, warn}; // Add warn import
 
 /// Processes the request to play or queue a track/playlist.
@@ -169,7 +169,7 @@ async fn process_play_request(
         // Pass http context directly
         play_next_track(&ctx.serenity_context().http, guild_id, call) // Use ctx.serenity_context().http
             .await
-            .map_err(|e| MusicError::Other(format!("Failed to start playback: {}", e)))?; // Map error
+            .map_err(|e| MusicError::AudioSourceError(format!("Failed to start playback: {}", e)))?; // Map error to AudioSourceError
     }
 
     // --- Generate Success Message ---
@@ -232,7 +232,7 @@ pub async fn play(
             ctx.send(embedded_messages::generic_success("Music", &reply_content))
                 .await?;
             // Trigger an update of the main player message *after* success
-            if let Err(e) = MusicManager::send_or_update_message(ctx.serenity_context(), guild_id).await { // Use MusicManager::
+            if let Err(e) = music_manager::send_or_update_message(ctx.serenity_context(), guild_id).await { // Use music_manager::
                 warn!("Failed to update player message after /play command: {}", e);
             }
         }
@@ -244,8 +244,8 @@ pub async fn play(
                     embedded_messages::failed_to_process_audio_source(err)
                 }
                 // MusicError::QueueError(_) => embedded_messages::failed_to_add_to_queue(err), // QueueError doesn't exist
-                // Use MusicError::Other or a more specific existing error
-                MusicError::Other(msg) => embedded_messages::generic_error(&msg), // Use generic_error for Other
+                // Use MusicError::AudioSourceError or a more specific existing error
+                MusicError::AudioSourceError(msg) => embedded_messages::generic_error(&msg), // Use generic_error for AudioSourceError
                 _ => embedded_messages::generic_error(&format!("An unexpected error occurred: {}", err)), // Generic fallback for others
             };
             ctx.send(reply).await?;
