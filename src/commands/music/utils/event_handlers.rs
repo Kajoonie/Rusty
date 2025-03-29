@@ -1,16 +1,20 @@
 use std::sync::Arc;
 
 use crate::{
+    Error,
     commands::music::utils::{
         audio_sources::{AudioSource, TrackMetadata},
         autoplay_manager::is_autoplay_enabled,
         queue_manager::{
-            self, add_to_queue, clear_manual_stop_flag, get_next_track, is_manual_stop_flag_set,
+            self,
+            add_to_queue,
+            clear_manual_stop_flag,
+            get_next_track,
+            is_manual_stop_flag_set,
             set_current_track, // Removed QueueItem from here
         },
         track_cache, // Import track_cache
     },
-    Error,
 };
 use poise::serenity_prelude as serenity;
 use serenity::async_trait;
@@ -135,7 +139,10 @@ pub async fn play_next_track(
             let mut queue_manager_lock = queue_manager::QUEUE_MANAGER.lock().await;
             if queue_manager_lock.get_current_track(guild_id).is_none() {
                 queue_manager_lock.stop_update_task(guild_id).await;
-                info!("Stopped update task for guild {} due to empty queue.", guild_id);
+                info!(
+                    "Stopped update task for guild {} due to empty queue.",
+                    guild_id
+                );
             }
             return Ok(false); // Indicate no track was played
         }
