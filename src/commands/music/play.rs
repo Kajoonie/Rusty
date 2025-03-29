@@ -251,13 +251,13 @@ pub async fn play(
             // Send the success message from the processing function
             ctx.send(embedded_messages::generic_success("Music", &reply_content))
                 .await?;
-            // Trigger an update of the main player message *after* success
-            if let Err(e) =
-                music_manager::send_or_update_message(ctx.serenity_context(), guild_id).await
-            {
-                // Use music_manager::
-                warn!("Failed to update player message after /play command: {}", e);
-            }
+            // The update task started by process_play_request will handle the message update.
+            // Remove the explicit call here to prevent duplicates.
+            // if let Err(e) =
+            //     music_manager::send_or_update_message(ctx.serenity_context(), guild_id).await
+            // {
+            //     warn!("Failed to update player message after /play command: {}", e);
+            // }
         }
         Err(err) => {
             // Send an appropriate error message
