@@ -60,9 +60,8 @@ pub async fn music_player_message(guild_id: GuildId) -> Result<CreateReply, Erro
     // Build the embed content based on whether a track is currently playing
     // We need to handle the case where get_info() fails because the track just ended
     let mut track_ended_or_is_none = false;
-    // We need the metadata from the QueueItem now
-    if let Some((track_handle, queue_item)) = &current_track_opt {
-        let metadata = &queue_item.metadata; // Extract metadata
+    // get_current_track now returns Option<&(TrackHandle, TrackMetadata)>
+    if let Some((track_handle, metadata)) = &current_track_opt { // Destructure directly to metadata
         match track_handle.get_info().await {
             Ok(track_info) => {
                 is_playing = track_info.playing == PlayMode::Play;
