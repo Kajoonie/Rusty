@@ -24,25 +24,25 @@ pub struct SongEndNotifier {
     pub track_metadata: TrackMetadata,
 }
 
-#[async_trait]                                                                                                              
-impl songbird::EventHandler for SongEndNotifier {                                                                           
-    async fn act(&self, ctx: &songbird::EventContext<'_>) -> Option<songbird::Event> {                                      
-        if let songbird::EventContext::Track(_) = ctx {                                                                     
-            // Check if a "previous" action triggered this end event                                                        
-            if is_previous_action_flag_set(self.guild_id).await {                                                           
-                info!(                                                                                                      
-                    "Track ended due to 'previous' action, skipping automatic next track play for guild {}",                
-                    self.guild_id                                                                                           
-                );                                                                                                          
-                // Clear the flag here, as the button handler might clear it slightly later. Redundant clear is fine.       
-                clear_previous_action_flag(self.guild_id).await;                                                            
-            } else {                                                                                                        
-                // Proceed with normal track end handling                                                                   
-                self.handle_track_end().await;                                                                              
-            }                                                                                                               
-        }                                                                                                                   
-        None                                                                                                                
-    }                                                                                                                       
+#[async_trait]
+impl songbird::EventHandler for SongEndNotifier {
+    async fn act(&self, ctx: &songbird::EventContext<'_>) -> Option<songbird::Event> {
+        if let songbird::EventContext::Track(_) = ctx {
+            // Check if a "previous" action triggered this end event
+            if is_previous_action_flag_set(self.guild_id).await {
+                info!(
+                    "Track ended due to 'previous' action, skipping automatic next track play for guild {}",
+                    self.guild_id
+                );
+                // Clear the flag here, as the button handler might clear it slightly later. Redundant clear is fine.
+                clear_previous_action_flag(self.guild_id).await;
+            } else {
+                // Proceed with normal track end handling
+                self.handle_track_end().await;
+            }
+        }
+        None
+    }
 }
 
 impl SongEndNotifier {
@@ -108,7 +108,8 @@ impl SongEndNotifier {
                             self.guild_id
                         );
                         if let Err(e) =
-                            play_next_track(&self.ctx_http, self.guild_id, self.call.clone()).await // Use ctx_http
+                            play_next_track(&self.ctx_http, self.guild_id, self.call.clone()).await
+                        // Use ctx_http
                         {
                             error!(
                                 "Failed to play related track immediately for guild {}: {}",
