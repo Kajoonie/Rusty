@@ -51,6 +51,7 @@ pub async fn music_player_message(guild_id: GuildId) -> Result<CreateReply, Erro
     let show_queue = is_queue_view_enabled(guild_id).await;
 
     let has_queue = !queue.is_empty();
+    let has_history = queue_manager::has_history(guild_id).await; // Check history status
 
     // Determine button states
     let mut is_playing = false;
