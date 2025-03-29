@@ -1,6 +1,7 @@
 use super::spotify_api::{SpotifyApi, SpotifyTrack};
 use crate::HTTP_CLIENT;
 use crate::commands::music::utils::music_manager::MusicError;
+use crate::commands::music::utils::queue_manager::MetadataCallback; // Import MetadataCallback
 use crate::commands::music::utils::song_fetchers::{
     RelatedSongsFetcher, SerpApiFetcher, YtDlpFetcher,
 };
@@ -413,5 +414,29 @@ impl AudioSource {
 
         // The source is from YouTube search, but metadata is from Spotify
         Ok((source, metadata))
+    }
+
+    /// Helper function to create TrackMetadata from a SpotifyTrack
+    fn create_metadata_from_spotify_track(track: &SpotifyTrack) -> AudioSourceResult<TrackMetadata> {
+        let duration = if track.duration_ms > 0 {
+            Some(Duration::from_millis(track.duration_ms))
+        } else {
+            None
+        };
+
+        let artists_str = track.artists.join(", ");
+        let title = if artists_str.is_empty() {
+            track.name.clone()
+        } else {
+            format!("{} - {}", track.name, artists_str)
+        };
+
+        Ok(TrackMetadata {
+            title,
+            url: Some(track.url.clone()), // Keep Spotify URL here for reference
+            duration,
+            thumbnail: track.album_image.clone(),
+            playlist: None, // Individual track context, no playlist info here
+        })
     }
 }
