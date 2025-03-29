@@ -1,23 +1,31 @@
 use serenity::all::{ButtonStyle, CreateActionRow, CreateButton, ReactionType};
 
 enum Emoji {
-    Play,
-    Pause,
-    Stop,
-    Previous,
+    Eject,
     Next,
+    Pause,
+    Play,
+    Previous,
     Queue,
+    RepeatAll,
+    RepeatOne,
+    Search,
+    Shuffle,
 }
 
 impl From<Emoji> for String {
     fn from(value: Emoji) -> Self {
         let emoji = match value {
-            Emoji::Play => "▶️",
-            Emoji::Pause => "⏸️",
-            Emoji::Stop => "⏹️",
-            Emoji::Previous => "⏮️",
+            Emoji::Eject => "⏏️",
             Emoji::Next => "⏭️",
-            Emoji::Queue => "📜",
+            Emoji::Pause => "⏸️",
+            Emoji::Play => "▶️",
+            Emoji::Previous => "⏮️",
+            Emoji::Queue => "📃",
+            Emoji::RepeatAll => "🔁",
+            Emoji::RepeatOne => "🔂",
+            Emoji::Search => "🔍",
+            Emoji::Shuffle => "🔀",
         };
         emoji.to_string()
     }
@@ -29,49 +37,110 @@ impl From<Emoji> for ReactionType {
     }
 }
 
+pub enum RepeatState {
+    Disabled,
+    RepeatAll,
+    RepeatOne,
+}
+
 /// Creates updated music control buttons based on player status
-pub fn create_updated_buttons(
+pub fn stateful_interaction_buttons(
     is_playing: bool,
     has_queue: bool,
     has_history: bool,
     no_track: bool,
+    repeat_state: RepeatState,
+    is_shuffle: bool,
 ) -> Vec<CreateActionRow> {
-    // Create buttons with appropriate states
-    let previous = CreateButton::new("music_previous")
+    let first_row = CreateActionRow::Buttons(vec![
+        eject(),
+        previous(has_history),
+        play_pause(is_playing, no_track),
+        next(is_playing, has_queue),
+    ]);
+
+    let second_row = CreateActionRow::Buttons(vec![
+        search(),
+        repeat(repeat_state),
+        shuffle(is_shuffle),
+        queue(has_queue),
+    ]);
+
+    vec![first_row, second_row]
+}
+
+fn previous(has_history: bool) -> CreateButton {
+    CreateButton::new("music_previous")
         .emoji(Emoji::Previous)
         .style(ButtonStyle::Secondary)
-        .disabled(!has_history);
+        .disabled(!has_history)
+}
 
-    let play_pause = CreateButton::new("music_play_pause")
+fn play_pause(is_playing: bool, no_track: bool) -> CreateButton {
+    CreateButton::new("music_play_pause")
         .emoji(if is_playing {
             Emoji::Pause
         } else {
             Emoji::Play
         })
         .style(ButtonStyle::Primary)
-        .disabled(no_track); // Disable play/pause if there's no track
+        .disabled(no_track) // Disable play/pause if there's no track
+}
 
-    let stop = CreateButton::new("music_stop")
-        // .emoji(ReactionType::Unicode("⏹️".to_string()))
-        .emoji(Emoji::Stop)
+fn eject() -> CreateButton {
+    CreateButton::new("music_eject")
+        .emoji(Emoji::Eject)
         .style(ButtonStyle::Danger)
-        .disabled(false); // Disable stop if nothing playing/queued
+        .disabled(false) // Disable stop if nothing playing/queued
+}
 
-    let skip = CreateButton::new("music_next")
-        // .emoji(ReactionType::Unicode("⏭️".to_string()))
+fn next(is_playing: bool, has_queue: bool) -> CreateButton {
+    CreateButton::new("music_next")
         .emoji(Emoji::Next)
         .style(ButtonStyle::Secondary)
-        .disabled(!is_playing && !has_queue); // Disable skip if nothing playing and no queue
+        .disabled(!is_playing && !has_queue) // Disable skip if nothing playing and no queue
+}
 
-    let queue = CreateButton::new("music_queue_toggle")
-        // .emoji(ReactionType::Unicode("📜".to_string()))
+fn search() -> CreateButton {
+    CreateButton::new("music_search")
+        .emoji(Emoji::Search)
+        .style(ButtonStyle::Secondary)
+        .disabled(false)
+}
+
+fn repeat(state: RepeatState) -> CreateButton {
+    let (emoji, style) = match state {
+        RepeatState::Disabled => {
+            (Emoji::RepeatAll, ButtonStyle::Secondary) // When repeat is disabled, display a secondary "Repeat All" button
+        }
+        RepeatState::RepeatAll => {
+            (Emoji::RepeatAll, ButtonStyle::Success) // When repeat is 'all', display active "Repeat All" button
+        }
+        RepeatState::RepeatOne => {
+            (Emoji::RepeatOne, ButtonStyle::Success) // When repeat is 'one', display active "Repeat One" button
+        }
+    };
+
+    CreateButton::new("music_repeat")
+        .emoji(emoji)
+        .style(style)
+        .disabled(false)
+}
+
+fn shuffle(active: bool) -> CreateButton {
+    CreateButton::new("music_shuffle")
+        .emoji(Emoji::Shuffle)
+        .style(if active {
+            ButtonStyle::Success
+        } else {
+            ButtonStyle::Secondary
+        })
+        .disabled(false)
+}
+
+fn queue(has_queue: bool) -> CreateButton {
+    CreateButton::new("music_queue_toggle")
         .emoji(Emoji::Queue)
         .style(ButtonStyle::Secondary)
-        .label("Queue")
-        .disabled(!is_playing && !has_queue); // Disable queue if nothing playing/queued
-
-    // Create an action row containing our buttons
-    vec![CreateActionRow::Buttons(vec![
-        previous, play_pause, stop, skip, queue,
-    ])]
+        .disabled(!has_queue) // Disable queue if nothing queued
 }

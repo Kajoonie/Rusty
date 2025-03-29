@@ -7,14 +7,14 @@ use std::time::Duration;
 use crate::{
     Error,
     commands::music::utils::{
-        button_controls,
-        format_duration,
-        music_manager::MusicError,
-        queue_manager,
+        button_controls, format_duration, music_manager::MusicError, queue_manager,
     },
 };
 
-use super::{audio_sources::TrackMetadata, queue_manager::is_queue_view_enabled};
+use super::{
+    audio_sources::TrackMetadata, button_controls::RepeatState,
+    queue_manager::is_queue_view_enabled,
+};
 
 /// Create a progress bar for the current track
 fn format_progress_bar(position: Duration, total: Duration) -> String {
@@ -59,9 +59,10 @@ pub async fn music_player_message(guild_id: GuildId) -> Result<CreateReply, Erro
 
     // Build the embed content based on whether a track is currently playing
     // We need to handle the case where get_info() fails because the track just ended
-    let mut track_ended_or_is_none = false;
+    let mut no_track = false;
     // get_current_track now returns Option<&(TrackHandle, TrackMetadata)>
-    if let Some((track_handle, metadata)) = &current_track_opt { // Destructure directly to metadata
+    if let Some((track_handle, metadata)) = &current_track_opt {
+        // Destructure directly to metadata
         match track_handle.get_info().await {
             Ok(track_info) => {
                 is_playing = track_info.playing == PlayMode::Play;
@@ -129,7 +130,7 @@ pub async fn music_player_message(guild_id: GuildId) -> Result<CreateReply, Erro
             }
             Err(songbird::error::ControlError::Finished) => {
                 // Track just finished, treat as if nothing is playing for this update cycle
-                track_ended_or_is_none = true;
+                no_track = true;
             }
             Err(e) => {
                 // Propagate other errors
@@ -137,22 +138,24 @@ pub async fn music_player_message(guild_id: GuildId) -> Result<CreateReply, Erro
             }
         }
     } else {
-        track_ended_or_is_none = true;
+        no_track = true;
     }
 
-    if track_ended_or_is_none {
+    if no_track {
         // Nothing playing or track just ended
         embed = embed.description("**🔇 Nothing playing or queued.**");
     }
 
-    Ok(CreateReply::default()
-        .embed(embed)
-        .components(button_controls::create_updated_buttons(
+    Ok(CreateReply::default().embed(embed).components(
+        button_controls::stateful_interaction_buttons(
             is_playing,
             has_queue,
             has_history, // Pass history status
-            track_ended_or_is_none,
-        )))
+            no_track,
+            RepeatState::Disabled,
+            false,
+        ),
+    ))
 }
 
 // --- Simple Ephemeral Messages ---
