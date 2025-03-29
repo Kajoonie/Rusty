@@ -11,8 +11,7 @@ use std::sync::Arc;
 use std::sync::LazyLock;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
-use tracing::debug;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 /// Result type for queue operations
 pub type QueueResult<T> = Result<T, MusicError>;
