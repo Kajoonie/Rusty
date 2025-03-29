@@ -20,7 +20,7 @@ use poise::serenity_prelude as serenity;
 use serenity::async_trait;
 // Removed unused: use songbird::input::Input;
 use tracing::{error, info, warn}; // Added warn
- 
+
 /// Event handler for when a song ends
 pub struct SongEndNotifier {
     pub ctx: serenity::Context,
