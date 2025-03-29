@@ -47,13 +47,13 @@ pub async fn handle_button_interaction(
     match interaction.data.custom_id.as_str() {
         "music_play_pause" => {
             if let Some((track, _metadata)) = current_track_opt {
-                let track_info = track.get_info().await?;
+                let track_info = track.get_info().await.map_err(Box::from)?;
                 let is_playing = track_info.playing == PlayMode::Play;
 
                 if is_playing {
-                    track.pause()?;
+                    track.pause().map_err(Box::from)?;
                 } else {
-                    track.play()?;
+                    track.play().map_err(Box::from)?;
                 }
 
                 // Update the message
@@ -129,7 +129,7 @@ pub async fn handle_button_interaction(
         "music_next" => {
             if let Some((track, _metadata)) = current_track_opt {
                 // Stop the current track (SongEndNotifier will handle playing the next)
-                track.stop()?;
+                track.stop().map_err(Box::from)?;
 
                 // Give a moment for the next track event to potentially fire
                 sleep(Duration::from_millis(100)).await;
