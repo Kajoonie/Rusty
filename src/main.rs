@@ -2,11 +2,14 @@ use ::serenity::all::ClientBuilder;
 use dotenv::dotenv;
 use poise::{
     serenity_prelude::{
-        self as serenity, ComponentInteractionDataKind, Interaction, ModalInteractionData,
+        self as serenity, ActionRowComponentKind, // Add ActionRowComponentKind
+        ComponentInteractionDataKind, Interaction, // Remove ModalInteractionData
+        CreateInteractionResponse, CreateInteractionResponseFollowup, // Add response types
     },
     Context as PoiseContext, // Import Poise Context
 };
 use regex::Regex;
+use tracing::{error, info, warn}; // Add tracing macros
 use std::{
     env,
     sync::{Arc, LazyLock},
@@ -168,20 +171,23 @@ async fn main() -> Result<(), Error> {
                                         let query = modal_interaction
                                             .data
                                             .components
-                                            .get(0) // First action row
-                                            .and_then(|row| row.components.get(0)) // First component in row
+                                            .get(0) // First action row (ModalInteractionDataComponent)
+                                            .and_then(|row_data| row_data.components.get(0)) // First ActionRow in row_data
+                                            .and_then(|action_row| action_row.components.get(0)) // First ActionRowComponent in ActionRow
                                             .and_then(|component| match &component.kind {
-                                                ComponentInteractionDataKind::InputText { value } => Some(value),
+                                                // Use ActionRowComponentKind
+                                                ActionRowComponentKind::InputText { custom_id: _, value } => Some(value),
                                                 _ => None,
                                             })
-                                            .cloned()
-                                            .unwrap_or_default(); // Handle potential errors gracefully
+                                            .cloned() // This should now correctly clone Option<&String>
+                                            .unwrap_or_default();
 
                                         if query.is_empty() {
                                             error!("Extracted empty query from music search modal");
                                             let reply = embedded_messages::generic_error("Search query was empty.");
                                             if let Err(e) = modal_interaction
-                                                .create_response(&ctx.http, reply.into())
+                                                // Use CreateInteractionResponse::Message
+                                                .create_response(&ctx.http, CreateInteractionResponse::Message(reply.into()))
                                                 .await
                                             {
                                                 error!("Failed to send modal error response: {}", e);
@@ -196,7 +202,8 @@ async fn main() -> Result<(), Error> {
                                                 let reply =
                                                     embedded_messages::generic_error("Command must be used in a server.");
                                                 if let Err(e) = modal_interaction
-                                                    .create_response(&ctx.http, reply.into())
+                                                    // Use CreateInteractionResponse::Message
+                                                    .create_response(&ctx.http, CreateInteractionResponse::Message(reply.into()))
                                                     .await
                                                 {
                                                     error!("Failed to send modal error response: {}", e);
@@ -215,7 +222,8 @@ async fn main() -> Result<(), Error> {
                                             Err(err) => {
                                                 let reply = embedded_messages::user_not_in_voice_channel(err);
                                                 if let Err(e) = modal_interaction
-                                                    .create_response(&ctx.http, reply.into())
+                                                    // Use CreateInteractionResponse::Message
+                                                    .create_response(&ctx.http, CreateInteractionResponse::Message(reply.into()))
                                                     .await
                                                 {
                                                     error!("Failed to send modal error response: {}", e);
@@ -231,27 +239,10 @@ async fn main() -> Result<(), Error> {
                                             // Attempt to send a followup anyway, might fail
                                         }
 
-                                        // Construct a temporary Poise Context for process_play_request
-                                        // NOTE: This is complex and might be fragile.
-                                        // Consider refactoring process_play_request if this causes issues.
-                                        let fake_interaction = (); // Placeholder
-                                        let app_context = PoiseContext::Application(poise::ApplicationContext {
-                                            data: data,
-                                            ctx: ctx,
-                                            interaction: &fake_interaction, // Placeholder
-                                            command: framework.options().commands.first().unwrap(), // Placeholder command
-                                            prefix: "/", // Placeholder
-                                            invocation_string: "", // Placeholder
-                                            parent_commands: &[], // Placeholder
-                                            current_argument: None, // Placeholder
-                                            args: "", // Placeholder
-                                            framework: framework,
-                                            invocation_data: std::sync::Arc::new(std::sync::Mutex::new(())), // Placeholder
-                                            reply_handle: None, // Placeholder
-                                        });
-
+                                        // Call the refactored process_play_request directly
                                         match process_play_request(
-                                            app_context, // Pass the constructed context
+                                            ctx.http.clone(), // Pass http Arc
+                                            // data.clone(), // Pass data Arc if needed later
                                             guild_id,
                                             voice_channel_id,
                                             &query,
@@ -262,7 +253,8 @@ async fn main() -> Result<(), Error> {
                                                 let reply =
                                                     embedded_messages::generic_success("Music", &reply_content);
                                                 if let Err(e) = modal_interaction
-                                                    .create_followup(&ctx.http, reply.into())
+                                                    // Use CreateInteractionResponseFollowup::from
+                                                    .create_followup(&ctx.http, CreateInteractionResponseFollowup::from(reply))
                                                     .await
                                                 {
                                                     error!("Failed to send modal success followup: {}", e);
@@ -285,7 +277,8 @@ async fn main() -> Result<(), Error> {
                                                     )),
                                                 };
                                                 if let Err(e) = modal_interaction
-                                                    .create_followup(&ctx.http, reply.into())
+                                                     // Use CreateInteractionResponseFollowup::from
+                                                    .create_followup(&ctx.http, CreateInteractionResponseFollowup::from(reply))
                                                     .await
                                                 {
                                                     error!("Failed to send modal error followup: {}", e);

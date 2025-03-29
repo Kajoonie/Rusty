@@ -5,7 +5,7 @@ use crate::commands::music::utils::{
     audio_sources::{AudioSource, TrackMetadata}, // Correct import path for TrackMetadata
     embedded_messages,
     event_handlers::play_next_track,
-    music_manager::{self, MusicError, MusicManager},
+    music_manager::{MusicError, MusicManager}, // Remove self
     queue_manager::{
         self,
         MetadataCallback, // Changed QueueCallback to MetadataCallback
@@ -23,10 +23,12 @@ use tracing::{debug, error, info, warn}; // Add warn import
 /// Processes the request to play or queue a track/playlist.
 /// Handles joining voice, fetching metadata, caching, queueing, and starting playback if needed.
 /// Returns a user-friendly status message string on success.
-async fn process_play_request(
-    ctx: Context<'_>, // Change back to full Context
+pub async fn process_play_request( // Make public
+    // Remove Context, add http and data
+    http: Arc<serenity::Http>,
+    // data: Arc<Data>, // Data not currently used, can be added if needed later
     guild_id: GuildId,
-    channel_id: ChannelId, // Channel to join
+    channel_id: ChannelId, // User's voice channel to join
     query: &str,
 ) -> Result<String, MusicError> {
     info!(
@@ -34,14 +36,18 @@ async fn process_play_request(
         query, guild_id
     );
 
-    // Join the voice channel if not already connected
-    let call = match MusicManager::get_call(ctx.serenity_context(), guild_id).await {
-        // Use ctx.serenity_context()
-        Ok(call) => call,
-        Err(_) => {
-            // Not connected, so join the channel
-            match MusicManager::join_channel(ctx.serenity_context(), guild_id, channel_id).await {
-                // Use ctx.serenity_context()
+    // Get songbird manager
+    let manager = songbird::get(http.clone()) // Use http directly
+        .await
+        .expect("Songbird Voice client placed in scope at initialization.")
+        .clone();
+
+    // Join the voice channel if not already connected, or get the existing call
+    let call = match manager.get(guild_id) {
+        Some(call) => call, // Already connected
+        None => {
+            // Not connected, attempt to join
+            match manager.join(guild_id, channel_id).await {
                 Ok(call) => call,
                 Err(err) => {
                     error!(
@@ -174,21 +180,15 @@ async fn process_play_request(
     // If nothing is currently playing, start playback
     if should_start_playing {
         // Pass http context directly
-        let played = play_next_track(&ctx.serenity_context().http, guild_id, call.clone()) // Use ctx.serenity_context().http, clone call
+        let _played = play_next_track(&http, guild_id, call.clone()) // Use http directly
             .await
             .map_err(|e| {
                 MusicError::AudioSourceError(format!("Failed to start playback: {}", e))
             })?; // Map error to AudioSourceError
 
-        // If playback started successfully, start the update task
-        if played {
-            // Pass the full context Arc by cloning the context
-            queue_manager::start_update_task(Arc::new(ctx.serenity_context().clone()), guild_id)
-                .await
-                .map_err(|e| {
-                    MusicError::AudioSourceError(format!("Failed to start update task: {}", e))
-                })?; // Map QueueError
-        }
+        // Do NOT start the update task here. It should only be started by the
+        // original command context which has the full poise::Context.
+        // The modal search only adds to the queue.
     }
 
     // --- Generate Success Message ---
@@ -245,8 +245,15 @@ pub async fn play(
     ctx.defer_ephemeral().await?;
 
     // Call the reusable processing function
-    match process_play_request(ctx, guild_id, voice_channel_id, &query).await {
-        // Pass full ctx
+    match process_play_request(
+        ctx.serenity_context().http.clone(), // Pass http Arc
+        // ctx.data(), // Pass data Arc if needed later
+        guild_id,
+        voice_channel_id,
+        &query,
+    )
+    .await
+    {
         Ok(reply_content) => {
             // Send the success message from the processing function
             ctx.send(embedded_messages::generic_success("Music", &reply_content))
