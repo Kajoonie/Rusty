@@ -1,25 +1,27 @@
 use std::sync::Arc;
 
 use crate::{
-    Error,
     commands::music::utils::{
         audio_sources::{AudioSource, TrackMetadata},
         autoplay_manager::is_autoplay_enabled,
         queue_manager::{
-            self, QueueItem, add_to_queue, clear_manual_stop_flag, get_next_track,
-            is_manual_stop_flag_set, set_current_track,
+            self, add_to_queue, clear_manual_stop_flag, get_next_track, is_manual_stop_flag_set,
+            set_current_track, // Removed QueueItem from here
         },
+        track_cache, // Import track_cache
     },
+    Error,
 };
 use poise::serenity_prelude as serenity;
 use serenity::async_trait;
-use tracing::{error, info};
+use songbird::input::Input; // Import Input
+use tracing::{error, info, warn}; // Added warn
 
 /// Event handler for when a song ends
 pub struct SongEndNotifier {
     pub ctx: serenity::Context,
     pub guild_id: serenity::GuildId,
-    pub call: std::sync::Arc<serenity::prelude::Mutex<songbird::Call>>,
+    pub call: Arc<serenity::prelude::Mutex<songbird::Call>>, // Use Arc directly
     pub track_metadata: TrackMetadata,
 }
 

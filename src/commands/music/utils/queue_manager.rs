@@ -51,19 +51,19 @@ impl QueueManager {
         }
     }
 
-    /// Add a track to the queue for a guild
-    pub fn add(&mut self, guild_id: GuildId, item: QueueItem) {
+    /// Add track metadata to the queue for a guild
+    pub fn add(&mut self, guild_id: GuildId, metadata: TrackMetadata) { // Changed parameter name and type
         // Get or create the queue for this guild
         let queue = self.queues.entry(guild_id).or_default();
-        queue.push_back(item);
+        queue.push_back(metadata); // Use metadata
     }
 
-    /// Get the next track in the queue for a guild
-    pub fn next(&mut self, guild_id: GuildId) -> Option<QueueItem> {
+    /// Get the next track's metadata from the queue for a guild
+    pub fn next(&mut self, guild_id: GuildId) -> Option<TrackMetadata> { // Changed return type
         // Get the queue for this guild
         // The current track will be overwritten by set_current_track when the new track starts
         if let Some(queue) = self.queues.get_mut(&guild_id) {
-            queue.pop_front()
+            queue.pop_front() // This now returns TrackMetadata
         } else {
             None
         }
@@ -396,24 +396,20 @@ pub async fn get_message_id(guild_id: GuildId) -> Option<MessageId> {
     messages.get(&guild_id).copied()
 }
 
-pub type QueueCallback = Box<dyn Fn(songbird::input::Input, TrackMetadata) + Send + Sync>;
+// Callback now only needs metadata, as Input is created later
+pub type MetadataCallback = Box<dyn Fn(TrackMetadata) + Send + Sync>;
 
-pub async fn get_queue_callback(guild_id: GuildId) -> QueueCallback {
-    Box::new(move |input, metadata| {
+pub async fn get_queue_callback(guild_id: GuildId) -> MetadataCallback {
+    Box::new(move |metadata| { // Changed signature: only metadata
         tokio::spawn(async move {
-            // Create a queue item for this track
-            let queue_item = QueueItem {
-                input,
-                metadata: metadata.clone(),
-            };
-
-            // Add track to queue
-            if let Err(err) = add_to_queue(guild_id, queue_item).await {
-                error!("Failed to add track to queue: {}", err);
+            // Add track metadata to queue
+            // Directly use the metadata passed to the callback
+            if let Err(err) = add_to_queue(guild_id, metadata.clone()).await { // Pass metadata directly
+                error!("Failed to add track metadata to queue: {}", err); // Updated error message
                 return;
             }
 
-            info!("Added track to queue: {}", metadata.title);
+            info!("Added track metadata to queue: {}", metadata.title); // Updated info message
         });
     })
 }
