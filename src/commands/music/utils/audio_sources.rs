@@ -59,7 +59,7 @@ impl AudioSource {
     /// Create an audio source from a URL or search term
     pub async fn from_query(
         query: &str,
-        queue_track_callback: Option<Box<dyn Fn(Input, TrackMetadata) + Send + Sync>>,
+        queue_track_callback: Option<MetadataCallback>, // Use MetadataCallback type
     ) -> AudioSourceResult<(Input, TrackMetadata)> {
         debug!("Creating audio source from query: {}", query);
         // Check if the query is a URL
@@ -94,7 +94,7 @@ impl AudioSource {
     /// Create an audio source from a URL
     pub async fn from_url(
         url: &str,
-        queue_track_callback: Option<Box<dyn Fn(Input, TrackMetadata) + Send + Sync>>,
+        queue_track_callback: Option<MetadataCallback>, // Use MetadataCallback type
     ) -> AudioSourceResult<(Input, TrackMetadata)> {
         debug!("Creating audio source from URL: {}", url);
 
@@ -283,7 +283,7 @@ impl AudioSource {
     /// Create an audio source from a Spotify URL
     pub async fn from_spotify_url(
         url: &str,
-        queue_track_callback: Option<Box<dyn Fn(Input, TrackMetadata) + Send + Sync>>,
+        queue_track_callback: Option<MetadataCallback>, // Use MetadataCallback type
     ) -> AudioSourceResult<(Input, TrackMetadata)> {
         info!("Creating audio source from Spotify URL: {}", url);
 
@@ -310,8 +310,11 @@ impl AudioSource {
                     let remaining_tracks = tracks[1..].to_vec();
                     tokio::spawn(async move {
                         for track in remaining_tracks {
-                            if let Ok((input, metadata)) = Self::from_spotify_track(track).await {
-                                (callback)(input, metadata);
+                            // Create metadata directly from SpotifyTrack for the callback
+                            if let Ok(metadata) = Self::create_metadata_from_spotify_track(&track) {
+                                (callback)(metadata); // Pass only metadata
+                            } else {
+                                warn!("Failed to create metadata for Spotify track in playlist callback: {}", track.name);
                             }
                         }
                     });
@@ -346,8 +349,11 @@ impl AudioSource {
                     let remaining_tracks = tracks[1..].to_vec();
                     tokio::spawn(async move {
                         for track in remaining_tracks {
-                            if let Ok((input, metadata)) = Self::from_spotify_track(track).await {
-                                (callback)(input, metadata);
+                             // Create metadata directly from SpotifyTrack for the callback
+                            if let Ok(metadata) = Self::create_metadata_from_spotify_track(&track) {
+                                (callback)(metadata); // Pass only metadata
+                            } else {
+                                warn!("Failed to create metadata for Spotify track in album callback: {}", track.name);
                             }
                         }
                     });
