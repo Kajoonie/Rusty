@@ -178,8 +178,8 @@ async fn process_play_request(
 
         // If playback started successfully, start the update task
         if played {
-            // Pass the full context Arc
-            queue_manager::start_update_task(ctx.serenity_context().into(), guild_id)
+            // Pass the full context Arc by cloning the context
+            queue_manager::start_update_task(Arc::new(ctx.serenity_context().clone()), guild_id)
                 .await
                 .map_err(|e| MusicError::AudioSourceError(format!("Failed to start update task: {}", e)))?; // Map QueueError
         }
