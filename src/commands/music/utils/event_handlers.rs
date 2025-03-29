@@ -119,11 +119,10 @@ impl SongEndNotifier {
     }
 }
 
-// We still need to introduce some form of indirection here for this recursive async fn, AI!
-/// Helper function to play the next track in the queue
-/// Returns true if a track was played, false if the queue was empty
-/// Helper function to play the next track in the queue
-/// Returns true if a track was played, false if the queue was empty
+/// Helper function to play the next track in the queue.
+/// Loops through the queue until a playable track is found or the queue is empty.
+/// Returns Ok(true) if a track was successfully started, Ok(false) if the queue became empty.
+/// Returns Err if a non-recoverable error occurs during queue access or handler interaction.
 pub async fn play_next_track(
     ctx: &serenity::Context,
     guild_id: serenity::GuildId,
@@ -131,82 +130,85 @@ pub async fn play_next_track(
 ) -> Result<bool, Error> {
     info!("Attempting to play next track for guild {}", guild_id);
 
-    // Get the next track's metadata from the queue
-    let metadata = match get_next_track(guild_id).await? {
-        Some(meta) => meta,
-        None => {
-            info!("No more tracks in queue for guild {}", guild_id);
-            // Stop the update task if the queue is empty and nothing is playing
-            let mut queue_manager_lock = queue_manager::QUEUE_MANAGER.lock().await;
-            if queue_manager_lock.get_current_track(guild_id).is_none() {
-                queue_manager_lock.stop_update_task(guild_id).await;
-                info!(
-                    "Stopped update task for guild {} due to empty queue.",
-                    guild_id
-                );
+    loop {
+        // Get the next track's metadata from the queue
+        let metadata = match get_next_track(guild_id).await? {
+            Some(meta) => meta,
+            None => {
+                info!("No more tracks in queue for guild {}", guild_id);
+                // Stop the update task if the queue is empty and nothing is playing
+                let mut queue_manager_lock = queue_manager::QUEUE_MANAGER.lock().await;
+                if queue_manager_lock.get_current_track(guild_id).is_none() {
+                    queue_manager_lock.stop_update_task(guild_id).await;
+                    info!(
+                        "Stopped update task for guild {} due to empty queue.",
+                        guild_id
+                    );
+                }
+                return Ok(false); // Indicate queue is empty, break loop
             }
-            return Ok(false); // Indicate no track was played
+        };
+
+        info!("Got next track metadata from queue: {:?}", metadata.title);
+
+        // --- Check URL and Create Input source on demand ---
+        let url = match metadata.url {
+            Some(ref u) => u,
+            None => {
+                error!(
+                    "Track metadata for '{}' is missing URL, cannot play.",
+                    metadata.title
+                );
+                warn!("Skipping track without URL, trying next in queue...");
+                continue; // Try the next track in the loop
+            }
+        };
+
+        let input = match track_cache::create_input_from_url(url).await {
+            Ok(inp) => inp,
+            Err(e) => {
+                error!("Failed to create audio input for URL {}: {}", url, e);
+                warn!("Skipping track due to input creation error, trying next...");
+                continue; // Try the next track in the loop
+            }
+        };
+        // --- End Input creation ---
+
+        // If we reach here, we have valid metadata and input
+
+        // Get a lock on the call
+        let mut handler = call.lock().await;
+        info!("Obtained lock on voice handler, preparing to play audio");
+
+        // Play the track using the created Input
+        let track_handle = handler.play_input(input); // Use the created input
+        info!("Track handle created for: {}", metadata.title);
+
+        // Store the current track's metadata
+        // Cloning metadata is cheap and necessary as it's moved to the notifier later
+        set_current_track(guild_id, track_handle.clone(), metadata.clone()).await?;
+
+        // Start the update task now that a track is playing
+        let ctx_arc = Arc::new(ctx.clone());
+        if let Err(e) = queue_manager::start_update_task(ctx_arc, guild_id).await {
+            error!("Failed to start update task for guild {}: {}", guild_id, e);
+            // Consider if this error should halt playback or just be logged
         }
-    };
 
-    info!("Got next track metadata from queue: {:?}", metadata.title);
+        // Set up a handler for when the track ends
+        let ctx_clone = ctx.clone(); // Clone ctx for the closure
+        let call_clone = call.clone(); // Clone Arc for the closure
 
-    // --- Create Input source on demand ---
-    let url = match metadata.url {
-        Some(ref u) => u,
-        None => {
-            error!(
-                "Track metadata for '{}' is missing URL, cannot play.",
-                metadata.title
-            );
-            // Attempt to play the *next* track instead of failing silently
-            warn!("Skipping track without URL, trying next in queue...");
-            return play_next_track(ctx, guild_id, call).await; // Recursive call for next track
-        }
-    };
+        let _ = track_handle.add_event(
+            songbird::Event::Track(songbird::TrackEvent::End),
+            SongEndNotifier {
+                ctx: ctx_clone,
+                guild_id,
+                call: call_clone,
+                track_metadata: metadata, // Pass the metadata
+            },
+        );
 
-    let input = match track_cache::create_input_from_url(url).await {
-        Ok(inp) => inp,
-        Err(e) => {
-            error!("Failed to create audio input for URL {}: {}", url, e);
-            // Attempt to play the *next* track
-            warn!("Skipping track due to input creation error, trying next...");
-            return play_next_track(ctx, guild_id, call).await; // Recursive call for next track
-        }
-    };
-    // --- End Input creation ---
-
-    // Get a lock on the call
-    let mut handler = call.lock().await;
-    info!("Obtained lock on voice handler, preparing to play audio");
-
-    // Play the track using the created Input
-    let track_handle = handler.play_input(input); // Use the created input
-    info!("Track handle created for: {}", metadata.title);
-
-    // Store the current track's metadata
-    // Cloning metadata is cheap and necessary as it's moved to the notifier later
-    set_current_track(guild_id, track_handle.clone(), metadata.clone()).await?;
-
-    // Start the update task now that a track is playing
-    let ctx_arc = Arc::new(ctx.clone());
-    if let Err(e) = queue_manager::start_update_task(ctx_arc, guild_id).await {
-        error!("Failed to start update task for guild {}: {}", guild_id, e);
+        return Ok(true); // Indicate a track was played successfully, break loop
     }
-
-    // Set up a handler for when the track ends
-    let ctx = ctx.clone();
-    let call = call.clone();
-
-    let _ = track_handle.add_event(
-        songbird::Event::Track(songbird::TrackEvent::End),
-        SongEndNotifier {
-            ctx,
-            guild_id,
-            call,
-            track_metadata: metadata, // Pass the metadata
-        },
-    );
-
-    Ok(true) // Indicate a track was played
 }
