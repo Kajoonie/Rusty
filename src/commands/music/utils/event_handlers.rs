@@ -67,19 +67,43 @@ impl SongEndNotifier {
 
             for song in related_songs {
                 if let Some(song_url) = &song.url {
-                    if !AudioSource::is_youtube_video_url(song_url) {
+                    // Ensure it's a valid YouTube video URL before proceeding
+                    if !track_cache::is_youtube_url(song_url) {
+                        warn!("Skipping non-YouTube URL from related songs: {}", song_url);
                         continue;
                     }
 
-                    let (source, _) = AudioSource::from_youtube_url(song_url).await?;
-                    let queue_item = QueueItem {
-                        input: source,
-                        metadata: song.clone(),
+                    // Add metadata to queue, Input will be created when it plays
+                    add_to_queue(self.guild_id, song.clone()).await?;
+                    info!(
+                        "Added related song '{}' to queue for guild {}",
+                        song.title, self.guild_id
+                    );
+
+                    // Attempt to play the newly added track immediately
+                    // Check if anything is currently playing first
+                    let should_play_immediately = {
+                        let queue_manager_lock = queue_manager::QUEUE_MANAGER.lock().await;
+                        queue_manager_lock
+                            .get_current_track(self.guild_id)
+                            .is_none()
                     };
 
-                    add_to_queue(self.guild_id, queue_item).await?;
-                    play_next_track(&self.ctx, self.guild_id, self.call.clone()).await?;
-
+                    if should_play_immediately {
+                        info!(
+                            "Queue was empty, attempting to play related song immediately for guild {}",
+                            self.guild_id
+                        );
+                        if let Err(e) =
+                            play_next_track(&self.ctx, self.guild_id, self.call.clone()).await
+                        {
+                            error!(
+                                "Failed to play related track immediately for guild {}: {}",
+                                self.guild_id, e
+                            );
+                        }
+                    }
+                    // Stop after adding and attempting to play one related song
                     break;
                 }
             }
@@ -91,34 +115,68 @@ impl SongEndNotifier {
 
 /// Helper function to play the next track in the queue
 /// Returns true if a track was played, false if the queue was empty
+/// Helper function to play the next track in the queue
+/// Returns true if a track was played, false if the queue was empty
 pub async fn play_next_track(
     ctx: &serenity::Context,
     guild_id: serenity::GuildId,
-    call: std::sync::Arc<serenity::prelude::Mutex<songbird::Call>>,
+    call: Arc<serenity::prelude::Mutex<songbird::Call>>,
 ) -> Result<bool, Error> {
     info!("Attempting to play next track for guild {}", guild_id);
 
-    // Get the next track from the queue
-    let queue_item = match get_next_track(guild_id).await? {
-        Some(item) => item,
+    // Get the next track's metadata from the queue
+    let metadata = match get_next_track(guild_id).await? {
+        Some(meta) => meta,
         None => {
             info!("No more tracks in queue for guild {}", guild_id);
+            // Stop the update task if the queue is empty and nothing is playing
+            let mut queue_manager_lock = queue_manager::QUEUE_MANAGER.lock().await;
+            if queue_manager_lock.get_current_track(guild_id).is_none() {
+                queue_manager_lock.stop_update_task(guild_id).await;
+                info!("Stopped update task for guild {} due to empty queue.", guild_id);
+            }
             return Ok(false); // Indicate no track was played
         }
     };
 
-    info!("Got next track from queue: {:?}", queue_item.metadata.title);
+    info!("Got next track metadata from queue: {:?}", metadata.title);
+
+    // --- Create Input source on demand ---
+    let url = match metadata.url {
+        Some(ref u) => u,
+        None => {
+            error!(
+                "Track metadata for '{}' is missing URL, cannot play.",
+                metadata.title
+            );
+            // Attempt to play the *next* track instead of failing silently
+            warn!("Skipping track without URL, trying next in queue...");
+            return play_next_track(ctx, guild_id, call).await; // Recursive call for next track
+        }
+    };
+
+    let input = match track_cache::create_input_from_url(url).await {
+        Ok(inp) => inp,
+        Err(e) => {
+            error!("Failed to create audio input for URL {}: {}", url, e);
+            // Attempt to play the *next* track
+            warn!("Skipping track due to input creation error, trying next...");
+            return play_next_track(ctx, guild_id, call).await; // Recursive call for next track
+        }
+    };
+    // --- End Input creation ---
 
     // Get a lock on the call
     let mut handler = call.lock().await;
     info!("Obtained lock on voice handler, preparing to play audio");
 
-    // Play the track and verify it started successfully
-    let track_handle = handler.play_input(queue_item.input);
-    info!("Track handle created");
+    // Play the track using the created Input
+    let track_handle = handler.play_input(input); // Use the created input
+    info!("Track handle created for: {}", metadata.title);
 
-    // Store the current track
-    set_current_track(guild_id, track_handle.clone(), queue_item.clone()).await?;
+    // Store the current track's metadata
+    // Cloning metadata is cheap and necessary as it's moved to the notifier later
+    set_current_track(guild_id, track_handle.clone(), metadata.clone()).await?;
 
     // Start the update task now that a track is playing
     let ctx_arc = Arc::new(ctx.clone());
@@ -136,7 +194,7 @@ pub async fn play_next_track(
             ctx,
             guild_id,
             call,
-            track_metadata: queue_item.metadata.clone(),
+            track_metadata: metadata, // Pass the metadata
         },
     );
 
