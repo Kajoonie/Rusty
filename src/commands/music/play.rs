@@ -24,8 +24,9 @@ use tracing::{debug, error, info, warn}; // Add warn import
 /// Handles joining voice, fetching metadata, caching, queueing, and starting playback if needed.
 /// Returns a user-friendly status message string on success.
 pub async fn process_play_request( // Make public
-    // Remove Context, add http and data
-    http: Arc<serenity::Http>,
+    // Add songbird manager Arc, remove http
+    manager: Arc<songbird::Songbird>,
+    http: Arc<serenity::Http>, // Keep http for queue callback etc.
     // data: Arc<Data>, // Data not currently used, can be added if needed later
     guild_id: GuildId,
     channel_id: ChannelId, // User's voice channel to join
@@ -35,12 +36,6 @@ pub async fn process_play_request( // Make public
         "Processing play request for query '{}' in guild {}",
         query, guild_id
     );
-
-    // Get songbird manager
-    let manager = songbird::get(http.clone()) // Use http directly
-        .await
-        .expect("Songbird Voice client placed in scope at initialization.")
-        .clone();
 
     // Join the voice channel if not already connected, or get the existing call
     let call = match manager.get(guild_id) {
@@ -54,7 +49,8 @@ pub async fn process_play_request( // Make public
                         "Failed to join voice channel {} for guild {}: {}",
                         channel_id, guild_id, err
                     );
-                    return Err(err); // Return the error directly
+                    // Map JoinError to MusicError::JoinError
+                    return Err(MusicError::JoinError(err.into()));
                 }
             }
         }
@@ -244,8 +240,15 @@ pub async fn play(
     // Defer the response ephemerally
     ctx.defer_ephemeral().await?;
 
+    // Get songbird manager
+    let manager = songbird::serenity::get(ctx.serenity_context())
+        .await
+        .expect("Songbird Voice client placed in scope at initialization.")
+        .clone();
+
     // Call the reusable processing function
     match process_play_request(
+        manager, // Pass the songbird manager Arc
         ctx.serenity_context().http.clone(), // Pass http Arc
         // ctx.data(), // Pass data Arc if needed later
         guild_id,
