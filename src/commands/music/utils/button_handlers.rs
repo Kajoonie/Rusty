@@ -8,9 +8,12 @@ use tracing::{error, info};
 use super::{
     embedded_messages,
     music_manager::MusicManager,
+    music_manager::MusicManager,
     queue_manager::{
-        self, clear_queue, get_channel_id, get_current_track, get_message_id, set_manual_stop_flag,
+        self, clear_queue, get_channel_id, get_current_track, get_message_id,
+        set_manual_stop_flag,
     },
+    track_cache, // Import track_cache
 };
 use tracing::warn;
 
@@ -140,10 +143,73 @@ pub async fn handle_button_interaction(
             // Update the message to show/hide the queue
             update_player_message(ctx, interaction).await?;
         }
-        _ => {
-            error!("Unknown button ID: {}", interaction.data.custom_id);
-            error_followup(ctx, interaction, "Unknown button action.").await?;
+        "music_previous" => {
+            // Check if there's history
+            if !queue_manager::has_history(guild_id).await {
+                return error_followup(ctx, interaction, "No previous track in history.").await;
+            }
+
+            // Stop the current track if one is playing
+            if let Some((track, _)) = current_track_opt {
+                match track.stop() {
+                    Ok(_) => (),                                        // do nothing
+                    Err(songbird::error::ControlError::Finished) => (), // also do nothing
+                    Err(e) => warn!("Error stopping current track for 'previous': {}", e),
+                }
+                // Give a moment for the stop to register if needed, though get_previous_track handles queue logic
+                sleep(Duration::from_millis(50)).await;
+            }
+
+            // Get the previous track metadata (this also moves current track back to queue front)
+            match queue_manager::get_previous_track(guild_id).await? {
+                Some(previous_metadata) => {
+                    info!(
+                        "Playing previous track: {} for guild {}",
+                        previous_metadata.title, guild_id
+                    );
+
+                    // Get the call instance again (might be needed if connection dropped/restarted)
+                    let call = match MusicManager::get_call(ctx, guild_id).await {
+                        Ok(call) => call,
+                        Err(_) => {
+                            return error_followup(
+                                ctx,
+                                interaction,
+                                "Lost connection to voice channel.",
+                            )
+                            .await;
+                        }
+                    };
+
+                    // Play the previous track
+                    match MusicManager::play_track_metadata(
+                        ctx,
+                        guild_id,
+                        call,
+                        previous_metadata, // Play the retrieved metadata
+                    )
+                    .await
+                    {
+                        Ok(_) => {
+                            // Update the message after successfully starting the previous track
+                            update_player_message(ctx, interaction).await?;
+                        }
+                        Err(e) => {
+                            error!("Failed to play previous track: {}", e);
+                            error_followup(ctx, interaction, "Failed to play previous track.")
+                                .await?;
+                        }
+                    }
+                }
+                None => {
+                    // This case should ideally be caught by has_history check, but handle defensively
+                    error_followup(ctx, interaction, "Could not retrieve previous track.").await?;
+                }
+            }
         }
+        "music_queue_toggle" => {
+            // Toggle the queue view state
+            queue_manager::toggle_queue_view(guild_id).await?;
     }
 
     Ok(())
