@@ -9,8 +9,11 @@ use super::{
     embedded_messages,
     music_manager::MusicManager,
     queue_manager::{
-        self, clear_queue, get_channel_id, get_current_track, get_message_id, set_manual_stop_flag,
+        self, clear_queue, get_channel_id, get_current_track, get_message_id,
+        set_current_track, // Add set_current_track
+        set_manual_stop_flag,
     },
+    track_cache, // Import track_cache
 };
 use tracing::warn;
 
@@ -178,24 +181,54 @@ pub async fn handle_button_interaction(
                         }
                     };
 
-                    // Play the previous track
-                    match MusicManager::play_track_metadata(
-                        ctx,
-                        guild_id,
-                        call,
-                        previous_metadata, // Play the retrieved metadata
-                    )
-                    .await
-                    {
-                        Ok(_) => {
-                            // Update the message after successfully starting the previous track
-                            update_player_message(ctx, interaction).await?;
+                    // Get the URL from metadata
+                    let url = match previous_metadata.url.as_ref() {
+                        Some(url) => url,
+                        None => {
+                            error!("Previous track metadata missing URL for guild {}", guild_id);
+                            return error_followup(
+                                ctx,
+                                interaction,
+                                "Previous track is missing URL.",
+                            )
+                            .await;
                         }
+                    };
+
+                    // Create the audio source input
+                    let input = match track_cache::create_input_from_url(url).await {
+                        Ok(input) => input,
                         Err(e) => {
-                            error!("Failed to play previous track: {}", e);
-                            error_followup(ctx, interaction, "Failed to play previous track.")
-                                .await?;
+                            error!("Failed to create input from URL '{}': {}", url, e);
+                            return error_followup(
+                                ctx,
+                                interaction,
+                                "Failed to create audio source for previous track.",
+                            )
+                            .await;
                         }
+                    };
+
+                    // Play the source and get the handle
+                    let track_handle = {
+                        let mut call_lock = call.lock().await;
+                        call_lock.play_source(input)
+                    };
+
+                    // Update the queue manager with the new current track
+                    if let Err(e) =
+                        set_current_track(guild_id, track_handle, previous_metadata).await
+                    {
+                        error!("Failed to set current track after playing previous: {}", e);
+                        // Don't necessarily stop here, but log the error
+                    }
+
+                    // Update the message after successfully starting the previous track
+                    update_player_message(ctx, interaction).await?;
+                }
+                None => {
+                    // This case should ideally be caught by has_history check, but handle defensively
+                    error_followup(ctx, interaction, "Could not retrieve previous track.").await?;
                     }
                 }
                 None => {
