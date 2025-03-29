@@ -49,8 +49,8 @@ pub async fn process_play_request( // Make public
                         "Failed to join voice channel {} for guild {}: {}",
                         channel_id, guild_id, err
                     );
-                    // Map JoinError to MusicError::JoinError
-                    return Err(MusicError::JoinError(err.into()));
+                    // Map JoinError to MusicError::JoinError by formatting the error
+                    return Err(MusicError::JoinError(format!("{}", err)));
                 }
             }
         }

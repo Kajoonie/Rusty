@@ -171,7 +171,7 @@ async fn main() -> Result<(), Error> {
                                             .data
                                             .components
                                             .get(0) // First action row (ModalInteractionDataComponent)
-                                            .get(0) // First action row (ModalInteractionDataComponent)
+                                            // Use and_then to chain the next get call
                                             .and_then(|row_data| row_data.components.get(0)) // First ActionRow in row_data
                                             .and_then(|action_row| action_row.components.get(0)) // First ActionRowComponent in ActionRow
                                             .and_then(|component| match component {
