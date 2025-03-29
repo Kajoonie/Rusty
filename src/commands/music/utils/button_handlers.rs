@@ -9,7 +9,11 @@ use super::{
     embedded_messages,
     music_manager::MusicManager,
     queue_manager::{
-        self, clear_queue, get_channel_id, get_current_track, get_message_id,
+        self,
+        clear_queue,
+        get_channel_id,
+        get_current_track,
+        get_message_id,
         set_current_track, // Add set_current_track
         set_manual_stop_flag,
     },
@@ -225,11 +229,6 @@ pub async fn handle_button_interaction(
 
                     // Update the message after successfully starting the previous track
                     update_player_message(ctx, interaction).await?;
-                }
-                None => {
-                    // This case should ideally be caught by has_history check, but handle defensively
-                    error_followup(ctx, interaction, "Could not retrieve previous track.").await?;
-                    }
                 }
                 None => {
                     // This case should ideally be caught by has_history check, but handle defensively
