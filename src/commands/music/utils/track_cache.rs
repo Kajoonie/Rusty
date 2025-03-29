@@ -74,9 +74,7 @@ fn save_cache_to_disk() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Attempts to retrieve cached metadata for a given YouTube URL.
 pub fn get_cached_metadata(url: &str) -> Option<TrackMetadata> {
-    // Ensure the cache is loaded (Lazy does this on first access)
-    Lazy::force(&CACHE_INDEX);
-
+    // Accessing the LazyLock ensures it's initialized if needed.
     if let Some(entry) = CACHE_INDEX.get(url) {
         debug!("Cache hit for URL: {}", url);
         Some(entry.value().clone())
@@ -88,9 +86,7 @@ pub fn get_cached_metadata(url: &str) -> Option<TrackMetadata> {
 
 /// Caches the metadata for a given YouTube URL.
 pub fn cache_metadata(url: &str, metadata: TrackMetadata) {
-    // Ensure the cache is loaded before modifying
-    Lazy::force(&CACHE_INDEX);
-
+    // Accessing the LazyLock ensures it's initialized if needed before modifying.
     // Only cache if metadata seems valid (has a title and URL)
     if metadata.title.is_empty() || metadata.url.is_none() {
         warn!("Attempted to cache invalid metadata for URL: {}", url);

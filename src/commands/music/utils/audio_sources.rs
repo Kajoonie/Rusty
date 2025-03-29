@@ -301,14 +301,6 @@ impl AudioSource {
                 ));
             }
 
-            // It's a playlist URL
-            let (playlist_name, tracks) = SpotifyApi::get_playlist_tracks(&playlist_id).await?;
-            if tracks.is_empty() {
-                return Err(MusicError::AudioSourceError(
-                    "Spotify playlist is empty".to_string(),
-                ));
-            }
-
             let total_tracks = tracks.len();
             let first_track = tracks[0].clone();
 

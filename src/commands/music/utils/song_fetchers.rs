@@ -202,6 +202,7 @@ impl RelatedSongsFetcher for YtDlpFetcher {
                     url: video_url,
                     duration,
                     thumbnail,
+                    playlist: None, // Add missing playlist field
                 });
 
                 // Stop if we have enough related songs
