@@ -6,12 +6,8 @@ use crate::{
         audio_sources::{AudioSource, TrackMetadata},
         autoplay_manager::is_autoplay_enabled,
         queue_manager::{
-            self,
-            add_to_queue,
-            clear_manual_stop_flag,
-            get_next_track,
-            is_manual_stop_flag_set,
-            set_current_track,
+            self, add_to_queue, clear_manual_stop_flag, clear_previous_action_flag, get_next_track,
+            is_manual_stop_flag_set, is_previous_action_flag_set, set_current_track,
         },
         track_cache,
     },
@@ -28,14 +24,25 @@ pub struct SongEndNotifier {
     pub track_metadata: TrackMetadata,
 }
 
-#[async_trait]
-impl songbird::EventHandler for SongEndNotifier {
-    async fn act(&self, ctx: &songbird::EventContext<'_>) -> Option<songbird::Event> {
-        if let songbird::EventContext::Track(_) = ctx {
-            self.handle_track_end().await;
-        }
-        None
-    }
+#[async_trait]                                                                                                              
+impl songbird::EventHandler for SongEndNotifier {                                                                           
+    async fn act(&self, ctx: &songbird::EventContext<'_>) -> Option<songbird::Event> {                                      
+        if let songbird::EventContext::Track(_) = ctx {                                                                     
+            // Check if a "previous" action triggered this end event                                                        
+            if is_previous_action_flag_set(self.guild_id).await {                                                           
+                info!(                                                                                                      
+                    "Track ended due to 'previous' action, skipping automatic next track play for guild {}",                
+                    self.guild_id                                                                                           
+                );                                                                                                          
+                // Clear the flag here, as the button handler might clear it slightly later. Redundant clear is fine.       
+                clear_previous_action_flag(self.guild_id).await;                                                            
+            } else {                                                                                                        
+                // Proceed with normal track end handling                                                                   
+                self.handle_track_end().await;                                                                              
+            }                                                                                                               
+        }                                                                                                                   
+        None                                                                                                                
+    }                                                                                                                       
 }
 
 impl SongEndNotifier {

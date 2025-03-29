@@ -115,32 +115,22 @@ impl QueueManager {
 
     /// Get the current track handle and its metadata for a guild
     pub fn get_current_track(&self, guild_id: GuildId) -> Option<&(TrackHandle, TrackMetadata)> {
-        self.current_tracks.get(&guild_id)
-    }
-
-    /// Get the previous track's metadata from history, putting the current track's metadata back into the main queue.
-    /// Returns the TrackMetadata of the track retrieved from history.
-    pub fn previous(&mut self, guild_id: GuildId) -> Option<TrackMetadata> {
-        // Get the history queue, return None if no history
-        let history_queue = self.history.get_mut(&guild_id)?;
-        // Pop the most recent metadata from history
-        let previous_metadata = history_queue.pop_front()?;
-        debug!(
-            "Retrieved track '{}' from history for guild {}",
-            previous_metadata.title, guild_id
-        );
-
-        // If there is a currently playing track, move its metadata to the front of the main queue
-        if let Some((_handle, current_metadata)) = self.current_tracks.remove(&guild_id) {
-            debug!(
-                "Moving current track '{}' to front of queue for guild {}",
-                current_metadata.title, guild_id
-            );
-            let main_queue = self.queues.entry(guild_id).or_default();
-            main_queue.push_front(current_metadata);
-        }
-
-        // Return the metadata retrieved from history
+        self.current_tracks.get(&guild_id)                                                                                  
+    }                                                                                                                       
+                                                                                                                            
+    /// Get the previous track's metadata from history. Does NOT modify the main queue or current track state.              
+    /// Returns the TrackMetadata of the track retrieved from history.                                                      
+    pub fn previous(&mut self, guild_id: GuildId) -> Option<TrackMetadata> {                                                
+        // Get the history queue, return None if no history                                                                 
+        let history_queue = self.history.get_mut(&guild_id)?;                                                               
+        // Pop the most recent metadata from history                                                                        
+        let previous_metadata = history_queue.pop_front()?;                                                                 
+        debug!(                                                                                                             
+            "Retrieved track '{}' from history for guild {} (state not modified yet)",                                      
+            previous_metadata.title, guild_id                                                                               
+        );                                                                                                                  
+                                                                                                                            
+        // Return the metadata retrieved from history                                                                       
         Some(previous_metadata)
     }
 
@@ -258,10 +248,14 @@ static CHANNEL_IDS: LazyLock<Mutex<HashMap<GuildId, ChannelId>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
 // Store message IDs for each guild
-static MESSAGE_IDS: LazyLock<Mutex<HashMap<GuildId, MessageId>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
-
-/// Helper functions for working with the global queue manager
+static MESSAGE_IDS: LazyLock<Mutex<HashMap<GuildId, MessageId>>> =                                                          
+    LazyLock::new(|| Mutex::new(HashMap::new()));                                                                           
+                                                                                                                            
+// Flag to indicate a "previous track" action is in progress                                                                
+static PREVIOUS_ACTION_FLAGS: LazyLock<Mutex<HashMap<GuildId, bool>>> =                                                     
+    LazyLock::new(|| Mutex::new(HashMap::new()));                                                                           
+                                                                                                                            
+/// Helper functions for working with the global queue manager                                                              
 pub async fn add_to_queue(guild_id: GuildId, metadata: TrackMetadata) -> QueueResult<()> {
     let mut manager = QUEUE_MANAGER.lock().await;
     manager.add(guild_id, metadata);
@@ -303,15 +297,15 @@ pub async fn get_current_track(
 ) -> QueueResult<Option<(TrackHandle, TrackMetadata)>> {
     let manager = QUEUE_MANAGER.lock().await;
     // Cloning TrackHandle is cheap (Arc), TrackMetadata is Clone.
-    Ok(manager.get_current_track(guild_id).cloned()) // This now works
-}
-
-/// Gets the previous track's metadata from history, moving the current track's metadata to the front of the queue.
-pub async fn get_previous_track(guild_id: GuildId) -> QueueResult<Option<TrackMetadata>> {
-    let mut manager = QUEUE_MANAGER.lock().await;
-    Ok(manager.previous(guild_id))
-}
-
+    Ok(manager.get_current_track(guild_id).cloned()) // This now works                                                      
+}                                                                                                                           
+                                                                                                                            
+/// Gets the previous track's metadata from history. Does NOT modify the main queue or current track state.                 
+pub async fn get_previous_track(guild_id: GuildId) -> QueueResult<Option<TrackMetadata>> {                                  
+    let mut manager = QUEUE_MANAGER.lock().await;                                                                           
+    Ok(manager.previous(guild_id)) // Calls the modified method                                                             
+}                                                                                                                           
+                                                                                                                            
 /// Checks if track history exists for the guild.
 pub async fn has_history(guild_id: GuildId) -> bool {
     let manager = QUEUE_MANAGER.lock().await;
@@ -384,10 +378,28 @@ pub async fn store_message_id(guild_id: GuildId, message_id: MessageId) {
 /// Get the message ID for a guild
 pub async fn get_message_id(guild_id: GuildId) -> Option<MessageId> {
     let messages = MESSAGE_IDS.lock().await;
-    messages.get(&guild_id).copied()
-}
-
-// Callback now only needs metadata, as Input is created later
+    messages.get(&guild_id).copied()                                                                                        
+}                                                                                                                           
+                                                                                                                            
+/// Set the previous action flag for a guild                                                                                
+pub async fn set_previous_action_flag(guild_id: GuildId, value: bool) {                                                     
+    let mut flags = PREVIOUS_ACTION_FLAGS.lock().await;                                                                     
+    flags.insert(guild_id, value);                                                                                          
+}                                                                                                                           
+                                                                                                                            
+/// Check if previous action flag is set                                                                                    
+pub async fn is_previous_action_flag_set(guild_id: GuildId) -> bool {                                                       
+    let flags = PREVIOUS_ACTION_FLAGS.lock().await;                                                                         
+    *flags.get(&guild_id).unwrap_or(&false)                                                                                 
+}                                                                                                                           
+                                                                                                                            
+/// Clear the previous action flag for a guild                                                                              
+pub async fn clear_previous_action_flag(guild_id: GuildId) {                                                                
+    let mut flags = PREVIOUS_ACTION_FLAGS.lock().await;                                                                     
+    flags.remove(&guild_id);                                                                                                
+}                                                                                                                           
+                                                                                                                            
+// Callback now only needs metadata, as Input is created later                                                              
 pub type MetadataCallback = Box<dyn Fn(TrackMetadata) + Send + Sync>;
 
 pub async fn get_queue_callback(guild_id: GuildId) -> MetadataCallback {

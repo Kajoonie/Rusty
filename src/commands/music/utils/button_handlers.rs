@@ -9,8 +9,9 @@ use super::{
     embedded_messages,
     music_manager::MusicManager,
     queue_manager::{
-        self, clear_queue, get_channel_id, get_current_track, get_message_id, set_current_track,
-        set_manual_stop_flag,
+        self, clear_previous_action_flag, clear_queue, get_channel_id, get_current_track,
+        get_message_id, get_previous_track, set_current_track, set_manual_stop_flag,
+        set_previous_action_flag,
     },
     track_cache, // Import track_cache
 };
@@ -148,88 +149,140 @@ pub async fn handle_button_interaction(
                 return error_followup(ctx, interaction, "No previous track in history.").await;
             }
 
-            // Stop the current track if one is playing
-            if let Some((track, _)) = current_track_opt {
-                match track.stop() {
-                    Ok(_) => (),                                        // do nothing
-                    Err(songbird::error::ControlError::Finished) => (), // also do nothing
-                    Err(e) => warn!("Error stopping current track for 'previous': {}", e),
-                }
-                // Give a moment for the stop to register if needed, though get_previous_track handles queue logic
-                sleep(Duration::from_millis(50)).await;
-            }
-
-            // Get the previous track metadata (this also moves current track back to queue front)
-            match queue_manager::get_previous_track(guild_id).await? {
-                Some(previous_metadata) => {
-                    info!(
-                        "Playing previous track: {} for guild {}",
-                        previous_metadata.title, guild_id
-                    );
-
-                    // Get the call instance again (might be needed if connection dropped/restarted)
-                    let call = match MusicManager::get_call(ctx, guild_id).await {
-                        Ok(call) => call,
-                        Err(_) => {
-                            return error_followup(
-                                ctx,
-                                interaction,
-                                "Lost connection to voice channel.",
-                            )
-                            .await;
-                        }
-                    };
-
-                    // Get the URL from metadata
-                    let url = match previous_metadata.url.as_ref() {
-                        Some(url) => url,
-                        None => {
-                            error!("Previous track metadata missing URL for guild {}", guild_id);
-                            return error_followup(
-                                ctx,
-                                interaction,
-                                "Previous track is missing URL.",
-                            )
-                            .await;
-                        }
-                    };
-
-                    // Create the audio source input
-                    let input = match track_cache::create_input_from_url(url).await {
-                        Ok(input) => input,
-                        Err(e) => {
-                            error!("Failed to create input from URL '{}': {}", url, e);
-                            return error_followup(
-                                ctx,
-                                interaction,
-                                "Failed to create audio source for previous track.",
-                            )
-                            .await;
-                        }
-                    };
-
-                    // Play the source and get the handle
-                    let track_handle = {
-                        let mut call_lock = call.lock().await;
-                        call_lock.play_input(input) // Corrected method name
-                    };
-
-                    // Update the queue manager with the new current track
-                    if let Err(e) =
-                        set_current_track(guild_id, track_handle, previous_metadata).await
-                    {
-                        error!("Failed to set current track after playing previous: {}", e);
-                        // Don't necessarily stop here, but log the error
-                    }
-
-                    // Update the message after successfully starting the previous track
-                    update_player_message(ctx, interaction).await?;
-                }
+            // Get the previous track metadata *without* modifying the queue yet
+            let previous_metadata = match queue_manager::get_previous_track(guild_id).await? {
+                Some(metadata) => metadata,
                 None => {
-                    // This case should ideally be caught by has_history check, but handle defensively
-                    error_followup(ctx, interaction, "Could not retrieve previous track.").await?;
+                    // Should be caught by has_history, but handle defensively
+                    return error_followup(ctx, interaction, "Could not retrieve previous track.")
+                        .await;
                 }
+            };
+
+            info!(
+                "Attempting to play previous track: {} for guild {}",
+                previous_metadata.title, guild_id
+            );
+
+            // Set flag to prevent SongEndNotifier from auto-playing next
+            set_previous_action_flag(guild_id, true).await;
+
+            // Stop the current track *after* setting the flag
+            // We need the handle of the track *currently* playing before we stop it.
+            let current_track_handle = match get_current_track(guild_id).await? {
+                Some((handle, _)) => Some(handle),
+                None => None,
+            };
+
+            if let Some(track) = current_track_handle {
+                match track.stop() {
+                    Ok(_) => info!(
+                        "Stopped current track to play previous for guild {}",
+                        guild_id
+                    ),
+                    Err(songbird::error::ControlError::Finished) => info!(
+                        "Current track already finished when trying to play previous for guild {}",
+                        guild_id
+                    ),
+                    Err(e) => warn!(
+                        "Error stopping current track for 'previous' action in guild {}: {}",
+                        guild_id, e
+                    ),
+                }
+                // Small delay might help ensure stop event propagates if needed, but flag should be primary mechanism
+                // sleep(Duration::from_millis(50)).await;
+            } else {
+                info!(
+                    "No current track playing when 'previous' was clicked for guild {}",
+                    guild_id
+                );
             }
+
+            // Get the call instance
+            let call = match MusicManager::get_call(ctx, guild_id).await {
+                Ok(call) => call,
+                Err(_) => {
+                    // Clear flag on error path
+                    clear_previous_action_flag(guild_id).await;
+                    return error_followup(ctx, interaction, "Lost connection to voice channel.")
+                        .await;
+                }
+            };
+
+            // Get the URL from metadata
+            let url = match previous_metadata.url.as_ref() {
+                Some(url) => url,
+                None => {
+                    error!("Previous track metadata missing URL for guild {}", guild_id);
+                    // Clear flag on error path
+                    clear_previous_action_flag(guild_id).await;
+                    return error_followup(ctx, interaction, "Previous track is missing URL.")
+                        .await;
+                }
+            };
+
+            // Create the audio source input
+            let input = match track_cache::create_input_from_url(url).await {
+                Ok(input) => input,
+                Err(e) => {
+                    error!("Failed to create input from URL '{}': {}", url, e);
+                    // Clear flag on error path
+                    clear_previous_action_flag(guild_id).await;
+                    return error_followup(
+                        ctx,
+                        interaction,
+                        "Failed to create audio source for previous track.",
+                    )
+                    .await;
+                }
+            };
+
+            // Play the source and get the handle
+            let new_track_handle = {
+                let mut call_lock = call.lock().await;
+                call_lock.play_input(input)
+            };
+            info!(
+                "Started playing previous track: {} for guild {}",
+                previous_metadata.title, guild_id
+            );
+
+            // Update the queue manager with the new current track (this moves the old one to history)
+            // Clone metadata as it's consumed by set_current_track
+            if let Err(e) = set_current_track(
+                guild_id,
+                new_track_handle.clone(),
+                previous_metadata.clone(),
+            )
+            .await
+            // Clone metadata
+            {
+                error!(
+                    "Failed to set current track after playing previous in guild {}: {}",
+                    guild_id, e
+                );
+                // Don't necessarily stop here, but log the error
+            }
+
+            // Add SongEndNotifier to the *new* track handle
+            let ctx_clone = ctx.clone();
+            let call_clone = call.clone();
+            let _ = new_track_handle.add_event(
+                songbird::Event::Track(songbird::TrackEvent::End),
+                crate::commands::music::utils::event_handlers::SongEndNotifier {
+                    // Use full path
+                    ctx: ctx_clone,
+                    guild_id,
+                    call: call_clone,
+                    track_metadata: previous_metadata, // Use the cloned metadata again
+                },
+            );
+
+            // Clear the flag now that the new track is playing and state is updated
+            clear_previous_action_flag(guild_id).await;
+
+            // Update the message after successfully starting the previous track
+            update_player_message(ctx, interaction).await?;
         }
         _ => {
             error!("Unknown button ID: {}", interaction.data.custom_id);
