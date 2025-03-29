@@ -147,7 +147,7 @@ impl QueueManager {
 
     /// Check if there is any track history for the guild
     pub fn has_history(&self, guild_id: GuildId) -> bool {
-        self.history.get(&guild_id).map_or(false, |h| !h.is_empty())
+        self.history.get(&guild_id).is_some_and(|h| !h.is_empty())
     }
 
     /// Toggle the queue view state for a guild (async)

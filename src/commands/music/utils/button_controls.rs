@@ -19,7 +19,7 @@ impl From<Emoji> for String {
             Emoji::Next => "⏭️",
             Emoji::Queue => "📜",
         };
-        return emoji.to_string();
+        emoji.to_string()
     }
 }
 
