@@ -3,13 +3,13 @@ use crate::commands::music::utils::{
     audio_sources::{AudioSource, TrackMetadata}, // Correct import path for TrackMetadata
     embedded_messages,
     event_handlers::play_next_track,
-    music_manager::{MusicError, MusicManager},
+    music_manager::{self, MusicError, MusicManager},
     queue_manager::{
         self,
-        MetadataCallback,
+        MetadataCallback, // Changed QueueCallback to MetadataCallback
         add_to_queue,
         get_current_track,
-        store_channel_id, // Changed QueueCallback to MetadataCallback
+        store_channel_id,
     },
     track_cache::{cache_metadata, create_input_from_url, get_cached_metadata, is_youtube_url},
 };
@@ -33,11 +33,13 @@ async fn process_play_request(
     );
 
     // Join the voice channel if not already connected
-    let call = match MusicManager::get_call(ctx.serenity_context(), guild_id).await { // Use ctx.serenity_context()
+    let call = match MusicManager::get_call(ctx.serenity_context(), guild_id).await {
+        // Use ctx.serenity_context()
         Ok(call) => call,
         Err(_) => {
             // Not connected, so join the channel
-            match MusicManager::join_channel(ctx.serenity_context(), guild_id, channel_id).await { // Use ctx.serenity_context()
+            match MusicManager::join_channel(ctx.serenity_context(), guild_id, channel_id).await {
+                // Use ctx.serenity_context()
                 Ok(call) => call,
                 Err(err) => {
                     error!(
@@ -77,7 +79,10 @@ async fn process_play_request(
                         }
                     }
                     Err(err) => {
-                        error!("Failed to re-fetch audio source from URL {}: {}", query, err);
+                        error!(
+                            "Failed to re-fetch audio source from URL {}: {}",
+                            query, err
+                        );
                         return Err(err);
                     }
                 }
@@ -169,7 +174,9 @@ async fn process_play_request(
         // Pass http context directly
         play_next_track(&ctx.serenity_context().http, guild_id, call) // Use ctx.serenity_context().http
             .await
-            .map_err(|e| MusicError::AudioSourceError(format!("Failed to start playback: {}", e)))?; // Map error to AudioSourceError
+            .map_err(|e| {
+                MusicError::AudioSourceError(format!("Failed to start playback: {}", e))
+            })?; // Map error to AudioSourceError
     }
 
     // --- Generate Success Message ---
@@ -226,13 +233,17 @@ pub async fn play(
     ctx.defer_ephemeral().await?;
 
     // Call the reusable processing function
-    match process_play_request(ctx, guild_id, voice_channel_id, &query).await { // Pass full ctx
+    match process_play_request(ctx, guild_id, voice_channel_id, &query).await {
+        // Pass full ctx
         Ok(reply_content) => {
             // Send the success message from the processing function
             ctx.send(embedded_messages::generic_success("Music", &reply_content))
                 .await?;
             // Trigger an update of the main player message *after* success
-            if let Err(e) = music_manager::send_or_update_message(ctx.serenity_context(), guild_id).await { // Use music_manager::
+            if let Err(e) =
+                music_manager::send_or_update_message(ctx.serenity_context(), guild_id).await
+            {
+                // Use music_manager::
                 warn!("Failed to update player message after /play command: {}", e);
             }
         }
@@ -240,13 +251,12 @@ pub async fn play(
             // Send an appropriate error message
             let reply = match err {
                 MusicError::JoinError(_) => embedded_messages::failed_to_join_voice_channel(err),
-                MusicError::AudioSourceError(_) | MusicError::CacheError(_) => {
-                    embedded_messages::failed_to_process_audio_source(err)
-                }
-                // MusicError::QueueError(_) => embedded_messages::failed_to_add_to_queue(err), // QueueError doesn't exist
-                // Use MusicError::AudioSourceError or a more specific existing error
-                MusicError::AudioSourceError(msg) => embedded_messages::generic_error(&msg), // Use generic_error for AudioSourceError
-                _ => embedded_messages::generic_error(&format!("An unexpected error occurred: {}", err)), // Generic fallback for others
+                MusicError::CacheError(_) => embedded_messages::failed_to_process_audio_source(err),
+                MusicError::AudioSourceError(msg) => embedded_messages::generic_error(&msg),
+                _ => embedded_messages::generic_error(&format!(
+                    "An unexpected error occurred: {}",
+                    err
+                )), // Generic fallback for others
             };
             ctx.send(reply).await?;
         }

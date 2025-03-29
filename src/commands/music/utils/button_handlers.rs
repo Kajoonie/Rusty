@@ -343,8 +343,7 @@ async fn handle_search(
         interaction.user.id
     );
 
-    let input_text = CreateInputText::new(InputTextStyle::Short, "URL or Search Query")
-        .custom_id("search_query_input") // Unique ID for the text input
+    let input_text = CreateInputText::new(InputTextStyle::Short, "URL or Search Query", "search_query_input")
         .placeholder("Enter a song URL or search term...")
         .required(true);
 
