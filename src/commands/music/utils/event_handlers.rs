@@ -119,6 +119,7 @@ impl SongEndNotifier {
     }
 }
 
+// We still need to introduce some form of indirection here for this recursive async fn, AI!
 /// Helper function to play the next track in the queue
 /// Returns true if a track was played, false if the queue was empty
 /// Helper function to play the next track in the queue
