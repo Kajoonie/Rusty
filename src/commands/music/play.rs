@@ -172,11 +172,17 @@ async fn process_play_request(
     // If nothing is currently playing, start playback
     if should_start_playing {
         // Pass http context directly
-        play_next_track(&ctx.serenity_context().http, guild_id, call) // Use ctx.serenity_context().http
+        let played = play_next_track(&ctx.serenity_context().http, guild_id, call.clone()) // Use ctx.serenity_context().http, clone call
             .await
-            .map_err(|e| {
-                MusicError::AudioSourceError(format!("Failed to start playback: {}", e))
-            })?; // Map error to AudioSourceError
+            .map_err(|e| MusicError::AudioSourceError(format!("Failed to start playback: {}", e)))?; // Map error to AudioSourceError
+
+        // If playback started successfully, start the update task
+        if played {
+            // Pass the full context Arc
+            queue_manager::start_update_task(ctx.serenity_context().into(), guild_id)
+                .await
+                .map_err(|e| MusicError::AudioSourceError(format!("Failed to start update task: {}", e)))?; // Map QueueError
+        }
     }
 
     // --- Generate Success Message ---

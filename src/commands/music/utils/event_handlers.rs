@@ -196,15 +196,6 @@ pub async fn play_next_track(
         // Cloning metadata is cheap and necessary as it's moved to the notifier later
         set_current_track(guild_id, track_handle.clone(), metadata.clone()).await?;
 
-        // Start the update task now that a track is playing
-        // We need the full Context here, which we don't have.
-        // TODO: Revisit how the update task is started/managed.
-        // For now, we assume it might be started elsewhere or handle its absence.
-        // let ctx_arc = Arc::new(ctx.clone()); // Cannot clone ctx from just http
-        // if let Err(e) = queue_manager::start_update_task(ctx_arc, guild_id).await {
-        //     error!("Failed to start update task for guild {}: {}", guild_id, e);
-        // }
-
         // Set up a handler for when the track ends
         let http_clone = ctx_http.clone(); // Clone Arc<Http> for the closure
         let call_clone = call.clone(); // Clone Arc for the closure
