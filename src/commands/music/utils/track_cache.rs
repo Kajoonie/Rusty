@@ -1,6 +1,6 @@
-use crate::commands::music::utils::queue_manager::TrackMetadata;
+use crate::commands::music::utils::audio_sources::TrackMetadata; // Correct import path
 use dashmap::DashMap;
-use once_cell::sync::Lazy;
+use std::sync::LazyLock; // Use LazyLock instead of once_cell::sync::Lazy
 use serde::{Deserialize, Serialize};
 use songbird::input::{Input, YoutubeDl};
 use std::{
@@ -16,7 +16,7 @@ const CACHE_DIR: &str = ".track_cache";
 const CACHE_INDEX_FILE: &str = "metadata_index.json";
 
 // In-memory cache mapping YouTube URL -> TrackMetadata
-static CACHE_INDEX: Lazy<DashMap<String, TrackMetadata>> = Lazy::new(|| {
+static CACHE_INDEX: LazyLock<DashMap<String, TrackMetadata>> = LazyLock::new(|| { // Use LazyLock
     match load_cache_from_disk() {
         Ok(index) => index,
         Err(e) => {
@@ -27,7 +27,7 @@ static CACHE_INDEX: Lazy<DashMap<String, TrackMetadata>> = Lazy::new(|| {
 });
 
 // Mutex to prevent concurrent writes to the cache file
-static CACHE_SAVE_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+static CACHE_SAVE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(())); // Use LazyLock
 
 fn get_cache_file_path() -> PathBuf {
     PathBuf::from(CACHE_DIR).join(CACHE_INDEX_FILE)
@@ -115,13 +115,14 @@ pub async fn create_input_from_url(url: &str) -> Result<Input, Box<dyn std::erro
     // Use reqwest client provided by songbird? Or create a new one?
     // Creating a new one is simpler for now.
     let http_client = reqwest::Client::new();
-    let mut source = YoutubeDl::new(http_client, url.to_string());
+    // Create the source using YoutubeDl
+    let source = YoutubeDl::new(http_client, url.to_string());
     // Optionally configure ytdl parameters if needed
     // source.youtube_dl_args = vec!["--format=bestaudio".to_string()];
 
-    // Pre-initialize the source to catch potential errors early
-    // Note: This might do some network activity
-    source.aux_metadata().await?;
+    // Metadata is fetched and cached separately in the play command logic.
+    // We only need to create the Input source here. Pre-initialization is not needed
+    // and the aux_metadata call is removed.
 
     Ok(source.into())
 }
