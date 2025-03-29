@@ -9,12 +9,7 @@ use super::{
     embedded_messages,
     music_manager::MusicManager,
     queue_manager::{
-        self,
-        clear_queue,
-        get_channel_id,
-        get_current_track,
-        get_message_id,
-        set_current_track,
+        self, clear_queue, get_channel_id, get_current_track, get_message_id, set_current_track,
         set_manual_stop_flag,
     },
     track_cache, // Import track_cache
