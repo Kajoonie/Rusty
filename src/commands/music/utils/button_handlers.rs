@@ -211,7 +211,7 @@ pub async fn handle_button_interaction(
                     // Play the source and get the handle
                     let track_handle = {
                         let mut call_lock = call.lock().await;
-                        (*call_lock).play_source(input)
+                        call_lock.play_input(input) // Corrected method name
                     };
 
                     // Update the queue manager with the new current track
