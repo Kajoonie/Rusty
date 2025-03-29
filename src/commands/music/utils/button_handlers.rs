@@ -8,12 +8,9 @@ use tracing::{error, info};
 use super::{
     embedded_messages,
     music_manager::MusicManager,
-    music_manager::MusicManager,
     queue_manager::{
-        self, clear_queue, get_channel_id, get_current_track, get_message_id,
-        set_manual_stop_flag,
+        self, clear_queue, get_channel_id, get_current_track, get_message_id, set_manual_stop_flag,
     },
-    track_cache, // Import track_cache
 };
 use tracing::warn;
 
@@ -207,9 +204,10 @@ pub async fn handle_button_interaction(
                 }
             }
         }
-        "music_queue_toggle" => {
-            // Toggle the queue view state
-            queue_manager::toggle_queue_view(guild_id).await?;
+        _ => {
+            error!("Unknown button ID: {}", interaction.data.custom_id);
+            error_followup(ctx, interaction, "Unknown button action.").await?;
+        }
     }
 
     Ok(())
