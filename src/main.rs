@@ -1,6 +1,11 @@
 use ::serenity::all::ClientBuilder;
 use dotenv::dotenv;
-use poise::serenity_prelude as serenity;
+use poise::{
+    serenity_prelude::{
+        self as serenity, ComponentInteractionDataKind, Interaction, ModalInteractionData,
+    },
+    Context as PoiseContext, // Import Poise Context
+};
 use regex::Regex;
 use std::{
     env,
@@ -18,6 +23,14 @@ use commands::{
     ai::{chat::*, get_model::*, list_models::*, set_model::*},
     coingecko::coin::*,
     general::ping::*,
+    // Add imports for music functionality needed in the event handler
+    music::{
+        play::process_play_request, // Import the refactored function
+        utils::{
+            embedded_messages, // Import for sending messages
+            music_manager::{MusicError, MusicManager}, // Import Music types
+        },
+    },
 };
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -141,7 +154,163 @@ async fn main() -> Result<(), Error> {
                 })
             },
             event_handler: |ctx, event, framework, data| {
-                Box::pin(async move { events::handle_event(ctx, event, framework, data).await })
+                Box::pin(async move {
+                    match event {
+                        serenity::FullEvent::InteractionCreate { interaction } => {
+                            match interaction {
+                                Interaction::Modal(mut modal_interaction) => {
+                                    info!(
+                                        "Received modal submission with custom_id: {}",
+                                        modal_interaction.data.custom_id
+                                    );
+                                    if modal_interaction.data.custom_id == "music_search_modal" {
+                                        // --- Extract Data ---
+                                        let query = modal_interaction
+                                            .data
+                                            .components
+                                            .get(0) // First action row
+                                            .and_then(|row| row.components.get(0)) // First component in row
+                                            .and_then(|component| match &component.kind {
+                                                ComponentInteractionDataKind::InputText { value } => Some(value),
+                                                _ => None,
+                                            })
+                                            .cloned()
+                                            .unwrap_or_default(); // Handle potential errors gracefully
+
+                                        if query.is_empty() {
+                                            error!("Extracted empty query from music search modal");
+                                            let reply = embedded_messages::generic_error("Search query was empty.");
+                                            if let Err(e) = modal_interaction
+                                                .create_response(&ctx.http, reply.into())
+                                                .await
+                                            {
+                                                error!("Failed to send modal error response: {}", e);
+                                            }
+                                            return Ok(()); // Return early on error
+                                        }
+
+                                        let guild_id = match modal_interaction.guild_id {
+                                            Some(id) => id,
+                                            None => {
+                                                error!("Modal interaction without guild_id");
+                                                let reply =
+                                                    embedded_messages::generic_error("Command must be used in a server.");
+                                                if let Err(e) = modal_interaction
+                                                    .create_response(&ctx.http, reply.into())
+                                                    .await
+                                                {
+                                                    error!("Failed to send modal error response: {}", e);
+                                                }
+                                                return Ok(()); // Return early on error
+                                            }
+                                        };
+                                        let user_id = modal_interaction.user.id;
+
+                                        // --- Get Voice Channel ---
+                                        // Need full context for get_user_voice_channel
+                                        let voice_channel_id = match MusicManager::get_user_voice_channel(
+                                            ctx, guild_id, user_id, // Pass the full serenity context
+                                        ) {
+                                            Ok(id) => id,
+                                            Err(err) => {
+                                                let reply = embedded_messages::user_not_in_voice_channel(err);
+                                                if let Err(e) = modal_interaction
+                                                    .create_response(&ctx.http, reply.into())
+                                                    .await
+                                                {
+                                                    error!("Failed to send modal error response: {}", e);
+                                                }
+                                                return Ok(()); // Return early on error
+                                            }
+                                        };
+
+                                        // --- Defer and Process ---
+                                        // Defer the modal response ephemerally
+                                        if let Err(e) = modal_interaction.defer_ephemeral(&ctx.http).await {
+                                            error!("Failed to defer modal interaction: {}", e);
+                                            // Attempt to send a followup anyway, might fail
+                                        }
+
+                                        // Construct a temporary Poise Context for process_play_request
+                                        // NOTE: This is complex and might be fragile.
+                                        // Consider refactoring process_play_request if this causes issues.
+                                        let fake_interaction = (); // Placeholder
+                                        let app_context = PoiseContext::Application(poise::ApplicationContext {
+                                            data: data,
+                                            ctx: ctx,
+                                            interaction: &fake_interaction, // Placeholder
+                                            command: framework.options().commands.first().unwrap(), // Placeholder command
+                                            prefix: "/", // Placeholder
+                                            invocation_string: "", // Placeholder
+                                            parent_commands: &[], // Placeholder
+                                            current_argument: None, // Placeholder
+                                            args: "", // Placeholder
+                                            framework: framework,
+                                            invocation_data: std::sync::Arc::new(std::sync::Mutex::new(())), // Placeholder
+                                            reply_handle: None, // Placeholder
+                                        });
+
+                                        match process_play_request(
+                                            app_context, // Pass the constructed context
+                                            guild_id,
+                                            voice_channel_id,
+                                            &query,
+                                        )
+                                        .await
+                                        {
+                                            Ok(reply_content) => {
+                                                let reply =
+                                                    embedded_messages::generic_success("Music", &reply_content);
+                                                if let Err(e) = modal_interaction
+                                                    .create_followup(&ctx.http, reply.into())
+                                                    .await
+                                                {
+                                                    error!("Failed to send modal success followup: {}", e);
+                                                }
+                                            }
+                                            Err(err) => {
+                                                let reply = match err {
+                                                    MusicError::JoinError(_) => {
+                                                        embedded_messages::failed_to_join_voice_channel(err)
+                                                    }
+                                                    MusicError::CacheError(_) => {
+                                                        embedded_messages::failed_to_process_audio_source(err)
+                                                    }
+                                                    MusicError::AudioSourceError(msg) => {
+                                                        embedded_messages::generic_error(&msg)
+                                                    }
+                                                    _ => embedded_messages::generic_error(&format!(
+                                                        "An unexpected error occurred: {}",
+                                                        err
+                                                    )),
+                                                };
+                                                if let Err(e) = modal_interaction
+                                                    .create_followup(&ctx.http, reply.into())
+                                                    .await
+                                                {
+                                                    error!("Failed to send modal error followup: {}", e);
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        warn!(
+                                            "Received unhandled modal submission: {}",
+                                            modal_interaction.data.custom_id
+                                        );
+                                    }
+                                }
+                                // Other interaction types (buttons, commands) are handled by poise
+                                _ => {}
+                            }
+                        }
+                        // Pass other events to the default handler or custom handlers
+                        _ => {
+                            // Call the original event handler logic if needed
+                            // events::handle_event(ctx, event, framework, data).await?;
+                        }
+                    }
+                    Ok(())
+                })
             },
             ..Default::default()
         })
