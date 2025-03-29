@@ -1,7 +1,9 @@
-use super::audio_sources::TrackMetadata;
+use super::{audio_sources::TrackMetadata, button_controls::RepeatState}; // Import RepeatState
 use super::music_manager::MusicError;
 use crate::commands::music::utils::music_manager;
 use poise::serenity_prelude as serenity;
+use rand::seq::SliceRandom; // Import shuffle
+use rand::thread_rng; // Import thread_rng
 use serenity::model::id::ChannelId;
 use serenity::model::id::GuildId;
 use serenity::model::id::MessageId;
@@ -28,6 +30,10 @@ pub struct QueueManager {
     show_queue: HashMap<GuildId, bool>,
     // Map of guild ID to periodic update task handle
     update_tasks: HashMap<GuildId, JoinHandle<()>>,
+    // Map of guild ID to repeat state
+    repeat_state: HashMap<GuildId, RepeatState>,
+    // Map of guild ID to shuffle state
+    shuffle_enabled: HashMap<GuildId, bool>,
 }
 
 impl QueueManager {
@@ -39,6 +45,8 @@ impl QueueManager {
             history: HashMap::new(),
             show_queue: HashMap::new(),
             update_tasks: HashMap::new(),
+            repeat_state: HashMap::new(),
+            shuffle_enabled: HashMap::new(),
         }
     }
 
@@ -72,6 +80,10 @@ impl QueueManager {
         self.history.remove(&guild_id);
         // Reset queue view state
         self.show_queue.remove(&guild_id);
+        // Reset repeat state
+        self.repeat_state.remove(&guild_id);
+        // Reset shuffle state
+        self.shuffle_enabled.remove(&guild_id);
         // Stop update task if running
         self.stop_update_task(guild_id).await;
     }
@@ -151,7 +163,62 @@ impl QueueManager {
 
     /// Check if the queue view is enabled for a guild (async)
     pub fn is_queue_view_enabled(&self, guild_id: GuildId) -> bool {
-        *self.show_queue.get(&guild_id).unwrap_or(&true)
+        *self.show_queue.get(&guild_id).unwrap_or(&true) // Default to true (show queue)
+    }
+
+    /// Get the current repeat state for a guild
+    pub fn get_repeat_state(&self, guild_id: GuildId) -> RepeatState {
+        self.repeat_state
+            .get(&guild_id)
+            .cloned()
+            .unwrap_or(RepeatState::Disabled) // Default to Disabled
+    }
+
+    /// Cycle the repeat state for a guild
+    pub fn cycle_repeat_state(&mut self, guild_id: GuildId) -> RepeatState {
+        let current_state = self.get_repeat_state(guild_id);
+        let next_state = match current_state {
+            RepeatState::Disabled => RepeatState::RepeatAll,
+            RepeatState::RepeatAll => RepeatState::RepeatOne,
+            RepeatState::RepeatOne => RepeatState::Disabled,
+        };
+        self.repeat_state.insert(guild_id, next_state.clone());
+        info!(
+            "Cycled repeat state for guild {}: {:?}",
+            guild_id, next_state
+        );
+        next_state
+    }
+
+    /// Check if shuffle is enabled for a guild
+    pub fn is_shuffle_enabled(&self, guild_id: GuildId) -> bool {
+        *self.shuffle_enabled.get(&guild_id).unwrap_or(&false) // Default to false
+    }
+
+    /// Toggle the shuffle state for a guild
+    pub fn toggle_shuffle(&mut self, guild_id: GuildId) -> bool {
+        let current_state = self.is_shuffle_enabled(guild_id);
+        let next_state = !current_state;
+        self.shuffle_enabled.insert(guild_id, next_state);
+        info!(
+            "Toggled shuffle state for guild {}: {}",
+            guild_id, next_state
+        );
+        next_state
+    }
+
+    /// Shuffle the current queue for a guild
+    pub fn shuffle_queue(&mut self, guild_id: GuildId) {
+        if let Some(queue) = self.queues.get_mut(&guild_id) {
+            if queue.len() > 1 {
+                let mut rng = thread_rng();
+                // VecDeque doesn't directly support shuffle, so convert to Vec and back
+                // Or use make_contiguous if efficiency is critical and possible
+                let mut contiguous_slice = queue.make_contiguous();
+                contiguous_slice.shuffle(&mut rng);
+                info!("Shuffled queue for guild {}", guild_id);
+            }
+        }
     }
 
     /// Start the periodic update task for a guild (async)
@@ -329,6 +396,37 @@ pub async fn is_queue_view_enabled(guild_id: GuildId) -> bool {
 pub async fn toggle_queue_view(guild_id: GuildId) -> QueueResult<()> {
     let mut manager = QUEUE_MANAGER.lock().await;
     manager.toggle_queue_view(guild_id);
+    Ok(())
+}
+
+/// Get the current repeat state for a guild
+pub async fn get_repeat_state(guild_id: GuildId) -> QueueResult<RepeatState> {
+    let manager = QUEUE_MANAGER.lock().await;
+    Ok(manager.get_repeat_state(guild_id))
+}
+
+/// Cycle the repeat state for a guild
+pub async fn cycle_repeat_state(guild_id: GuildId) -> QueueResult<RepeatState> {
+    let mut manager = QUEUE_MANAGER.lock().await;
+    Ok(manager.cycle_repeat_state(guild_id))
+}
+
+/// Check if shuffle is enabled for a guild
+pub async fn is_shuffle_enabled(guild_id: GuildId) -> QueueResult<bool> {
+    let manager = QUEUE_MANAGER.lock().await;
+    Ok(manager.is_shuffle_enabled(guild_id))
+}
+
+/// Toggle the shuffle state for a guild
+pub async fn toggle_shuffle(guild_id: GuildId) -> QueueResult<bool> {
+    let mut manager = QUEUE_MANAGER.lock().await;
+    Ok(manager.toggle_shuffle(guild_id))
+}
+
+/// Shuffle the current queue for a guild
+pub async fn shuffle_queue(guild_id: GuildId) -> QueueResult<()> {
+    let mut manager = QUEUE_MANAGER.lock().await;
+    manager.shuffle_queue(guild_id);
     Ok(())
 }
 

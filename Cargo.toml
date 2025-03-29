@@ -74,6 +74,7 @@ pretty_assertions = "1.4.0"
 wiremock = "0.5.22"
 rstest = "0.18.2"
 async-trait = "0.1.88"
+rand = "0.8"
 
 [dev-dependencies.fake]
 version = "2.9.2"
