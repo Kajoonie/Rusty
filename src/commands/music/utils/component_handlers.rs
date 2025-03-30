@@ -1,8 +1,8 @@
-use ::serenity::all::GuildId;
+use ::serenity::all::{CreateQuickModal, GuildId, InteractionId};
 use poise::serenity_prelude::{self as serenity, Context};
 use serenity::{
-    builder::{CreateActionRow, CreateInputText, CreateInteractionResponse, CreateModal},
     ComponentInteraction, InputTextStyle,
+    builder::{CreateActionRow, CreateInputText, CreateInteractionResponse, CreateModal},
 };
 use songbird::tracks::{PlayMode, TrackHandle};
 use std::time::Duration;
@@ -24,27 +24,28 @@ use tracing::warn;
 type ButtonInteractionResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
 /// Handle a button interaction
-pub async fn handle_button_interaction(
+pub async fn handle_interaction(
     ctx: &Context,
     interaction: &mut ComponentInteraction,
 ) -> ButtonInteractionResult {
     let guild_id = interaction.guild_id.ok_or("Not in a guild")?;
 
-    // Defer the interaction response immediately
-    interaction.defer(ctx).await?;
+    // We _do not_ want to defer the response (or potentially delay with another async call) when creating 
+    // a modal, like how "music_search" does
+    if interaction.data.custom_id != "music_search" {
+        // Defer the interaction response immediately
+        interaction.defer(ctx).await?;
 
-    // Ensure we're in a call
-    if let Err(_) = MusicManager::get_call(ctx, guild_id).await {
-        return error_followup(ctx, interaction, "I'm not in a voice channel.").await;
+        // Ensure we're in a call
+        if let Err(_) = MusicManager::get_call(ctx, guild_id).await {
+            return error_followup(ctx, interaction, "I'm not in a voice channel.").await;
+        }
     }
 
-    // Get the current track state
-    let current_track_opt = get_current_track(guild_id).await?;
-
     match interaction.data.custom_id.as_str() {
-        "music_play_pause" => handle_play_pause(ctx, interaction, current_track_opt).await?,
-        "music_eject" => handle_music_eject(ctx, interaction, current_track_opt, guild_id).await?,
-        "music_next" => handle_next(ctx, interaction, current_track_opt).await?,
+        "music_play_pause" => handle_play_pause(ctx, interaction, guild_id).await?,
+        "music_eject" => handle_music_eject(ctx, interaction, guild_id).await?,
+        "music_next" => handle_next(ctx, interaction, guild_id).await?,
         "music_queue_toggle" => handle_queue_toggle(ctx, interaction, guild_id).await?,
         "music_previous" => handle_previous(ctx, interaction, guild_id).await?,
         "music_search" => handle_search(ctx, interaction).await?,
@@ -62,8 +63,11 @@ pub async fn handle_button_interaction(
 async fn handle_play_pause(
     ctx: &Context,
     interaction: &mut ComponentInteraction,
-    current_track_opt: Option<(TrackHandle, TrackMetadata)>,
+    guild_id: GuildId,
 ) -> ButtonInteractionResult {
+    // Get the current track state
+    let current_track_opt = get_current_track(guild_id).await?;
+
     if let Some((track, _metadata)) = current_track_opt {
         let track_info = track.get_info().await?;
         let is_playing = track_info.playing == PlayMode::Play;
@@ -85,13 +89,15 @@ async fn handle_play_pause(
 async fn handle_music_eject(
     ctx: &Context,
     interaction: &mut ComponentInteraction,
-    current_track_opt: Option<(TrackHandle, TrackMetadata)>,
     guild_id: GuildId,
 ) -> ButtonInteractionResult {
     let http = ctx.http.clone(); // Get http client reference
 
     // Set the manual stop flag to prevent autoplay if track ends naturally
     set_manual_stop_flag(guild_id, true).await;
+
+    // Get the current track state
+    let current_track_opt = get_current_track(guild_id).await?;
 
     // Stop the current track if playing
     if let Some((track, _)) = current_track_opt {
@@ -157,8 +163,11 @@ async fn handle_music_eject(
 async fn handle_next(
     ctx: &Context,
     interaction: &mut ComponentInteraction,
-    current_track_opt: Option<(TrackHandle, TrackMetadata)>,
+    guild_id: GuildId,
 ) -> ButtonInteractionResult {
+    // Get the current track state
+    let current_track_opt = get_current_track(guild_id).await?;
+
     if let Some((track, _metadata)) = current_track_opt {
         // Stop the current track (SongEndNotifier will handle playing the next)
         track.stop()?;
@@ -202,8 +211,7 @@ async fn handle_previous(
         Some(metadata) => metadata,
         None => {
             // Should be caught by has_history, but handle defensively
-            return error_followup(ctx, interaction, "Could not retrieve previous track.")
-                .await;
+            return error_followup(ctx, interaction, "Could not retrieve previous track.").await;
         }
     };
 
@@ -252,8 +260,7 @@ async fn handle_previous(
         Err(_) => {
             // Clear flag on error path
             clear_previous_action_flag(guild_id).await;
-            return error_followup(ctx, interaction, "Lost connection to voice channel.")
-                .await;
+            return error_followup(ctx, interaction, "Lost connection to voice channel.").await;
         }
     };
 
@@ -264,8 +271,7 @@ async fn handle_previous(
             error!("Previous track metadata missing URL for guild {}", guild_id);
             // Clear flag on error path
             clear_previous_action_flag(guild_id).await;
-            return error_followup(ctx, interaction, "Previous track is missing URL.")
-                .await;
+            return error_followup(ctx, interaction, "Previous track is missing URL.").await;
         }
     };
 
@@ -343,17 +349,23 @@ async fn handle_search(
         interaction.user.id
     );
 
-    let input_text = CreateInputText::new(InputTextStyle::Short, "URL or Search Query", "search_query_input")
-        .placeholder("Enter a song URL or search term...")
-        .required(true);
+    let input_text = CreateInputText::new(
+        InputTextStyle::Short,
+        "URL or Search Query",
+        "search_query_input",
+    )
+    .placeholder("Enter a song URL or search term...")
+    .required(true);
 
-    let modal = CreateModal::new("music_search_modal", "Add Track to Queue") // Unique ID for the modal
-        .components(vec![CreateActionRow::InputText(input_text)]);
+    let modal = CreateQuickModal::new("Add Track to Queue")
+        .timeout(Duration::from_secs(300))
+        .field(input_text);
 
-    // Respond to the interaction by showing the modal
-    interaction
-        .create_response(&ctx.http, CreateInteractionResponse::Modal(modal))
-        .await?;
+    let response = interaction.quick_modal(ctx, modal).await?;
+
+    if let Some(response) = response {
+        tracing::debug!("Response: {:?}", response.inputs);
+    }
 
     Ok(()) // Modal presentation itself is the success case here
 }

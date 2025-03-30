@@ -4,7 +4,7 @@ use std::time::Duration;
 pub(crate) mod audio_sources;
 pub(crate) mod autoplay_manager;
 pub(crate) mod button_controls;
-pub(crate) mod button_handlers;
+pub(crate) mod component_handlers;
 pub(crate) mod embedded_messages;
 pub(crate) mod event_handlers;
 pub(crate) mod music_manager;

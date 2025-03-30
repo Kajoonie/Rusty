@@ -38,7 +38,8 @@ pub async fn remove(
             ctx.send(embedded_messages::track_removed(&removed_track, position))
                 .await?;
             // Update the main player message
-            music_manager::send_or_update_message(ctx.serenity_context(), guild_id).await?;
+            music_manager::send_or_update_message(ctx.serenity_context().http.clone(), guild_id)
+                .await?;
         }
         None => {
             // Send ephemeral error

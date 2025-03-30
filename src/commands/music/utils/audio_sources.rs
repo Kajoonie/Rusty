@@ -1,6 +1,6 @@
 use super::spotify_api::{SpotifyApi, SpotifyTrack};
 use crate::commands::music::utils::music_manager::MusicError;
-use crate::commands::music::utils::queue_manager::MetadataCallback; // Import MetadataCallback
+use crate::commands::music::utils::queue_manager::QueueCallback; // Import MetadataCallback
 use crate::commands::music::utils::song_fetchers::{
     RelatedSongsFetcher, SerpApiFetcher, YtDlpFetcher,
 };
@@ -58,7 +58,7 @@ impl AudioSource {
     /// Create an audio source from a URL or search term
     pub async fn from_query(
         query: &str,
-        queue_track_callback: Option<MetadataCallback>, // Use MetadataCallback type
+        queue_track_callback: Option<QueueCallback>, // Use MetadataCallback type
     ) -> AudioSourceResult<TrackMetadata> {
         debug!("Creating audio source from query: {}", query);
         // Check if the query is a URL
@@ -93,7 +93,7 @@ impl AudioSource {
     /// Create an audio source from a URL
     pub async fn from_url(
         url: &str,
-        queue_track_callback: Option<MetadataCallback>, // Use MetadataCallback type
+        queue_track_callback: Option<QueueCallback>, // Use MetadataCallback type
     ) -> AudioSourceResult<TrackMetadata> {
         debug!("Creating audio source from URL: {}", url);
 
@@ -273,7 +273,7 @@ impl AudioSource {
     /// Create an audio source from a Spotify URL
     pub async fn from_spotify_url(
         url: &str,
-        queue_track_callback: Option<MetadataCallback>, // Use MetadataCallback type
+        queue_track_callback: Option<QueueCallback>, // Use MetadataCallback type
     ) -> AudioSourceResult<TrackMetadata> {
         info!("Creating audio source from Spotify URL: {}", url);
 

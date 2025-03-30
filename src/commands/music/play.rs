@@ -2,34 +2,96 @@ use std::sync::Arc;
 
 use super::*;
 use crate::commands::music::utils::{
-    audio_sources::{AudioSource, TrackMetadata}, // Correct import path for TrackMetadata
+    audio_sources::{AudioSource, TrackMetadata},
     embedded_messages,
     event_handlers::play_next_track,
-    music_manager::{MusicError, MusicManager}, // Remove self
+    music_manager::{self, MusicError, MusicManager},
     queue_manager::{
-        self,
-        MetadataCallback, // Changed QueueCallback to MetadataCallback
-        add_to_queue,
-        get_current_track,
-        store_channel_id,
+        self, QueueCallback, add_to_queue, get_current_track, start_update_task, store_channel_id,
     },
     track_cache::{cache_metadata, create_input_from_url, get_cached_metadata, is_youtube_url},
 };
-use poise::serenity_prelude as serenity; // Add serenity import
-use serenity::{ChannelId, GuildId}; // Add specific imports
-// Remove unused Arc import
-use tracing::{debug, error, info, warn}; // Add warn import
+use poise::serenity_prelude as serenity;
+use serenity::{ChannelId, GuildId};
+use tracing::{debug, error, info, warn};
+
+/// Play a song from YouTube or a direct URL
+#[poise::command(slash_command, prefix_command, category = "Music")]
+pub async fn play(
+    ctx: Context<'_>,
+    #[description = "URL or search query"]
+    #[rest]
+    query: String,
+) -> CommandResult {
+    info!("Received /play command with query: {}", query);
+    let guild_id = ctx.guild_id().ok_or(MusicError::NotInGuild)?;
+
+    // Store the channel ID where the command was invoked (for potential message updates)
+    store_channel_id(guild_id, ctx.channel_id()).await;
+
+    // Get the user's voice channel ID
+    let user_id = ctx.author().id;
+    let voice_channel_id =
+        match MusicManager::get_user_voice_channel(ctx.serenity_context(), guild_id, user_id) {
+            Ok(id) => id,
+            Err(err) => {
+                ctx.send(embedded_messages::user_not_in_voice_channel(err))
+                    .await?;
+                return Ok(());
+            }
+        };
+
+    // Defer the response ephemerally
+    ctx.defer_ephemeral().await?;
+
+    // Get songbird manager
+    let manager = songbird::serenity::get(ctx.serenity_context())
+        .await
+        .expect("Songbird Voice client placed in scope at initialization.")
+        .clone();
+
+    // Call the reusable processing function
+    match process_play_request(
+        manager,                             // Pass the songbird manager Arc
+        ctx.serenity_context().http.clone(), // Pass http Arc
+        // ctx.data(), // Pass data Arc if needed later
+        guild_id,
+        voice_channel_id,
+        &query,
+    )
+    .await
+    {
+        Ok(reply_content) => {
+            // Send the success message from the processing function
+            ctx.send(embedded_messages::generic_success("Music", &reply_content))
+                .await?;
+        }
+        Err(err) => {
+            // Send an appropriate error message
+            let reply = match err {
+                MusicError::JoinError(_) => embedded_messages::failed_to_join_voice_channel(err),
+                MusicError::CacheError(_) => embedded_messages::failed_to_process_audio_source(err),
+                MusicError::AudioSourceError(msg) => embedded_messages::generic_error(&msg),
+                _ => embedded_messages::generic_error(&format!(
+                    "An unexpected error occurred: {}",
+                    err
+                )), // Generic fallback for others
+            };
+            ctx.send(reply).await?;
+        }
+    }
+
+    Ok(())
+}
 
 /// Processes the request to play or queue a track/playlist.
 /// Handles joining voice, fetching metadata, caching, queueing, and starting playback if needed.
 /// Returns a user-friendly status message string on success.
-pub async fn process_play_request( // Make public
-    // Add songbird manager Arc, remove http
+pub async fn process_play_request(
     manager: Arc<songbird::Songbird>,
-    http: Arc<serenity::Http>, // Keep http for queue callback etc.
-    // data: Arc<Data>, // Data not currently used, can be added if needed later
+    http: Arc<serenity::Http>,
     guild_id: GuildId,
-    channel_id: ChannelId, // User's voice channel to join
+    channel_id: ChannelId,
     query: &str,
 ) -> Result<String, MusicError> {
     info!(
@@ -49,8 +111,7 @@ pub async fn process_play_request( // Make public
                         "Failed to join voice channel {} for guild {}: {}",
                         channel_id, guild_id, err
                     );
-                    // Map JoinError to MusicError::JoinError by formatting the error
-                    return Err(MusicError::JoinError(format!("{}", err)));
+                    return Err(MusicError::JoinError(err.to_string()));
                 }
             }
         }
@@ -71,7 +132,7 @@ pub async fn process_play_request( // Make public
                     query, err
                 );
                 // Fall through to re-fetch if input creation fails
-                let queue_callback: MetadataCallback =
+                let queue_callback: QueueCallback =
                     queue_manager::get_queue_callback(guild_id).await;
                 match AudioSource::from_query(&query, Some(queue_callback)).await {
                     Ok(fetched_metadata) => {
@@ -96,8 +157,7 @@ pub async fn process_play_request( // Make public
         } else {
             // Not in cache, process as usual and cache later
             info!("Cache miss for URL: {}. Processing query...", query);
-            let queue_callback: MetadataCallback =
-                queue_manager::get_queue_callback(guild_id).await;
+            let queue_callback: QueueCallback = queue_manager::get_queue_callback(guild_id).await;
             match AudioSource::from_query(&query, Some(queue_callback)).await {
                 Ok(fetched_metadata) => {
                     info!(
@@ -128,7 +188,7 @@ pub async fn process_play_request( // Make public
     } else {
         // Query is not a YouTube URL (likely a search term or other URL)
         info!("Query is not a YouTube URL. Processing query: {}", query);
-        let queue_callback: MetadataCallback = queue_manager::get_queue_callback(guild_id).await;
+        let queue_callback: QueueCallback = queue_manager::get_queue_callback(guild_id).await;
         match AudioSource::from_query(&query, Some(queue_callback)).await {
             Ok(fetched_metadata) => {
                 info!(
@@ -182,9 +242,7 @@ pub async fn process_play_request( // Make public
                 MusicError::AudioSourceError(format!("Failed to start playback: {}", e))
             })?; // Map error to AudioSourceError
 
-        // Do NOT start the update task here. It should only be started by the
-        // original command context which has the full poise::Context.
-        // The modal search only adds to the queue.
+        start_update_task(http, guild_id).await?;
     }
 
     // --- Generate Success Message ---
@@ -209,80 +267,4 @@ pub async fn process_play_request( // Make public
     };
 
     Ok(reply_content)
-}
-
-/// Play a song from YouTube or a direct URL
-#[poise::command(slash_command, prefix_command, category = "Music")]
-pub async fn play(
-    ctx: Context<'_>,
-    #[description = "URL or search query"]
-    #[rest]
-    query: String,
-) -> CommandResult {
-    info!("Received /play command with query: {}", query);
-    let guild_id = ctx.guild_id().ok_or(MusicError::NotInGuild)?;
-
-    // Store the channel ID where the command was invoked (for potential message updates)
-    store_channel_id(guild_id, ctx.channel_id()).await;
-
-    // Get the user's voice channel ID
-    let user_id = ctx.author().id;
-    let voice_channel_id =
-        match MusicManager::get_user_voice_channel(ctx.serenity_context(), guild_id, user_id) {
-            Ok(id) => id,
-            Err(err) => {
-                ctx.send(embedded_messages::user_not_in_voice_channel(err))
-                    .await?;
-                return Ok(());
-            }
-        };
-
-    // Defer the response ephemerally
-    ctx.defer_ephemeral().await?;
-
-    // Get songbird manager
-    let manager = songbird::serenity::get(ctx.serenity_context())
-        .await
-        .expect("Songbird Voice client placed in scope at initialization.")
-        .clone();
-
-    // Call the reusable processing function
-    match process_play_request(
-        manager, // Pass the songbird manager Arc
-        ctx.serenity_context().http.clone(), // Pass http Arc
-        // ctx.data(), // Pass data Arc if needed later
-        guild_id,
-        voice_channel_id,
-        &query,
-    )
-    .await
-    {
-        Ok(reply_content) => {
-            // Send the success message from the processing function
-            ctx.send(embedded_messages::generic_success("Music", &reply_content))
-                .await?;
-            // The update task started by process_play_request will handle the message update.
-            // Remove the explicit call here to prevent duplicates.
-            // if let Err(e) =
-            //     music_manager::send_or_update_message(ctx.serenity_context(), guild_id).await
-            // {
-            //     warn!("Failed to update player message after /play command: {}", e);
-            // }
-        }
-        Err(err) => {
-            // Send an appropriate error message
-            let reply = match err {
-                MusicError::JoinError(_) => embedded_messages::failed_to_join_voice_channel(err),
-                MusicError::CacheError(_) => embedded_messages::failed_to_process_audio_source(err),
-                MusicError::AudioSourceError(msg) => embedded_messages::generic_error(&msg),
-                _ => embedded_messages::generic_error(&format!(
-                    "An unexpected error occurred: {}",
-                    err
-                )), // Generic fallback for others
-            };
-            ctx.send(reply).await?;
-        }
-    }
-
-    Ok(())
 }

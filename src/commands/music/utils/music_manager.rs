@@ -128,7 +128,7 @@ impl MusicManager {
 }
 
 pub async fn send_or_update_message(
-    ctx: &Context,
+    http: Arc<serenity::Http>,
     guild_id: GuildId,
 ) -> Result<(), Error> {
     let reply = embedded_messages::music_player_message(guild_id).await?;
@@ -146,20 +146,20 @@ pub async fn send_or_update_message(
             .embeds(reply.embeds.clone())
             .components(reply.components.clone().unwrap_or_default());
 
-        let result = channel_id.edit_message(ctx, message_id, message).await;
+        let result = channel_id.edit_message(http.clone(), message_id, message).await;
 
         if result.is_err() {
-            send_and_store_new_message(ctx, guild_id, channel_id, reply).await?;
+            send_and_store_new_message(http, guild_id, channel_id, reply).await?;
         }
     } else {
-        send_and_store_new_message(ctx, guild_id, channel_id, reply).await?;
+        send_and_store_new_message(http, guild_id, channel_id, reply).await?;
     }
 
     Ok(())
 }
 
 async fn send_and_store_new_message(
-    ctx: &Context,
+    http: Arc<serenity::Http>,
     guild_id: GuildId,
     channel_id: ChannelId,
     reply: CreateReply,
@@ -169,7 +169,7 @@ async fn send_and_store_new_message(
         .embeds(reply.embeds)
         .components(reply.components.unwrap_or_default());
     
-    let message = channel_id.send_message(ctx, create_message).await?;
+    let message = channel_id.send_message(http, create_message).await?;
     // store the new message id
     queue_manager::store_message_id(guild_id, message.id).await;
 
