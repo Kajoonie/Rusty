@@ -36,6 +36,9 @@ impl songbird::EventHandler for SongEndNotifier {
                 );
                 // Clear the flag here, as the button handler might clear it slightly later. Redundant clear is fine.
                 clear_previous_action_flag(self.guild_id).await;
+            // Check if a "stop" action triggered this end event
+            } else if is_manual_stop_flag_set(self.guild_id).await {
+                todo!("handle manual stop flag");
             } else {
                 // Proceed with normal track end handling
                 self.handle_track_end().await;
@@ -49,7 +52,6 @@ impl SongEndNotifier {
     async fn handle_track_end(&self) {
         info!("Track ended for guild {}", self.guild_id);
 
-        // Pass the http context clone
         let track_played = play_next_track(&self.ctx_http, self.guild_id, self.call.clone())
             .await
             .is_ok();
@@ -163,11 +165,7 @@ pub async fn play_next_track(
         let url = match metadata.url {
             Some(ref u) => u,
             None => {
-                error!(
-                    "Track metadata for '{}' is missing URL, cannot play.",
-                    metadata.title
-                );
-                warn!("Skipping track without URL, trying next in queue...");
+                warn!("Track metadata for '{}' is missing URL, trying next in queue...", metadata.title);
                 continue; // Try the next track in the loop
             }
         };
@@ -175,8 +173,7 @@ pub async fn play_next_track(
         let input = match track_cache::create_input_from_url(url).await {
             Ok(inp) => inp,
             Err(e) => {
-                error!("Failed to create audio input for URL {}: {}", url, e);
-                warn!("Skipping track due to input creation error, trying next...");
+                warn!("Failed to create audio input for URL {}, trying next: {}", url, e);
                 continue; // Try the next track in the loop
             }
         };
