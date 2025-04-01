@@ -4,6 +4,7 @@ use poise::serenity_prelude as serenity;
 use regex::Regex;
 use std::{
     env,
+    process::Command,
     sync::{Arc, LazyLock},
     time::Duration,
 };
@@ -53,6 +54,24 @@ async fn register(ctx: Context<'_>) -> Result<(), Error> {
     poise::builtins::register_application_commands_buttons(ctx)
         .await
         .map_err(|e| e.into())
+}
+
+#[cfg(feature = "music")]
+fn check_ytdlp() {
+    // First, verify yt-dlp is working
+    let output = Command::new("yt-dlp")
+        .arg("--version")
+        .output()
+        .expect("Failed to execute `yt-dlp --version`");
+
+    if !output.status.success() {
+        panic!("yt-dlp is not properly installed");
+    }
+
+    debug!(
+        "yt-dlp version: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
 }
 
 #[tokio::main]
@@ -111,6 +130,8 @@ async fn main() -> Result<(), Error> {
     // Handle Music feature
     #[cfg(feature = "music")]
     {
+        check_ytdlp();
+
         use commands::music::{autoplay::*, play::*, remove::*};
 
         // Add music commands

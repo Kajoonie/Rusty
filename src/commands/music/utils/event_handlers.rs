@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{
     Error,
     commands::music::utils::{
-        audio_sources::{AudioSource, TrackMetadata},
+        audio_sources::TrackMetadata,
         autoplay_manager::is_autoplay_enabled,
         queue_manager::{
             self, add_to_queue, clear_manual_stop_flag, clear_previous_action_flag, get_next_track,
@@ -15,6 +15,8 @@ use crate::{
 use poise::serenity_prelude as serenity;
 use serenity::async_trait;
 use tracing::{error, info, warn};
+
+use super::youtube::YoutubeApi;
 
 /// Event handler for when a song ends
 pub struct SongEndNotifier {
@@ -78,7 +80,7 @@ impl SongEndNotifier {
 
     async fn attempt_autoplay(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if let Some(url) = &self.track_metadata.url {
-            let related_songs = AudioSource::get_related_songs(url).await?;
+            let related_songs = YoutubeApi::get_related_songs(url).await?;
 
             for song in related_songs {
                 if let Some(song_url) = &song.url {
@@ -165,7 +167,10 @@ pub async fn play_next_track(
         let url = match metadata.url {
             Some(ref u) => u,
             None => {
-                warn!("Track metadata for '{}' is missing URL, trying next in queue...", metadata.title);
+                warn!(
+                    "Track metadata for '{}' is missing URL, trying next in queue...",
+                    metadata.title
+                );
                 continue; // Try the next track in the loop
             }
         };
@@ -173,7 +178,10 @@ pub async fn play_next_track(
         let input = match track_cache::create_input_from_url(url).await {
             Ok(inp) => inp,
             Err(e) => {
-                warn!("Failed to create audio input for URL {}, trying next: {}", url, e);
+                warn!(
+                    "Failed to create audio input for URL {}, trying next: {}",
+                    url, e
+                );
                 continue; // Try the next track in the loop
             }
         };

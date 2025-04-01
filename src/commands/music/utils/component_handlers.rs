@@ -1,23 +1,18 @@
-use ::serenity::all::{CreateQuickModal, GuildId, InteractionId};
+use ::serenity::all::{CreateQuickModal, GuildId};
 use poise::serenity_prelude::{self as serenity, Context};
-use serenity::{
-    ComponentInteraction, InputTextStyle,
-    builder::{CreateActionRow, CreateInputText, CreateInteractionResponse, CreateModal},
-};
-use songbird::tracks::{PlayMode, TrackHandle};
+use serenity::{ComponentInteraction, InputTextStyle, builder::CreateInputText};
+use songbird::tracks::PlayMode;
 use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{error, info};
 
 use super::{
-    audio_sources::TrackMetadata,
     embedded_messages,
     music_manager::MusicManager,
     queue_manager::{
         self, clear_previous_action_flag, clear_queue, get_channel_id, get_current_track,
         get_message_id, set_current_track, set_manual_stop_flag, set_previous_action_flag,
     },
-    track_cache, // Import track_cache
 };
 use tracing::warn;
 
@@ -30,7 +25,7 @@ pub async fn handle_interaction(
 ) -> ButtonInteractionResult {
     let guild_id = interaction.guild_id.ok_or("Not in a guild")?;
 
-    // We _do not_ want to defer the response (or potentially delay with another async call) when creating 
+    // We _do not_ want to defer the response (or potentially delay with another async call) when creating
     // a modal, like how "music_search" does
     if interaction.data.custom_id != "music_search" {
         // Defer the interaction response immediately
@@ -47,7 +42,7 @@ pub async fn handle_interaction(
         "music_eject" => handle_music_eject(ctx, interaction, guild_id).await?,
         "music_next" => handle_next(ctx, interaction, guild_id).await?,
         "music_queue_toggle" => handle_queue_toggle(ctx, interaction, guild_id).await?,
-        "music_previous" => handle_previous(ctx, interaction, guild_id).await?,
+        // "music_previous" => handle_previous(ctx, interaction, guild_id).await?,
         "music_search" => handle_search(ctx, interaction).await?,
         // Add cases for repeat and shuffle later
         _ => {
@@ -195,149 +190,149 @@ async fn handle_queue_toggle(
     update_player_message(ctx, interaction).await
 }
 
-/// Handler for Previous Track button
-async fn handle_previous(
-    ctx: &Context,
-    interaction: &mut ComponentInteraction,
-    guild_id: GuildId,
-) -> ButtonInteractionResult {
-    // Check if there's history
-    if !queue_manager::has_history(guild_id).await {
-        return error_followup(ctx, interaction, "No previous track in history.").await;
-    }
+// /// Handler for Previous Track button
+// async fn handle_previous(
+//     ctx: &Context,
+//     interaction: &mut ComponentInteraction,
+//     guild_id: GuildId,
+// ) -> ButtonInteractionResult {
+//     // Check if there's history
+//     if !queue_manager::has_history(guild_id).await {
+//         return error_followup(ctx, interaction, "No previous track in history.").await;
+//     }
 
-    // Get the previous track metadata *without* modifying the queue yet
-    let previous_metadata = match queue_manager::get_previous_track(guild_id).await? {
-        Some(metadata) => metadata,
-        None => {
-            // Should be caught by has_history, but handle defensively
-            return error_followup(ctx, interaction, "Could not retrieve previous track.").await;
-        }
-    };
+//     // Get the previous track metadata *without* modifying the queue yet
+//     let previous_metadata = match queue_manager::get_previous_track(guild_id).await? {
+//         Some(metadata) => metadata,
+//         None => {
+//             // Should be caught by has_history, but handle defensively
+//             return error_followup(ctx, interaction, "Could not retrieve previous track.").await;
+//         }
+//     };
 
-    info!(
-        "Attempting to play previous track: {} for guild {}",
-        previous_metadata.title, guild_id
-    );
+//     info!(
+//         "Attempting to play previous track: {} for guild {}",
+//         previous_metadata.title, guild_id
+//     );
 
-    // Set flag to prevent SongEndNotifier from auto-playing next
-    set_previous_action_flag(guild_id, true).await;
+//     // Set flag to prevent SongEndNotifier from auto-playing next
+//     set_previous_action_flag(guild_id, true).await;
 
-    // Stop the current track *after* setting the flag
-    // We need the handle of the track *currently* playing before we stop it.
-    let current_track_handle = match get_current_track(guild_id).await? {
-        Some((handle, _)) => Some(handle),
-        None => None,
-    };
+//     // Stop the current track *after* setting the flag
+//     // We need the handle of the track *currently* playing before we stop it.
+//     let current_track_handle = match get_current_track(guild_id).await? {
+//         Some((handle, _)) => Some(handle),
+//         None => None,
+//     };
 
-    if let Some(track) = current_track_handle {
-        match track.stop() {
-            Ok(_) => info!(
-                "Stopped current track to play previous for guild {}",
-                guild_id
-            ),
-            Err(songbird::error::ControlError::Finished) => info!(
-                "Current track already finished when trying to play previous for guild {}",
-                guild_id
-            ),
-            Err(e) => warn!(
-                "Error stopping current track for 'previous' action in guild {}: {}",
-                guild_id, e
-            ),
-        }
-        // Small delay might help ensure stop event propagates if needed, but flag should be primary mechanism
-        // sleep(Duration::from_millis(50)).await;
-    } else {
-        info!(
-            "No current track playing when 'previous' was clicked for guild {}",
-            guild_id
-        );
-    }
+//     if let Some(track) = current_track_handle {
+//         match track.stop() {
+//             Ok(_) => info!(
+//                 "Stopped current track to play previous for guild {}",
+//                 guild_id
+//             ),
+//             Err(songbird::error::ControlError::Finished) => info!(
+//                 "Current track already finished when trying to play previous for guild {}",
+//                 guild_id
+//             ),
+//             Err(e) => warn!(
+//                 "Error stopping current track for 'previous' action in guild {}: {}",
+//                 guild_id, e
+//             ),
+//         }
+//         // Small delay might help ensure stop event propagates if needed, but flag should be primary mechanism
+//         // sleep(Duration::from_millis(50)).await;
+//     } else {
+//         info!(
+//             "No current track playing when 'previous' was clicked for guild {}",
+//             guild_id
+//         );
+//     }
 
-    // Get the call instance
-    let call = match MusicManager::get_call(ctx, guild_id).await {
-        Ok(call) => call,
-        Err(_) => {
-            // Clear flag on error path
-            clear_previous_action_flag(guild_id).await;
-            return error_followup(ctx, interaction, "Lost connection to voice channel.").await;
-        }
-    };
+//     // Get the call instance
+//     let call = match MusicManager::get_call(ctx, guild_id).await {
+//         Ok(call) => call,
+//         Err(_) => {
+//             // Clear flag on error path
+//             clear_previous_action_flag(guild_id).await;
+//             return error_followup(ctx, interaction, "Lost connection to voice channel.").await;
+//         }
+//     };
 
-    // Get the URL from metadata
-    let url = match previous_metadata.url.as_ref() {
-        Some(url) => url,
-        None => {
-            error!("Previous track metadata missing URL for guild {}", guild_id);
-            // Clear flag on error path
-            clear_previous_action_flag(guild_id).await;
-            return error_followup(ctx, interaction, "Previous track is missing URL.").await;
-        }
-    };
+//     // Get the URL from metadata
+//     let url = match previous_metadata.url.as_ref() {
+//         Some(url) => url,
+//         None => {
+//             error!("Previous track metadata missing URL for guild {}", guild_id);
+//             // Clear flag on error path
+//             clear_previous_action_flag(guild_id).await;
+//             return error_followup(ctx, interaction, "Previous track is missing URL.").await;
+//         }
+//     };
 
-    // Create the audio source input
-    let input = match track_cache::create_input_from_url(url).await {
-        Ok(input) => input,
-        Err(e) => {
-            error!("Failed to create input from URL '{}': {}", url, e);
-            // Clear flag on error path
-            clear_previous_action_flag(guild_id).await;
-            return error_followup(
-                ctx,
-                interaction,
-                "Failed to create audio source for previous track.",
-            )
-            .await;
-        }
-    };
+//     // Create the audio source input
+//     let input = match track_cache::create_input_from_url(url).await {
+//         Ok(input) => input,
+//         Err(e) => {
+//             error!("Failed to create input from URL '{}': {}", url, e);
+//             // Clear flag on error path
+//             clear_previous_action_flag(guild_id).await;
+//             return error_followup(
+//                 ctx,
+//                 interaction,
+//                 "Failed to create audio source for previous track.",
+//             )
+//             .await;
+//         }
+//     };
 
-    // Play the source and get the handle
-    let new_track_handle = {
-        let mut call_lock = call.lock().await;
-        call_lock.play_input(input)
-    };
-    info!(
-        "Started playing previous track: {} for guild {}",
-        previous_metadata.title, guild_id
-    );
+//     // Play the source and get the handle
+//     let new_track_handle = {
+//         let mut call_lock = call.lock().await;
+//         call_lock.play_input(input)
+//     };
+//     info!(
+//         "Started playing previous track: {} for guild {}",
+//         previous_metadata.title, guild_id
+//     );
 
-    // Update the queue manager with the new current track (this moves the old one to history)
-    // Clone metadata as it's consumed by set_current_track
-    if let Err(e) = set_current_track(
-        guild_id,
-        new_track_handle.clone(),
-        previous_metadata.clone(),
-    )
-    .await
-    // Clone metadata
-    {
-        error!(
-            "Failed to set current track after playing previous in guild {}: {}",
-            guild_id, e
-        );
-        // Don't necessarily stop here, but log the error
-    }
+//     // Update the queue manager with the new current track (this moves the old one to history)
+//     // Clone metadata as it's consumed by set_current_track
+//     if let Err(e) = set_current_track(
+//         guild_id,
+//         new_track_handle.clone(),
+//         previous_metadata.clone(),
+//     )
+//     .await
+//     // Clone metadata
+//     {
+//         error!(
+//             "Failed to set current track after playing previous in guild {}: {}",
+//             guild_id, e
+//         );
+//         // Don't necessarily stop here, but log the error
+//     }
 
-    // Add SongEndNotifier to the *new* track handle
-    // let ctx_clone = ctx.clone(); // Remove unused ctx_clone
-    let call_clone = call.clone();
-    let _ = new_track_handle.add_event(
-        songbird::Event::Track(songbird::TrackEvent::End),
-        crate::commands::music::utils::event_handlers::SongEndNotifier {
-            // Use full path
-            ctx_http: ctx.http.clone(), // Use ctx_http and clone the Arc<Http>
-            guild_id,
-            call: call_clone,
-            track_metadata: previous_metadata, // Use the cloned metadata again
-        },
-    );
+//     // Add SongEndNotifier to the *new* track handle
+//     // let ctx_clone = ctx.clone(); // Remove unused ctx_clone
+//     let call_clone = call.clone();
+//     let _ = new_track_handle.add_event(
+//         songbird::Event::Track(songbird::TrackEvent::End),
+//         crate::commands::music::utils::event_handlers::SongEndNotifier {
+//             // Use full path
+//             ctx_http: ctx.http.clone(), // Use ctx_http and clone the Arc<Http>
+//             guild_id,
+//             call: call_clone,
+//             track_metadata: previous_metadata, // Use the cloned metadata again
+//         },
+//     );
 
-    // Clear the flag now that the new track is playing and state is updated
-    clear_previous_action_flag(guild_id).await;
+//     // Clear the flag now that the new track is playing and state is updated
+//     clear_previous_action_flag(guild_id).await;
 
-    // Update the message after successfully starting the previous track
-    update_player_message(ctx, interaction).await
-}
+//     // Update the message after successfully starting the previous track
+//     update_player_message(ctx, interaction).await
+// }
 
 /// Handler for Search button - presents a modal
 async fn handle_search(

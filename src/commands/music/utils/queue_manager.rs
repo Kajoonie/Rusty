@@ -1,5 +1,6 @@
+use super::button_controls::RepeatState;
 use super::music_manager::MusicError;
-use super::{audio_sources::TrackMetadata, button_controls::RepeatState}; // Import RepeatState
+use crate::commands::music::audio_sources::track_metadata::TrackMetadata;
 use crate::commands::music::utils::music_manager;
 use poise::serenity_prelude as serenity;
 use rand::seq::SliceRandom; // Import shuffle

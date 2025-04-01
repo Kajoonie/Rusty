@@ -1,20 +1,16 @@
+use ::serenity::all::Context;
 use poise::{CreateReply, serenity_prelude as serenity};
 use serenity::all::CreateEmbed;
 use serenity::model::id::GuildId;
 use songbird::tracks::PlayMode;
 use std::time::Duration;
 
-use crate::{
-    Error,
-    commands::music::utils::{
-        button_controls, format_duration, music_manager::MusicError, queue_manager,
-    },
+use crate::commands::music::{
+    audio_sources::track_metadata::TrackMetadata,
+    utils::{button_controls, format_duration, music_manager::MusicError, queue_manager},
 };
 
-use super::{
-    audio_sources::TrackMetadata, button_controls::RepeatState,
-    queue_manager::is_queue_view_enabled,
-};
+use super::{button_controls::RepeatState, queue_manager::is_queue_view_enabled};
 
 /// Create a progress bar for the current track
 fn format_progress_bar(position: Duration, total: Duration) -> String {
@@ -44,11 +40,33 @@ fn parse_metadata(metadata: &TrackMetadata) -> (String, String, String) {
 }
 
 /// Generates the main music player message embed and components.
-pub async fn music_player_message(guild_id: GuildId) -> Result<CreateReply, Error> {
+pub async fn music_player_message(
+    ctx: &Context,
+    guild_id: GuildId,
+) -> Result<CreateReply, MusicError> {
     let mut embed = CreateEmbed::new().color(0x00ff00); // Green color
 
-    let current_track_opt = queue_manager::get_current_track(guild_id).await?;
-    let queue = queue_manager::get_queue(guild_id).await?;
+    // Get songbird manager
+    let manager = songbird::get(ctx)
+        .await
+        .expect("Songbird Voice client placed in scope at initialization.")
+        .clone();
+
+    let call_handler = match manager.get(guild_id) {
+        Some(call_handler_lock) => call_handler_lock.lock().await,
+        None => {
+            return Err(MusicError::NotConnected);
+        }
+    };
+
+    let queue = call_handler.queue();
+    let current_track_opt = queue.current();
+
+    let mut no_track = false;
+
+    // let current_track_opt = queue_manager::get_current_track(guild_id).await?;
+
+    // let queue = queue_manager::get_queue(guild_id).await?;
     let show_queue = is_queue_view_enabled(guild_id).await;
 
     let has_queue = !queue.is_empty();
