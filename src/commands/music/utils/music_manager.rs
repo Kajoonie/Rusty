@@ -18,7 +18,7 @@ use crate::commands::music::audio_sources::youtube::YoutubeApi;
 use crate::commands::music::audio_sources::{AUDIO_APIS, AudioSource};
 
 use super::button_controls::RepeatState;
-use super::embedded_messages;
+use super::embedded_messages::{self, PlayerMessageData};
 
 use crate::HTTP_CLIENT;
 use tracing::{debug, error, info, warn};
@@ -49,12 +49,6 @@ pub enum MusicError {
 
     #[error("Configuration error: {0}")]
     ConfigError(String),
-
-    #[error("Cache error: {0}")]
-    CacheError(Box<dyn std::error::Error + Send + Sync>),
-
-    #[error("No track playing")]
-    NoTrackPlaying,
 
     #[error("No queue")]
     NoQueue,
@@ -191,16 +185,32 @@ impl MusicManager {
         Ok(message.id)
     }
 
+    pub fn get_player_message_data(&self, guild_id: GuildId) -> PlayerMessageData {
+        let queue = self.get_queue(&guild_id);
+        let show_queue = self.is_queue_view_enabled(guild_id);
+        let has_history = self.has_history(guild_id);
+
+        PlayerMessageData {
+            queue,
+            show_queue,
+            has_history,
+        }
+    }
+
     pub async fn send_or_update_message(
         &mut self,
         http: Arc<serenity::Http>,
         guild_id: GuildId,
         channel_id: ChannelId,
     ) -> Result<MessageId, Error> {
-        let reply = embedded_messages::music_player_message(guild_id).await?;
+        let data = self.get_player_message_data(guild_id);
+
+        // Create the message without holding the lock
+        let reply = embedded_messages::music_player_message(data).await?;
 
         let message_id = match self.get_message_id(guild_id) {
             Some(message_id) => {
+                debug!("Found existing message ID, attempting to update.");
                 let message = EditMessage::new()
                     .embeds(reply.embeds.clone())
                     .components(reply.components.clone().unwrap_or_default());
@@ -210,6 +220,7 @@ impl MusicManager {
                     .await;
 
                 if result.is_err() {
+                    debug!("Failed to update existing message, sending new one.");
                     self.send_and_store_new_message(http, guild_id, channel_id, reply)
                         .await?
                 } else {
@@ -217,6 +228,7 @@ impl MusicManager {
                 }
             }
             None => {
+                debug!("No existing message ID, sending new one.");
                 self.send_and_store_new_message(http, guild_id, channel_id, reply)
                     .await?
             }
@@ -317,19 +329,20 @@ impl MusicManager {
     // }
 
     /// Start the periodic update task for a guild (async)
-    pub async fn start_update_task(
-        &mut self,
+    async fn start_update_task(
         ctx: &Context,
         http: Arc<serenity::Http>,
         guild_id: GuildId,
         channel_id: ChannelId,
     ) {
-        // Stop existing task if any
-        self.stop_update_task(guild_id).await;
-
-        let ctx = Arc::new(ctx.clone());
+        // Stop existing task in a separate scope so the lock is released
+        {
+            let mut music_manager = MUSIC_MANAGER.lock().await;
+            music_manager.stop_update_task(guild_id).await;
+        }
 
         let music_manager = Arc::clone(&MUSIC_MANAGER);
+        let ctx = Arc::new(ctx.clone());
 
         info!("Starting update task for guild {}", guild_id);
 
@@ -337,24 +350,25 @@ impl MusicManager {
             loop {
                 debug!("Attempting to send/update message for guild {}", guild_id);
 
-                let mut manager = music_manager.lock().await;
+                // Create a new scope for the lock to ensure it's released after use
+                let message_result = {
+                    let mut manager = music_manager.lock().await;
+                    manager
+                        .send_or_update_message(http.clone(), guild_id, channel_id)
+                        .await
+                };
 
-                match manager
-                    .send_or_update_message(http.clone(), guild_id, channel_id)
-                    .await
-                {
+                match message_result {
                     Ok(_) => info!("Successfully updated player message for guild {}", guild_id),
                     Err(e) => {
                         warn!(
                             "Error updating music player message for guild {}: {}",
                             guild_id, e
                         );
-                        // Consider stopping the task if updates consistently fail
-                        // For now, just log and continue
                     }
                 }
-                // Check if the task should stop (e.g., if the bot left the channel or stopped playing)
-                // This check could be more sophisticated, e.g., using a channel or atomic flag
+
+                // Check if should continue in a separate scope
                 let should_continue = match Self::get_call(&ctx, guild_id).await {
                     Ok(call_handler) => !call_handler.lock().await.queue().is_empty(),
                     Err(_) => {
@@ -379,18 +393,21 @@ impl MusicManager {
                     break;
                 }
 
-                drop(manager);
-
                 debug!("Update task sleeping for 5s for guild {}", guild_id);
                 tokio::time::sleep(std::time::Duration::from_secs(5)).await;
             }
             info!("Update task loop finished for guild {}", guild_id);
         });
-        self.update_tasks.insert(guild_id, task);
+
+        // Store the task handle in a separate scope
+        {
+            let mut music_manager = MUSIC_MANAGER.lock().await;
+            music_manager.update_tasks.insert(guild_id, task);
+        }
     }
 
     /// Stop the periodic update task for a guild (async)
-    pub async fn stop_update_task(&mut self, guild_id: GuildId) {
+    async fn stop_update_task(&mut self, guild_id: GuildId) {
         if let Some(task) = self.update_tasks.remove(&guild_id) {
             info!("Aborting update task for guild {}", guild_id); // Changed log message slightly
             task.abort();
@@ -462,6 +479,7 @@ impl MusicManager {
     pub async fn process_play_request(
         ctx: &Context,
         guild_id: GuildId,
+        channel_id: ChannelId,
         user: &User,
         input: String,
     ) -> Result<(TrackMetadata, usize), MusicError> {
@@ -487,7 +505,12 @@ impl MusicManager {
                 track.user_data = Arc::new(metadata);
                 handler.enqueue(track).await;
             }
+
+            let mut manager = MUSIC_MANAGER.lock().await;
+            manager.store_queue(guild_id, handler.queue().clone());
         }
+
+        Self::start_update_task(ctx, ctx.http.clone(), guild_id, channel_id).await;
 
         Ok((first_track, number_of_tracks))
     }

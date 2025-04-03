@@ -363,8 +363,11 @@ async fn update_player_message(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let guild_id = interaction.guild_id.ok_or("Not in a guild")?;
 
+    let manager = MUSIC_MANAGER.lock().await;
+    let player_message_data = manager.get_player_message_data(guild_id);
+
     // Fetch the latest player message content
-    let reply = embedded_messages::music_player_message(guild_id).await?;
+    let reply = embedded_messages::music_player_message(player_message_data).await?;
 
     // Edit the original interaction message
     interaction

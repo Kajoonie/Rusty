@@ -25,6 +25,7 @@ pub async fn play(
     let (metadata, number_of_tracks) = MusicManager::process_play_request(
         &ctx.serenity_context(),
         guild_id,
+        ctx.channel_id(),
         ctx.author(),
         query,
     )

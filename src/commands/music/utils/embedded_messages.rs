@@ -1,15 +1,21 @@
 use poise::{CreateReply, serenity_prelude as serenity};
 use serenity::all::CreateEmbed;
-use serenity::model::id::GuildId;
-use songbird::tracks::PlayMode;
+use songbird::tracks::{PlayMode, TrackQueue};
 use std::{sync::Arc, time::Duration};
+use tracing::{debug, error};
 
 use crate::commands::music::{
     audio_sources::track_metadata::TrackMetadata,
     utils::{button_controls, format_duration, music_manager::MusicError},
 };
 
-use super::{button_controls::RepeatState, music_manager::MUSIC_MANAGER};
+use super::button_controls::RepeatState;
+
+pub struct PlayerMessageData<'a> {
+    pub queue: Option<&'a TrackQueue>,
+    pub show_queue: bool,
+    pub has_history: bool,
+}
 
 /// Create a progress bar for the current track
 fn format_progress_bar(position: Duration, total: Duration) -> String {
@@ -39,33 +45,23 @@ fn parse_metadata(metadata: &TrackMetadata) -> (String, String, String) {
 }
 
 /// Generates the main music player message embed and components.
-pub async fn music_player_message(guild_id: GuildId) -> Result<CreateReply, MusicError> {
+pub async fn music_player_message(data: PlayerMessageData<'_>) -> Result<CreateReply, MusicError> {
     let mut embed = CreateEmbed::new().color(0x00ff00); // Green color
 
-    let manager = MUSIC_MANAGER.lock().await;
+    let queue = data.queue.ok_or(MusicError::NoQueue)?;
 
-    // let call_handler = MusicManager::get_call(ctx, guild_id).await?.lock().await;
-
-    // let queue = call_handler.queue();
-    let queue = manager.get_queue(&guild_id).ok_or(MusicError::NoQueue)?;
     let current_track_opt = queue.current();
 
-    let show_queue = manager.is_queue_view_enabled(guild_id);
-
+    let show_queue = data.show_queue;
+    let has_history = data.has_history;
     let has_queue = !queue.is_empty();
-    let has_history = manager.has_history(guild_id); // Check history status
 
-    // Determine button states
     let mut is_playing = false;
-
-    // Build the embed content based on whether a track is currently playing
-    // We need to handle the case where get_info() fails because the track just ended
     let mut no_track = false;
-    // get_current_track now returns Option<&(TrackHandle, TrackMetadata)>
+
     if let Some(track_handle) = &current_track_opt {
         let metadata: Arc<TrackMetadata> = track_handle.data();
 
-        // Destructure directly to metadata
         match track_handle.get_info().await {
             Ok(track_info) => {
                 is_playing = track_info.playing == PlayMode::Play;
@@ -90,7 +86,6 @@ pub async fn music_player_message(guild_id: GuildId) -> Result<CreateReply, Musi
                 let dur_str = format_duration(duration);
                 description.push_str(&format!("{} `{}/{}`\n\n", progress, pos_str, dur_str));
 
-                // Queue Information (Total)
                 if !queue.is_empty() {
                     let remaining_in_current_track = duration.saturating_sub(position);
 
@@ -105,7 +100,6 @@ pub async fn music_player_message(guild_id: GuildId) -> Result<CreateReply, Musi
 
                     let total_duration_str =
                         format_duration(queue_duration + remaining_in_current_track);
-
                     description.push_str(&format!(
                         "**Queue:** {} tracks (`{}` remaining)\n",
                         queue.len(),
@@ -119,12 +113,10 @@ pub async fn music_player_message(guild_id: GuildId) -> Result<CreateReply, Musi
                 if show_queue && !queue.is_empty() {
                     description.push_str("\n**Upcoming Tracks:**\n");
                     for (index, track) in queue.current_queue().iter().take(10).enumerate() {
-                        // Limit display
-                        let number = format!("{}.", index + 1);
                         let metadata: Arc<TrackMetadata> = track.data();
                         description.push_str(&format!(
-                            "{} [{}]({})",
-                            number,
+                            "{}. [{}]({})",
+                            index + 1,
                             metadata.title,
                             metadata.url.as_deref().unwrap_or("#")
                         ));
@@ -158,16 +150,18 @@ pub async fn music_player_message(guild_id: GuildId) -> Result<CreateReply, Musi
         embed = embed.description("**🔇 Nothing playing or queued.**");
     }
 
-    Ok(CreateReply::default().embed(embed).components(
+    let reply = CreateReply::default().embed(embed).components(
         button_controls::stateful_interaction_buttons(
             is_playing,
             has_queue,
-            has_history, // Pass history status
+            has_history,
             no_track,
             RepeatState::Disabled,
             false,
         ),
-    ))
+    );
+
+    Ok(reply)
 }
 
 // --- Simple Ephemeral Messages ---
