@@ -132,10 +132,10 @@ async fn main() -> Result<(), Error> {
     {
         check_ytdlp();
 
-        use commands::music::{autoplay::*, play::*, remove::*};
+        use commands::music::{autoplay::*, play::*};
 
         // Add music commands
-        commands.extend(vec![autoplay(), play(), remove()]);
+        commands.extend(vec![autoplay(), play()]);
     }
 
     let framework = poise::Framework::builder()

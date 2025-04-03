@@ -33,7 +33,11 @@ impl AudioApi for YoutubeApi {
         YoutubeApi::is_youtube_url(url)
     }
 
-    async fn get_metadata(&self, url: &str) -> Result<Vec<TrackMetadata>, MusicError> {
+    async fn get_metadata(
+        &self,
+        url: &str,
+        requestor_name: String,
+    ) -> Result<Vec<TrackMetadata>, MusicError> {
         info!("Creating YouTube audio source for URL: {}", url);
 
         // Get video metadata using yt-dlp
@@ -48,7 +52,8 @@ impl AudioApi for YoutubeApi {
                 MusicError::AudioSourceError(format!("Failed to get video metadata: {}", e))
             })?;
 
-        let metadata = TrackMetadata::try_from(metadata_output)?;
+        let mut metadata = TrackMetadata::try_from(metadata_output)?;
+        metadata.set_requestor_name(requestor_name);
 
         Ok(vec![metadata])
     }

@@ -1,16 +1,15 @@
-use ::serenity::all::Context;
 use poise::{CreateReply, serenity_prelude as serenity};
 use serenity::all::CreateEmbed;
 use serenity::model::id::GuildId;
 use songbird::tracks::PlayMode;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use crate::commands::music::{
     audio_sources::track_metadata::TrackMetadata,
-    utils::{button_controls, format_duration, music_manager::MusicError, queue_manager},
+    utils::{button_controls, format_duration, music_manager::MusicError},
 };
 
-use super::{button_controls::RepeatState, queue_manager::is_queue_view_enabled};
+use super::{button_controls::RepeatState, music_manager::MUSIC_MANAGER};
 
 /// Create a progress bar for the current track
 fn format_progress_bar(position: Duration, total: Duration) -> String {
@@ -40,37 +39,21 @@ fn parse_metadata(metadata: &TrackMetadata) -> (String, String, String) {
 }
 
 /// Generates the main music player message embed and components.
-pub async fn music_player_message(
-    ctx: &Context,
-    guild_id: GuildId,
-) -> Result<CreateReply, MusicError> {
+pub async fn music_player_message(guild_id: GuildId) -> Result<CreateReply, MusicError> {
     let mut embed = CreateEmbed::new().color(0x00ff00); // Green color
 
-    // Get songbird manager
-    let manager = songbird::get(ctx)
-        .await
-        .expect("Songbird Voice client placed in scope at initialization.")
-        .clone();
+    let manager = MUSIC_MANAGER.lock().await;
 
-    let call_handler = match manager.get(guild_id) {
-        Some(call_handler_lock) => call_handler_lock.lock().await,
-        None => {
-            return Err(MusicError::NotConnected);
-        }
-    };
+    // let call_handler = MusicManager::get_call(ctx, guild_id).await?.lock().await;
 
-    let queue = call_handler.queue();
+    // let queue = call_handler.queue();
+    let queue = manager.get_queue(&guild_id).ok_or(MusicError::NoQueue)?;
     let current_track_opt = queue.current();
 
-    let mut no_track = false;
-
-    // let current_track_opt = queue_manager::get_current_track(guild_id).await?;
-
-    // let queue = queue_manager::get_queue(guild_id).await?;
-    let show_queue = is_queue_view_enabled(guild_id).await;
+    let show_queue = manager.is_queue_view_enabled(guild_id);
 
     let has_queue = !queue.is_empty();
-    let has_history = queue_manager::has_history(guild_id).await; // Check history status
+    let has_history = manager.has_history(guild_id); // Check history status
 
     // Determine button states
     let mut is_playing = false;
@@ -79,7 +62,9 @@ pub async fn music_player_message(
     // We need to handle the case where get_info() fails because the track just ended
     let mut no_track = false;
     // get_current_track now returns Option<&(TrackHandle, TrackMetadata)>
-    if let Some((track_handle, metadata)) = &current_track_opt {
+    if let Some(track_handle) = &current_track_opt {
+        let metadata: Arc<TrackMetadata> = track_handle.data();
+
         // Destructure directly to metadata
         match track_handle.get_info().await {
             Ok(track_info) => {
@@ -95,7 +80,7 @@ pub async fn music_player_message(
 
                 let duration = metadata.duration.unwrap_or(Duration::from_secs(0));
                 let position = track_info.position;
-                let (title, url, _) = parse_metadata(metadata);
+                let (title, url, _) = parse_metadata(&metadata);
 
                 let mut description = format!("**Now Playing:** [{}]({})\n", title, url);
 
@@ -108,8 +93,16 @@ pub async fn music_player_message(
                 // Queue Information (Total)
                 if !queue.is_empty() {
                     let remaining_in_current_track = duration.saturating_sub(position);
-                    let queue_duration: Duration =
-                        queue.iter().filter_map(|track| track.duration).sum();
+
+                    let queue_duration: Duration = queue
+                        .current_queue()
+                        .iter()
+                        .filter_map(|track| {
+                            let metadata: Arc<TrackMetadata> = track.data();
+                            metadata.duration
+                        })
+                        .sum();
+
                     let total_duration_str =
                         format_duration(queue_duration + remaining_in_current_track);
 
@@ -125,16 +118,17 @@ pub async fn music_player_message(
                 // Detailed Queue View (if toggled)
                 if show_queue && !queue.is_empty() {
                     description.push_str("\n**Upcoming Tracks:**\n");
-                    for (index, track) in queue.iter().take(10).enumerate() {
+                    for (index, track) in queue.current_queue().iter().take(10).enumerate() {
                         // Limit display
                         let number = format!("{}.", index + 1);
+                        let metadata: Arc<TrackMetadata> = track.data();
                         description.push_str(&format!(
                             "{} [{}]({})",
                             number,
-                            track.title,
-                            track.url.as_deref().unwrap_or("#")
+                            metadata.title,
+                            metadata.url.as_deref().unwrap_or("#")
                         ));
-                        if let Some(dur) = track.duration {
+                        if let Some(dur) = metadata.duration {
                             description.push_str(&format!(" `{}`", format_duration(dur)));
                         }
                         description.push('\n');
@@ -152,7 +146,7 @@ pub async fn music_player_message(
             }
             Err(e) => {
                 // Propagate other errors
-                return Err(e.into());
+                return Err(MusicError::AudioSourceError(e.to_string()));
             }
         }
     } else {

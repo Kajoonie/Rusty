@@ -1,22 +1,9 @@
 use std::sync::Arc;
 
-use crate::{
-    Error,
-    commands::music::utils::{
-        audio_sources::TrackMetadata,
-        autoplay_manager::is_autoplay_enabled,
-        queue_manager::{
-            self, add_to_queue, clear_manual_stop_flag, clear_previous_action_flag, get_next_track,
-            is_manual_stop_flag_set, is_previous_action_flag_set, set_current_track,
-        },
-        track_cache,
-    },
-};
+use crate::{ commands::music::audio_sources::track_metadata::TrackMetadata, Error};
 use poise::serenity_prelude as serenity;
 use serenity::async_trait;
 use tracing::{error, info, warn};
-
-use super::youtube::YoutubeApi;
 
 /// Event handler for when a song ends
 pub struct SongEndNotifier {

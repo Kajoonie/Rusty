@@ -10,8 +10,8 @@ use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 use tracing::info;
 
-use crate::commands::music::utils::music_manager::MusicError;
 use crate::HTTP_CLIENT;
+use crate::commands::music::utils::music_manager::MusicError;
 
 use super::{AudioApi, TrackMetadata};
 
@@ -479,7 +479,11 @@ impl AudioApi for SpotifyApi {
         SpotifyApi::is_spotify_url(url)
     }
 
-    async fn get_metadata(&self, url: &str) -> Result<Vec<TrackMetadata>, MusicError> {
+    async fn get_metadata(
+        &self,
+        url: &str,
+        requestor_name: String,
+    ) -> Result<Vec<TrackMetadata>, MusicError> {
         info!("Creating audio source from Spotify URL: {}", url);
 
         // Determine the type of Spotify URL (track, playlist, album)
@@ -518,7 +522,11 @@ impl AudioApi for SpotifyApi {
 
             let metadata = tracks
                 .into_iter()
-                .map(|track| TrackMetadata::try_from(track).unwrap_or_default())
+                .map(|track| {
+                    let mut metadata = TrackMetadata::try_from(track).unwrap_or_default();
+                    metadata.set_requestor_name(requestor_name.clone());
+                    metadata
+                })
                 .collect();
 
             return Ok(metadata);

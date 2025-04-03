@@ -20,7 +20,11 @@ pub static AUDIO_APIS: LazyLock<[Box<dyn AudioApi>; 2]> =
 #[async_trait]
 pub trait AudioApi: Send + Sync {
     fn is_valid_url(&self, url: &str) -> bool;
-    async fn get_metadata(&self, url: &str) -> Result<Vec<TrackMetadata>, MusicError>;
+    async fn get_metadata(
+        &self,
+        url: &str,
+        requestor_name: String,
+    ) -> Result<Vec<TrackMetadata>, MusicError>;
 }
 
 /// Audio source utilities for handling different types of audio inputs

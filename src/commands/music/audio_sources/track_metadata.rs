@@ -22,6 +22,13 @@ pub struct TrackMetadata {
     #[serde(with = "humantime_serde")] // Use humantime_serde for Duration
     pub duration: Option<Duration>,
     pub thumbnail: Option<String>,
+    pub requested_by: Option<String>,
+}
+
+impl TrackMetadata {
+    pub fn set_requestor_name(&mut self, user_id: String) {
+        self.requested_by = Some(user_id);
+    }
 }
 
 impl Default for TrackMetadata {
@@ -31,6 +38,7 @@ impl Default for TrackMetadata {
             url: None,
             duration: None,
             thumbnail: None,
+            requested_by: None,
         }
     }
 }
@@ -65,6 +73,7 @@ impl TryFrom<Output> for TrackMetadata {
             url: url_str.clone(),
             duration,
             thumbnail,
+            requested_by: None,
         };
 
         if let Some(url) = url_str {

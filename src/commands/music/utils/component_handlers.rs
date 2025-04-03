@@ -8,11 +8,7 @@ use tracing::{error, info};
 
 use super::{
     embedded_messages,
-    music_manager::MusicManager,
-    queue_manager::{
-        self, clear_previous_action_flag, clear_queue, get_channel_id, get_current_track,
-        get_message_id, set_current_track, set_manual_stop_flag, set_previous_action_flag,
-    },
+    music_manager::{MUSIC_MANAGER, MusicManager},
 };
 use tracing::warn;
 
@@ -60,10 +56,12 @@ async fn handle_play_pause(
     interaction: &mut ComponentInteraction,
     guild_id: GuildId,
 ) -> ButtonInteractionResult {
-    // Get the current track state
-    let current_track_opt = get_current_track(guild_id).await?;
+    let manager = MUSIC_MANAGER.lock().await;
 
-    if let Some((track, _metadata)) = current_track_opt {
+    // Get the current track state
+    let current_track_opt = manager.get_current_track(&guild_id);
+
+    if let Some(track) = current_track_opt {
         let track_info = track.get_info().await?;
         let is_playing = track_info.playing == PlayMode::Play;
 
@@ -88,24 +86,13 @@ async fn handle_music_eject(
 ) -> ButtonInteractionResult {
     let http = ctx.http.clone(); // Get http client reference
 
-    // Set the manual stop flag to prevent autoplay if track ends naturally
-    set_manual_stop_flag(guild_id, true).await;
-
     // Get the current track state
-    let current_track_opt = get_current_track(guild_id).await?;
+    let mut manager = MUSIC_MANAGER.lock().await;
 
-    // Stop the current track if playing
-    if let Some((track, _)) = current_track_opt {
-        // If we successfully stopped the track or received a "track ended" error, we can continue as normal
-        match track.stop() {
-            Ok(_) => (),                                        // do nothing
-            Err(songbird::error::ControlError::Finished) => (), // also do nothing
-            Err(e) => warn!("Error stopping track via button: {}", e),
-        }
+    // Stop and clear the queue
+    if let Some(queue) = manager.get_queue(&guild_id) {
+        queue.stop();
     }
-
-    // Clear the queue (this also stops the update task)
-    clear_queue(guild_id).await?;
 
     // Attempt to leave the voice channel
     if let Err(e) = MusicManager::leave_channel(ctx, guild_id).await {
@@ -115,8 +102,8 @@ async fn handle_music_eject(
 
     // Delete the original player message
     if let (Some(channel_id), Some(message_id)) = (
-        get_channel_id(guild_id).await,
-        get_message_id(guild_id).await,
+        manager.get_channel_id(guild_id),
+        manager.get_message_id(guild_id),
     ) {
         // Check if the interaction message is the one we want to delete
         if interaction.message.id == message_id {
@@ -135,7 +122,6 @@ async fn handle_music_eject(
             }
         } else {
             // If the interaction is somehow not on the player message, delete the stored one
-
             if let Err(e) = http.delete_message(channel_id, message_id, None).await {
                 warn!(
                     "Failed to delete player message {} in channel {}: {}",
@@ -149,8 +135,9 @@ async fn handle_music_eject(
             guild_id
         );
     }
-    // No need to update the message as we are deleting it.
-    // The interaction was already deferred, so we don't need to send a followup unless there's an error *before* this point.
+
+    manager.drop_all(&guild_id);
+
     Ok(())
 }
 
@@ -160,10 +147,12 @@ async fn handle_next(
     interaction: &mut ComponentInteraction,
     guild_id: GuildId,
 ) -> ButtonInteractionResult {
-    // Get the current track state
-    let current_track_opt = get_current_track(guild_id).await?;
+    let manager = MUSIC_MANAGER.lock().await;
 
-    if let Some((track, _metadata)) = current_track_opt {
+    // Get the current track state
+    let current_track_opt = manager.get_current_track(&guild_id);
+
+    if let Some(track) = current_track_opt {
         // Stop the current track (SongEndNotifier will handle playing the next)
         track.stop()?;
 
@@ -183,8 +172,10 @@ async fn handle_queue_toggle(
     interaction: &mut ComponentInteraction,
     guild_id: GuildId,
 ) -> ButtonInteractionResult {
+    let mut manager = MUSIC_MANAGER.lock().await;
+
     // Toggle the queue view state
-    queue_manager::toggle_queue_view(guild_id).await?;
+    manager.toggle_queue_view(guild_id);
 
     // Update the message to show/hide the queue
     update_player_message(ctx, interaction).await

@@ -4,7 +4,7 @@ pub(crate) mod autoplay_manager;
 pub(crate) mod button_controls;
 pub(crate) mod component_handlers;
 pub(crate) mod embedded_messages;
-pub(crate) mod event_handlers;
+// pub(crate) mod event_handlers;
 pub(crate) mod music_manager;
 // pub(crate) mod queue_manager;
 

@@ -2,7 +2,6 @@ use super::*;
 use crate::commands::music::utils::{
     embedded_messages,
     music_manager::{self, MusicError},
-    queue_manager::{get_queue, remove_track},
 };
 
 /// Remove a track from the queue by its position

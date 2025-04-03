@@ -1,6 +1,7 @@
 use super::*;
 use crate::commands::music::utils::{
-    embedded_messages, music_manager::{MusicError, MusicManager}, queue_manager::store_channel_id,
+    embedded_messages,
+    music_manager::{MusicError, MusicManager},
 };
 use tracing::info;
 
@@ -19,9 +20,15 @@ pub async fn play(
     let guild_id = ctx.guild_id().ok_or(MusicError::NotInGuild)?;
 
     // Store the channel ID where the command was invoked (for potential message updates)
-    store_channel_id(guild_id, ctx.channel_id()).await;
+    // store_channel_id(guild_id, ctx.channel_id()).await;
 
-    let (metadata, number_of_tracks) = MusicManager::process_play_request(&ctx.serenity_context(), query).await?;
+    let (metadata, number_of_tracks) = MusicManager::process_play_request(
+        &ctx.serenity_context(),
+        guild_id,
+        ctx.author(),
+        query,
+    )
+    .await?;
 
     // --- Generate Success Message ---
     let reply_content = if number_of_tracks > 1 {
