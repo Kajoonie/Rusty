@@ -22,9 +22,6 @@ pub type SpotifyResult<T> = Result<T, MusicError>;
 pub struct SpotifyTrack {
     pub name: String,
     pub artists: Vec<String>,
-    pub duration_ms: u64,
-    pub album_image: Option<String>,
-    pub url: String,
 }
 
 /// Authentication tokens for Spotify API
@@ -190,11 +187,6 @@ impl SpotifyApi {
         })?;
 
         // Extract track data
-        let id = track_data["id"]
-            .as_str()
-            .ok_or_else(|| MusicError::ExternalApiError("Missing track ID".to_string()))?
-            .to_string();
-
         let name = track_data["name"]
             .as_str()
             .ok_or_else(|| MusicError::ExternalApiError("Missing track name".to_string()))?
@@ -209,23 +201,7 @@ impl SpotifyApi {
             })
             .unwrap_or_default();
 
-        let duration_ms = track_data["duration_ms"].as_u64().unwrap_or(0);
-
-        let album_image = track_data["album"]["images"]
-            .as_array()
-            .and_then(|imgs| imgs.first())
-            .and_then(|img| img["url"].as_str())
-            .map(|s| s.to_string());
-
-        let url = format!("https://open.spotify.com/track/{}", id);
-
-        Ok(SpotifyTrack {
-            name,
-            artists,
-            duration_ms,
-            album_image,
-            url,
-        })
+        Ok(SpotifyTrack { name, artists })
     }
 
     /// Get tracks and name from a Spotify playlist
@@ -280,13 +256,6 @@ impl SpotifyApi {
                             continue; // Skip local tracks that don't have Spotify IDs
                         }
 
-                        let id = track["id"]
-                            .as_str()
-                            .ok_or_else(|| {
-                                MusicError::ExternalApiError("Missing track ID".to_string())
-                            })?
-                            .to_string();
-
                         let name = track["name"]
                             .as_str()
                             .ok_or_else(|| {
@@ -303,23 +272,7 @@ impl SpotifyApi {
                             })
                             .unwrap_or_default();
 
-                        let duration_ms = track["duration_ms"].as_u64().unwrap_or(0);
-
-                        let album_image = track["album"]["images"]
-                            .as_array()
-                            .and_then(|imgs| imgs.first())
-                            .and_then(|img| img["url"].as_str())
-                            .map(|s| s.to_string());
-
-                        let url = format!("https://open.spotify.com/track/{}", id);
-
-                        tracks.push(SpotifyTrack {
-                            name,
-                            artists,
-                            duration_ms,
-                            album_image,
-                            url,
-                        });
+                        tracks.push(SpotifyTrack { name, artists });
                     }
                 }
             }
@@ -362,16 +315,6 @@ impl SpotifyApi {
                 status, text
             )));
         }
-
-        let album_data: serde_json::Value = album_response.json().await.map_err(|e| {
-            MusicError::ExternalApiError(format!("Failed to parse Spotify album data: {}", e))
-        })?;
-
-        let album_image = album_data["images"]
-            .as_array()
-            .and_then(|imgs| imgs.first())
-            .and_then(|img| img["url"].as_str())
-            .map(|s| s.to_string());
 
         // Now get tracks from album
         let mut url = format!(
@@ -418,13 +361,6 @@ impl SpotifyApi {
                         continue; // Skip local tracks that don't have Spotify IDs
                     }
 
-                    let id = track["id"]
-                        .as_str()
-                        .ok_or_else(|| {
-                            MusicError::ExternalApiError("Missing track ID".to_string())
-                        })?
-                        .to_string();
-
                     let name = track["name"]
                         .as_str()
                         .ok_or_else(|| {
@@ -441,17 +377,7 @@ impl SpotifyApi {
                         })
                         .unwrap_or_default();
 
-                    let duration_ms = track["duration_ms"].as_u64().unwrap_or(0);
-
-                    let url = format!("https://open.spotify.com/track/{}", id);
-
-                    tracks.push(SpotifyTrack {
-                        name,
-                        artists,
-                        duration_ms,
-                        album_image: album_image.clone(),
-                        url,
-                    });
+                    tracks.push(SpotifyTrack { name, artists });
                 }
             }
 
@@ -507,7 +433,9 @@ impl AudioApi for SpotifyApi {
 
             let metadata = tracks
                 .into_iter()
-                .map(|track| TrackMetadata::try_from(track).unwrap_or_default())
+                .map(|track| {
+                    TrackMetadata::from_spotify(track, requestor_name.clone()).unwrap_or_default()
+                })
                 .collect();
 
             return Ok(metadata);
@@ -523,9 +451,7 @@ impl AudioApi for SpotifyApi {
             let metadata = tracks
                 .into_iter()
                 .map(|track| {
-                    let mut metadata = TrackMetadata::try_from(track).unwrap_or_default();
-                    metadata.set_requestor_name(requestor_name.clone());
-                    metadata
+                    TrackMetadata::from_spotify(track, requestor_name.clone()).unwrap_or_default()
                 })
                 .collect();
 

@@ -82,7 +82,7 @@ impl RelatedSongsFetcher for SerpApiFetcher {
                         url: Some(link.to_string()),
                         duration,
                         thumbnail,
-                        requested_by: None,
+                        requested_by: Some("Autoplay".into()),
                     });
 
                     // Limit to 5 related videos

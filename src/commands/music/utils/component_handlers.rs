@@ -6,10 +6,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{error, info};
 
-use super::{
-    embedded_messages,
-    music_manager::{MUSIC_MANAGER, MusicManager},
-};
+use super::{embedded_messages, music_manager::MusicManager};
 use tracing::warn;
 
 type ButtonInteractionResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
@@ -56,10 +53,8 @@ async fn handle_play_pause(
     interaction: &mut ComponentInteraction,
     guild_id: GuildId,
 ) -> ButtonInteractionResult {
-    let manager = MUSIC_MANAGER.lock().await;
-
     // Get the current track state
-    let current_track_opt = manager.get_current_track(&guild_id);
+    let current_track_opt = MusicManager::get_current_track(&guild_id).await;
 
     if let Some(track) = current_track_opt {
         let track_info = track.get_info().await?;
@@ -86,11 +81,8 @@ async fn handle_music_eject(
 ) -> ButtonInteractionResult {
     let http = ctx.http.clone(); // Get http client reference
 
-    // Get the current track state
-    let mut manager = MUSIC_MANAGER.lock().await;
-
     // Stop and clear the queue
-    if let Some(queue) = manager.get_queue(&guild_id) {
+    if let Some(queue) = MusicManager::get_queue(&guild_id).await {
         queue.stop();
     }
 
@@ -102,8 +94,8 @@ async fn handle_music_eject(
 
     // Delete the original player message
     if let (Some(channel_id), Some(message_id)) = (
-        manager.get_channel_id(guild_id),
-        manager.get_message_id(guild_id),
+        MusicManager::get_channel_id(guild_id).await,
+        MusicManager::get_message_id(guild_id).await,
     ) {
         // Check if the interaction message is the one we want to delete
         if interaction.message.id == message_id {
@@ -136,7 +128,7 @@ async fn handle_music_eject(
         );
     }
 
-    manager.drop_all(&guild_id);
+    MusicManager::drop_all(&guild_id).await;
 
     Ok(())
 }
@@ -147,10 +139,8 @@ async fn handle_next(
     interaction: &mut ComponentInteraction,
     guild_id: GuildId,
 ) -> ButtonInteractionResult {
-    let manager = MUSIC_MANAGER.lock().await;
-
     // Get the current track state
-    let current_track_opt = manager.get_current_track(&guild_id);
+    let current_track_opt = MusicManager::get_current_track(&guild_id).await;
 
     if let Some(track) = current_track_opt {
         // Stop the current track (SongEndNotifier will handle playing the next)
@@ -172,10 +162,8 @@ async fn handle_queue_toggle(
     interaction: &mut ComponentInteraction,
     guild_id: GuildId,
 ) -> ButtonInteractionResult {
-    let mut manager = MUSIC_MANAGER.lock().await;
-
     // Toggle the queue view state
-    manager.toggle_queue_view(guild_id);
+    MusicManager::toggle_queue_view(guild_id).await;
 
     // Update the message to show/hide the queue
     update_player_message(ctx, interaction).await
@@ -363,8 +351,7 @@ async fn update_player_message(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let guild_id = interaction.guild_id.ok_or("Not in a guild")?;
 
-    let manager = MUSIC_MANAGER.lock().await;
-    let player_message_data = manager.get_player_message_data(guild_id);
+    let player_message_data = MusicManager::get_player_message_data(guild_id).await;
 
     // Fetch the latest player message content
     let reply = embedded_messages::music_player_message(player_message_data).await?;

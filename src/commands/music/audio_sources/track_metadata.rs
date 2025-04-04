@@ -25,12 +25,6 @@ pub struct TrackMetadata {
     pub requested_by: Option<String>,
 }
 
-impl TrackMetadata {
-    pub fn set_requestor_name(&mut self, user_id: String) {
-        self.requested_by = Some(user_id);
-    }
-}
-
 impl Default for TrackMetadata {
     fn default() -> Self {
         Self {
@@ -40,6 +34,27 @@ impl Default for TrackMetadata {
             thumbnail: None,
             requested_by: None,
         }
+    }
+}
+
+impl TrackMetadata {
+    pub fn from_youtube(output: Output, requested_by: String) -> Result<TrackMetadata, MusicError> {
+        let mut metadata = Self::try_from(output)?;
+        metadata.misc_data(requested_by);
+        Ok(metadata)
+    }
+
+    pub fn from_spotify(
+        spotify_track: SpotifyTrack,
+        requested_by: String,
+    ) -> Result<TrackMetadata, MusicError> {
+        let mut metadata = Self::try_from(spotify_track)?;
+        metadata.misc_data(requested_by);
+        Ok(metadata)
+    }
+
+    fn misc_data(&mut self, requested_by: String) {
+        self.requested_by = Some(requested_by);
     }
 }
 

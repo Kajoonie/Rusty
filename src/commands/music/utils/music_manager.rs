@@ -17,7 +17,6 @@ use crate::commands::music::audio_sources::track_metadata::TrackMetadata;
 use crate::commands::music::audio_sources::youtube::YoutubeApi;
 use crate::commands::music::audio_sources::{AUDIO_APIS, AudioSource};
 
-use super::button_controls::RepeatState;
 use super::embedded_messages::{self, PlayerMessageData};
 
 use crate::HTTP_CLIENT;
@@ -72,17 +71,14 @@ pub struct MusicManager {
     // Map of guild ID to periodic update task handle
     update_tasks: HashMap<GuildId, JoinHandle<()>>,
     // Map of guild ID to repeat state
-    repeat_state: HashMap<GuildId, RepeatState>,
+    // repeat_state: HashMap<GuildId, RepeatState>,
     // Map of guild ID to shuffle state
-    shuffle_enabled: HashMap<GuildId, bool>,
+    // shuffle_enabled: HashMap<GuildId, bool>,
     // Track whether a guild has manually stopped playback
     // manual_stop_flags: HashMap<GuildId, bool>,
     // Flags to indicate a "previous track" action is in progress
     // previous_action_flags: HashMap<GuildId, bool>,
 }
-
-pub static MUSIC_MANAGER: LazyLock<Arc<Mutex<MusicManager>>> =
-    LazyLock::new(|| Arc::new(Mutex::new(MusicManager::default())));
 
 impl Default for MusicManager {
     fn default() -> Self {
@@ -91,14 +87,33 @@ impl Default for MusicManager {
             history: Default::default(),
             show_queue: Default::default(),
             update_tasks: Default::default(),
-            repeat_state: Default::default(),
-            shuffle_enabled: Default::default(),
+            // repeat_state: Default::default(),
+            // shuffle_enabled: Default::default(),
             channel_ids: Default::default(),
             message_ids: Default::default(),
             // manual_stop_flags: Default::default(),
             // previous_action_flags: Default::default(),
         }
     }
+}
+
+static MUSIC_MANAGER: LazyLock<Arc<Mutex<MusicManager>>> =
+    LazyLock::new(|| Arc::new(Mutex::new(MusicManager::default())));
+
+pub async fn with_manager<F, R>(f: F) -> R
+where
+    F: FnOnce(&MusicManager) -> R,
+{
+    let manager = MUSIC_MANAGER.lock().await;
+    f(&manager)
+}
+
+pub async fn with_manager_mut<F, R>(f: F) -> R
+where
+    F: FnOnce(&mut MusicManager) -> R,
+{
+    let mut manager = MUSIC_MANAGER.lock().await;
+    f(&mut manager)
 }
 
 impl MusicManager {
@@ -117,57 +132,55 @@ impl MusicManager {
     }
 
     // Get the current queue for this guild
-    pub fn get_queue(&self, guild_id: &GuildId) -> Option<&TrackQueue> {
-        self.queues.get(guild_id)
+    pub async fn get_queue(guild_id: &GuildId) -> Option<TrackQueue> {
+        with_manager(|m| m.queues.get(guild_id).cloned()).await
     }
 
-    pub fn store_queue(&mut self, guild_id: GuildId, queue: TrackQueue) {
-        self.queues.insert(guild_id, queue);
-    }
-
-    pub fn drop_queue(&mut self, guild_id: &GuildId) {
-        self.queues.remove(guild_id);
+    pub async fn store_queue(guild_id: GuildId, queue: TrackQueue) {
+        with_manager_mut(|m| m.queues.insert(guild_id, queue)).await;
     }
 
     // Get the active embedded music-player message for this guild
-    pub fn get_message_id(&self, guild_id: GuildId) -> Option<MessageId> {
-        self.message_ids.get(&guild_id).copied()
+    pub async fn get_message_id(guild_id: GuildId) -> Option<MessageId> {
+        with_manager(|m| m.message_ids.get(&guild_id).copied()).await
     }
 
-    pub fn store_message_id(&mut self, guild_id: GuildId, message_id: MessageId) {
-        self.message_ids.insert(guild_id, message_id);
+    pub async fn store_message_id(guild_id: GuildId, message_id: MessageId) {
+        with_manager_mut(|m| m.message_ids.insert(guild_id, message_id)).await;
     }
 
-    pub fn drop_message_id(&mut self, guild_id: &GuildId) {
-        self.message_ids.remove(guild_id);
+    pub async fn get_channel_id(guild_id: GuildId) -> Option<ChannelId> {
+        with_manager(|m| m.channel_ids.get(&guild_id).copied()).await
     }
 
-    pub fn get_channel_id(&self, guild_id: GuildId) -> Option<ChannelId> {
-        self.channel_ids.get(&guild_id).copied()
+    pub async fn store_channel_id(guild_id: GuildId, channel_id: ChannelId) {
+        with_manager_mut(|m| m.channel_ids.insert(guild_id, channel_id)).await;
     }
 
-    pub fn store_channel_id(&mut self, guild_id: GuildId, message_id: ChannelId) {
-        self.channel_ids.insert(guild_id, message_id);
+    pub async fn store_update_task(guild_id: GuildId, task: JoinHandle<()>) {
+        with_manager_mut(|m| m.update_tasks.insert(guild_id, task)).await;
     }
 
-    pub fn drop_channel_id(&mut self, guild_id: &GuildId) {
-        self.channel_ids.remove(guild_id);
+    pub async fn drop_update_task(guild_id: &GuildId) -> Option<JoinHandle<()>> {
+        with_manager_mut(|m| m.update_tasks.remove(guild_id)).await
     }
 
-    pub fn drop_all(&mut self, guild_id: &GuildId) {
-        self.drop_queue(guild_id);
-        self.drop_message_id(guild_id);
-        self.drop_channel_id(guild_id);
+    pub async fn drop_all(guild_id: &GuildId) {
+        with_manager_mut(|m| {
+            m.queues.remove(guild_id);
+            m.message_ids.remove(guild_id);
+            m.channel_ids.remove(guild_id);
+        })
+        .await;
     }
 
     // Convenience method to get the currently-playing track for this guild via its queue
-    pub fn get_current_track(&self, guild_id: &GuildId) -> Option<TrackHandle> {
-        let queue = self.get_queue(guild_id)?;
+    pub async fn get_current_track(guild_id: &GuildId) -> Option<TrackHandle> {
+        let queue = Self::get_queue(guild_id).await?;
         queue.current()
     }
 
     async fn send_and_store_new_message(
-        &mut self,
         http: Arc<serenity::Http>,
         guild_id: GuildId,
         channel_id: ChannelId,
@@ -179,16 +192,23 @@ impl MusicManager {
             .components(reply.components.unwrap_or_default());
 
         let message = channel_id.send_message(http, create_message).await?;
-        // store the new message id
-        self.store_message_id(guild_id, message.id);
+
+        // store the channel and message id
+        Self::store_channel_id(guild_id, channel_id).await;
+        Self::store_message_id(guild_id, message.id).await;
 
         Ok(message.id)
     }
 
-    pub fn get_player_message_data(&self, guild_id: GuildId) -> PlayerMessageData {
-        let queue = self.get_queue(&guild_id);
-        let show_queue = self.is_queue_view_enabled(guild_id);
-        let has_history = self.has_history(guild_id);
+    pub async fn get_player_message_data(guild_id: GuildId) -> PlayerMessageData {
+        let (queue, show_queue, has_history) = with_manager(|m| {
+            (
+                m.queues.get(&guild_id).cloned(),
+                m.show_queue.get(&guild_id).copied().unwrap_or(true),
+                m.history.get(&guild_id).is_some_and(|h| !h.is_empty()),
+            )
+        })
+        .await;
 
         PlayerMessageData {
             queue,
@@ -198,17 +218,16 @@ impl MusicManager {
     }
 
     pub async fn send_or_update_message(
-        &mut self,
         http: Arc<serenity::Http>,
         guild_id: GuildId,
         channel_id: ChannelId,
     ) -> Result<MessageId, Error> {
-        let data = self.get_player_message_data(guild_id);
+        let data = Self::get_player_message_data(guild_id).await;
 
         // Create the message without holding the lock
         let reply = embedded_messages::music_player_message(data).await?;
 
-        let message_id = match self.get_message_id(guild_id) {
+        let message_id = match Self::get_message_id(guild_id).await {
             Some(message_id) => {
                 debug!("Found existing message ID, attempting to update.");
                 let message = EditMessage::new()
@@ -221,56 +240,58 @@ impl MusicManager {
 
                 if result.is_err() {
                     debug!("Failed to update existing message, sending new one.");
-                    self.send_and_store_new_message(http, guild_id, channel_id, reply)
-                        .await?
+                    Self::send_and_store_new_message(http, guild_id, channel_id, reply).await?
                 } else {
                     message_id
                 }
             }
             None => {
                 debug!("No existing message ID, sending new one.");
-                self.send_and_store_new_message(http, guild_id, channel_id, reply)
-                    .await?
+                Self::send_and_store_new_message(http, guild_id, channel_id, reply).await?
             }
         };
 
         Ok(message_id)
     }
 
-    /// Get the previous track's metadata from history. Does NOT modify the main queue or current track state.              
-    /// Returns the TrackMetadata of the track retrieved from history.                                                      
-    pub fn previous(&mut self, guild_id: GuildId) -> Option<TrackMetadata> {
-        // Get the history queue, return None if no history
-        let history_queue = self.history.get_mut(&guild_id)?;
-        // Pop the most recent metadata from history
-        let previous_metadata = history_queue.pop_front()?;
-        debug!(
-            "Retrieved track '{}' from history for guild {} (state not modified yet)",
-            previous_metadata.title, guild_id
-        );
+    // /// Get the previous track's metadata from history. Does NOT modify the main queue or current track state.
+    // /// Returns the TrackMetadata of the track retrieved from history.
+    // pub fn previous(&mut self, guild_id: GuildId) -> Option<TrackMetadata> {
+    //     // Get the history queue, return None if no history
+    //     let history_queue = self.history.get_mut(&guild_id)?;
+    //     // Pop the most recent metadata from history
+    //     let previous_metadata = history_queue.pop_front()?;
+    //     debug!(
+    //         "Retrieved track '{}' from history for guild {} (state not modified yet)",
+    //         previous_metadata.title, guild_id
+    //     );
 
-        // Return the metadata retrieved from history
-        Some(previous_metadata)
-    }
+    //     // Return the metadata retrieved from history
+    //     Some(previous_metadata)
+    // }
 
-    /// Check if there is any track history for the guild
-    pub fn has_history(&self, guild_id: GuildId) -> bool {
-        self.history.get(&guild_id).is_some_and(|h| !h.is_empty())
-    }
+    // /// Check if there is any track history for the guild
+    // pub fn has_history(&self, guild_id: GuildId) -> bool {
+    //     self.history.get(&guild_id).is_some_and(|h| !h.is_empty())
+    // }
 
     /// Toggle the queue view state for a guild (async)
-    pub fn toggle_queue_view(&mut self, guild_id: GuildId) {
-        let current_state = self.show_queue.entry(guild_id).or_insert(true);
-        *current_state = !*current_state;
-        info!(
-            "Toggled queue view for guild {}: {}",
-            guild_id, *current_state
-        );
-    }
-
-    /// Check if the queue view is enabled for a guild (async)
-    pub fn is_queue_view_enabled(&self, guild_id: GuildId) -> bool {
-        *self.show_queue.get(&guild_id).unwrap_or(&true) // Default to true (show queue)
+    pub async fn toggle_queue_view(guild_id: GuildId) {
+        with_manager_mut(|m| {
+            let current_state = m.show_queue.entry(guild_id).or_insert(true);
+            *current_state = !*current_state;
+            info!(
+                "Toggled queue view for guild {}: {}",
+                guild_id, *current_state
+            );
+        })
+        .await;
+        // let current_state = self.show_queue.entry(guild_id).or_insert(true);
+        // *current_state = !*current_state;
+        // info!(
+        //     "Toggled queue view for guild {}: {}",
+        //     guild_id, *current_state
+        // );
     }
 
     /// Get the current repeat state for a guild
@@ -335,13 +356,8 @@ impl MusicManager {
         guild_id: GuildId,
         channel_id: ChannelId,
     ) {
-        // Stop existing task in a separate scope so the lock is released
-        {
-            let mut music_manager = MUSIC_MANAGER.lock().await;
-            music_manager.stop_update_task(guild_id).await;
-        }
+        Self::stop_update_task(guild_id).await;
 
-        let music_manager = Arc::clone(&MUSIC_MANAGER);
         let ctx = Arc::new(ctx.clone());
 
         info!("Starting update task for guild {}", guild_id);
@@ -351,12 +367,8 @@ impl MusicManager {
                 debug!("Attempting to send/update message for guild {}", guild_id);
 
                 // Create a new scope for the lock to ensure it's released after use
-                let message_result = {
-                    let mut manager = music_manager.lock().await;
-                    manager
-                        .send_or_update_message(http.clone(), guild_id, channel_id)
-                        .await
-                };
+                let message_result =
+                    Self::send_or_update_message(http.clone(), guild_id, channel_id).await;
 
                 match message_result {
                     Ok(_) => info!("Successfully updated player message for guild {}", guild_id),
@@ -399,38 +411,17 @@ impl MusicManager {
             info!("Update task loop finished for guild {}", guild_id);
         });
 
-        // Store the task handle in a separate scope
-        {
-            let mut music_manager = MUSIC_MANAGER.lock().await;
-            music_manager.update_tasks.insert(guild_id, task);
-        }
+        Self::store_update_task(guild_id, task).await;
     }
 
     /// Stop the periodic update task for a guild (async)
-    async fn stop_update_task(&mut self, guild_id: GuildId) {
-        if let Some(task) = self.update_tasks.remove(&guild_id) {
+    async fn stop_update_task(guild_id: GuildId) {
+        if let Some(task) = Self::drop_update_task(&guild_id).await {
             info!("Aborting update task for guild {}", guild_id); // Changed log message slightly
             task.abort();
         } else {
             info!("No active update task found to stop for guild {}", guild_id); // Added log for case where no task exists
         }
-    }
-
-    /// Join a voice channel
-    pub async fn join_channel(
-        ctx: &Context,
-        guild_id: GuildId,
-        channel_id: ChannelId,
-    ) -> MusicResult<Arc<SerenityMutex<Call>>> {
-        let songbird = Self::get_songbird(ctx).await?;
-
-        // Join the voice channel
-        let handle = songbird
-            .join(guild_id, channel_id)
-            .await
-            .map_err(|e| MusicError::JoinError(e.to_string()))?;
-
-        Ok(handle)
     }
 
     /// Leave a voice channel
@@ -489,30 +480,30 @@ impl MusicManager {
             .expect("Songbird Voice client placed in scope at initialization.")
             .clone();
 
-        Self::confirm_voice_connection(ctx, &manager, guild_id.clone(), user.id).await?;
+        Self::try_join_voice(ctx, &manager, guild_id.clone(), user.id).await?;
 
         let inputs = Self::query_to_youtube_inputs(&input, user.name.clone()).await?;
         let number_of_tracks = inputs.len();
         let first_track = inputs[0].clone();
 
         if let Some(handler_lock) = manager.get(guild_id) {
-            let mut handler = handler_lock.lock().await;
-
             for metadata in inputs.into_iter() {
-                // metadata.set_requestor(user_id.clone());
-                let input = YoutubeDl::new(HTTP_CLIENT.clone(), metadata.clone().url.unwrap());
-                let mut track = Track::from(input);
-                track.user_data = Arc::new(metadata);
-                handler.enqueue(track).await;
+                Self::add_to_queue(handler_lock.clone(), metadata).await;
             }
-
-            let mut manager = MUSIC_MANAGER.lock().await;
-            manager.store_queue(guild_id, handler.queue().clone());
+            let handler = handler_lock.lock().await;
+            Self::store_queue(guild_id, handler.queue().clone()).await;
         }
 
         Self::start_update_task(ctx, ctx.http.clone(), guild_id, channel_id).await;
 
         Ok((first_track, number_of_tracks))
+    }
+
+    pub async fn add_to_queue(call: Arc<Mutex<Call>>, metadata: TrackMetadata) {
+        let input = YoutubeDl::new(HTTP_CLIENT.clone(), metadata.clone().url.unwrap());
+        let mut track = Track::from(input);
+        track.user_data = Arc::new(metadata);
+        call.lock().await.enqueue(track).await;
     }
 
     async fn query_to_youtube_inputs(
@@ -538,7 +529,7 @@ impl MusicManager {
         }
     }
 
-    async fn confirm_voice_connection(
+    async fn try_join_voice(
         ctx: &Context,
         manager: &Songbird,
         guild_id: GuildId,

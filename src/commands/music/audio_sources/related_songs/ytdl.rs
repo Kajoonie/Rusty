@@ -103,7 +103,7 @@ impl RelatedSongsFetcher for YtDlpFetcher {
                     url: video_url,
                     duration,
                     thumbnail,
-                    requested_by: None,
+                    requested_by: Some("Autoplay".into()),
                 });
 
                 // Stop if we have enough related songs

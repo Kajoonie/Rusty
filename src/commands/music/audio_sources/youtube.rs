@@ -52,8 +52,7 @@ impl AudioApi for YoutubeApi {
                 MusicError::AudioSourceError(format!("Failed to get video metadata: {}", e))
             })?;
 
-        let mut metadata = TrackMetadata::try_from(metadata_output)?;
-        metadata.set_requestor_name(requestor_name);
+        let metadata = TrackMetadata::from_youtube(metadata_output, requestor_name)?;
 
         Ok(vec![metadata])
     }

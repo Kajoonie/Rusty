@@ -2,7 +2,6 @@ use poise::{CreateReply, serenity_prelude as serenity};
 use serenity::all::CreateEmbed;
 use songbird::tracks::{PlayMode, TrackQueue};
 use std::{sync::Arc, time::Duration};
-use tracing::{debug, error};
 
 use crate::commands::music::{
     audio_sources::track_metadata::TrackMetadata,
@@ -11,8 +10,8 @@ use crate::commands::music::{
 
 use super::button_controls::RepeatState;
 
-pub struct PlayerMessageData<'a> {
-    pub queue: Option<&'a TrackQueue>,
+pub struct PlayerMessageData {
+    pub queue: Option<TrackQueue>,
     pub show_queue: bool,
     pub has_history: bool,
 }
@@ -45,7 +44,7 @@ fn parse_metadata(metadata: &TrackMetadata) -> (String, String, String) {
 }
 
 /// Generates the main music player message embed and components.
-pub async fn music_player_message(data: PlayerMessageData<'_>) -> Result<CreateReply, MusicError> {
+pub async fn music_player_message(data: PlayerMessageData) -> Result<CreateReply, MusicError> {
     let mut embed = CreateEmbed::new().color(0x00ff00); // Green color
 
     let queue = data.queue.ok_or(MusicError::NoQueue)?;
@@ -166,18 +165,6 @@ pub async fn music_player_message(data: PlayerMessageData<'_>) -> Result<CreateR
 
 // --- Simple Ephemeral Messages ---
 
-/// Create an embed for when a user is not connected to a voice channel (ephemeral)
-pub fn user_not_in_voice_channel(err: MusicError) -> CreateReply {
-    CreateReply::default()
-        .embed(
-            CreateEmbed::new()
-                .title("❌ Error")
-                .description(format!("You need to be in a voice channel: {}", err))
-                .color(0xff0000), // Red color
-        )
-        .ephemeral(true)
-}
-
 /// Create an embed for when autoplay is enabled or disabled (ephemeral)
 pub fn autoplay_status(enabled: bool) -> CreateReply {
     CreateReply::default()
@@ -194,110 +181,6 @@ pub fn autoplay_status(enabled: bool) -> CreateReply {
                     "I will stop playing when the queue is empty"
                 })
                 .color(if enabled { 0x00ff00 } else { 0xff0000 }), // Green/Red
-        )
-        .ephemeral(true)
-}
-
-/// Create an embed for when the bot fails to join a voice channel (ephemeral)
-pub fn failed_to_join_voice_channel(err: MusicError) -> CreateReply {
-    CreateReply::default()
-        .embed(
-            CreateEmbed::new()
-                .title("❌ Error")
-                .description(format!("Failed to join voice channel: {}", err))
-                .color(0xff0000), // Red color
-        )
-        .ephemeral(true)
-}
-
-/// Create an embed for when the bot fails to process an audio source (ephemeral)
-pub fn failed_to_process_audio_source(err: MusicError) -> CreateReply {
-    CreateReply::default()
-        .embed(
-            CreateEmbed::new()
-                .title("❌ Error")
-                .description(format!("Failed to process audio source: {}", err))
-                .color(0xff0000), // Red color
-        )
-        .ephemeral(true)
-}
-
-/// Create an embed for when the bot fails to add a track to the queue (ephemeral)
-pub fn failed_to_add_to_queue(err: MusicError) -> CreateReply {
-    CreateReply::default()
-        .embed(
-            CreateEmbed::new()
-                .title("❌ Error")
-                .description(format!("Failed to add track to queue: {}", err))
-                .color(0xff0000), // Red color
-        )
-        .ephemeral(true)
-}
-
-/// Create an embed for when the queue is empty (ephemeral)
-pub fn queue_is_empty() -> CreateReply {
-    CreateReply::default()
-        .embed(
-            CreateEmbed::new()
-                .title("❌ Error")
-                .description("The queue is empty.")
-                .color(0xff0000), // Red color
-        )
-        .ephemeral(true)
-}
-
-/// Create an embed for when a queue position is invalid (ephemeral)
-pub fn invalid_queue_position(queue_length: usize) -> CreateReply {
-    CreateReply::default()
-        .embed(
-            CreateEmbed::new()
-                .title("❌ Error")
-                .description(format!(
-                    "Invalid position. The queue has {} tracks.",
-                    queue_length
-                ))
-                .color(0xff0000), // Red color
-        )
-        .ephemeral(true)
-}
-
-/// Create an embed for when a track is removed from the queue (ephemeral)
-pub fn track_removed(metadata: &TrackMetadata, position: usize) -> CreateReply {
-    let (title, url, _) = parse_metadata(metadata);
-
-    CreateReply::default()
-        .embed(
-            CreateEmbed::new()
-                .title("🗑️ Track Removed")
-                .description(format!(
-                    "Removed [{}]({}) from position #{}.",
-                    title, url, position
-                ))
-                .color(0x00ff00), // Green color
-        )
-        .ephemeral(true)
-}
-
-/// Generic error message (ephemeral)
-pub fn generic_error(description: &str) -> CreateReply {
-    CreateReply::default()
-        .embed(
-            CreateEmbed::new()
-                .title("❌ Error")
-                .description(description)
-                .color(0xff0000), // Red color
-        )
-        .ephemeral(true)
-}
-
-/// Create an embed for when the bot fails to remove a track (ephemeral)
-pub fn failed_to_remove_track() -> CreateReply {
-    CreateReply::default()
-        .embed(
-            CreateEmbed::new()
-                .title("❌ Error")
-                .description("Failed to remove track.")
-                .color(0xff0000), // Red color
         )
         .ephemeral(true)
 }
