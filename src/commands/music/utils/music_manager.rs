@@ -224,7 +224,6 @@ impl MusicManager {
     ) -> Result<MessageId, Error> {
         let data = Self::get_player_message_data(guild_id).await;
 
-        // Create the message without holding the lock
         let reply = embedded_messages::music_player_message(data).await?;
 
         let message_id = match Self::get_message_id(guild_id).await {

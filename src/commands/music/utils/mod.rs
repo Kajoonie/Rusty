@@ -6,7 +6,6 @@ pub(crate) mod component_handlers;
 pub(crate) mod embedded_messages;
 pub(crate) mod event_handlers;
 pub(crate) mod music_manager;
-// pub(crate) mod queue_manager;
 
 /// Format a duration into a human-readable string (e.g., "3:45" or "1:23:45")
 pub fn format_duration(duration: Duration) -> String {

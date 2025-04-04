@@ -91,6 +91,7 @@ pub async fn music_player_message(data: PlayerMessageData) -> Result<CreateReply
                     let queue_duration: Duration = queue
                         .current_queue()
                         .iter()
+                        .skip(1) // Ignore head of queue, currently-playing song
                         .filter_map(|track| {
                             let metadata: Arc<TrackMetadata> = track.data();
                             metadata.duration
@@ -101,7 +102,7 @@ pub async fn music_player_message(data: PlayerMessageData) -> Result<CreateReply
                         format_duration(queue_duration + remaining_in_current_track);
                     description.push_str(&format!(
                         "**Queue:** {} tracks (`{}` remaining)\n",
-                        queue.len(),
+                        queue.len() - 1, // Ignore head of queue, currently-playing song
                         total_duration_str
                     ));
                 } else {
@@ -109,9 +110,16 @@ pub async fn music_player_message(data: PlayerMessageData) -> Result<CreateReply
                 }
 
                 // Detailed Queue View (if toggled)
-                if show_queue && !queue.is_empty() {
+                if show_queue && queue.len() > 1 {
+                    // Again, > 1 rather than !is_empty() to ignore head of queue
                     description.push_str("\n**Upcoming Tracks:**\n");
-                    for (index, track) in queue.current_queue().iter().take(10).enumerate() {
+                    for (index, track) in queue
+                        .current_queue()
+                        .iter()
+                        .skip(1) // Ignore head of queue
+                        .take(10) // Display only the first 10 tracks
+                        .enumerate()
+                    {
                         let metadata: Arc<TrackMetadata> = track.data();
                         description.push_str(&format!(
                             "{}. [{}]({})",
@@ -124,8 +132,8 @@ pub async fn music_player_message(data: PlayerMessageData) -> Result<CreateReply
                         }
                         description.push('\n');
                     }
-                    if queue.len() > 10 {
-                        description.push_str(&format!("... and {} more\n", queue.len() - 10));
+                    if queue.len() > 11 {
+                        description.push_str(&format!("... and {} more\n", queue.len() - 11));
                     }
                 }
 
