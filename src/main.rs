@@ -1,21 +1,31 @@
 use ::serenity::all::ClientBuilder;
 use dotenv::dotenv;
 use poise::serenity_prelude as serenity;
-use std::env;
+use regex::Regex;
+use std::{
+    env,
+    process::Command,
+    sync::{Arc, LazyLock},
+    time::Duration,
+};
+use tracing::debug;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 mod commands;
+mod events;
 mod utils;
 
 use commands::{
     ai::{chat::*, get_model::*, list_models::*, set_model::*},
     coingecko::coin::*,
-    general::ping::*,
+    general::ping::*, music::remove::remove,
 };
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 type CommandResult = Result<(), Error>;
+
+pub static HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::new);
 
 // Define the user data type we'll be using in our bot
 struct Data {} // User data, which is stored and accessible in all command invocations
@@ -44,6 +54,24 @@ async fn register(ctx: Context<'_>) -> Result<(), Error> {
     poise::builtins::register_application_commands_buttons(ctx)
         .await
         .map_err(|e| e.into())
+}
+
+#[cfg(feature = "music")]
+fn check_ytdlp() {
+    // First, verify yt-dlp is working
+    let output = Command::new("yt-dlp")
+        .arg("--version")
+        .output()
+        .expect("Failed to execute `yt-dlp --version`");
+
+    if !output.status.success() {
+        panic!("yt-dlp is not properly installed");
+    }
+
+    debug!(
+        "yt-dlp version: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
 }
 
 #[tokio::main]
@@ -102,42 +130,49 @@ async fn main() -> Result<(), Error> {
     // Handle Music feature
     #[cfg(feature = "music")]
     {
-        use commands::music::{
-            autoplay::*, leave::*, pause::*, play::*, queue::*, remove::*, skip::*, stop::*,
-        };
+        check_ytdlp();
+
+        use commands::music::{autoplay::*, play::*};
 
         // Add music commands
-        commands.extend(vec![
-            autoplay(),
-            play(),
-            pause(),
-            queue(),
-            remove(),
-            skip(),
-            stop(),
-            leave(),
-        ]);
+        commands.extend(vec![autoplay(), play(), remove()]);
     }
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands,
+            prefix_options: poise::PrefixFrameworkOptions {
+                prefix: Some("~".into()),
+                edit_tracker: Some(Arc::new(poise::EditTracker::for_timespan(
+                    Duration::from_secs(3600),
+                ))),
+                additional_prefixes: vec![poise::Prefix::Regex(
+                    Regex::new(r"(?i)\brusty\b,?").unwrap(),
+                )],
+                ..Default::default()
+            },
+            pre_command: |ctx| {
+                Box::pin(async move {
+                    debug!("Executing command {}...", ctx.command().qualified_name);
+                })
+            },
+            post_command: |ctx| {
+                Box::pin(async move {
+                    debug!("Executed command {}!", ctx.command().qualified_name);
+                })
+            },
             ..Default::default()
         })
-        .setup(|ctx, _ready, framework| {
-            Box::pin(async move {
-                poise::builtins::register_globally(ctx, &framework.options().commands).await?;
-                Ok(Data {})
-            })
-        });
+        .setup(|_ctx, _ready, _framework| Box::pin(async move { Ok(Data {}) }));
 
-    let client_builder = ClientBuilder::new(token, intents).framework(framework.build());
+    let client_builder = ClientBuilder::new(token, intents)
+        .event_handler(events::Handler)
+        .framework(framework.build());
 
-    // Create and run client
     build_and_start_client(client_builder).await
 }
 
-async fn build_and_start_client(client_builder: ClientBuilder) -> Result<(), Error> {
+async fn build_and_start_client(client_builder: serenity::ClientBuilder) -> Result<(), Error> {
     #[cfg(feature = "music")]
     {
         use songbird::SerenityInit;

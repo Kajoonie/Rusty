@@ -1,13 +1,13 @@
 use serenity::model::id::GuildId;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use tokio::sync::Mutex;
 
 use crate::utils::database;
 
 pub struct AutoplayManager {
     // Map of guild ID to autoplay enabled status (in-memory cache)
-    autoplay_settings: HashMap<u64, bool>,
+    autoplay_settings: HashMap<GuildId, bool>,
 }
 
 impl AutoplayManager {
@@ -18,8 +18,7 @@ impl AutoplayManager {
     }
 
     pub fn set_autoplay(&mut self, guild_id: GuildId, enabled: bool) {
-        let guild_id_u64 = guild_id.get();
-        self.autoplay_settings.insert(guild_id_u64, enabled);
+        self.autoplay_settings.insert(guild_id, enabled);
 
         // Save setting to database
         if let Err(e) = database::set_autoplay_setting(guild_id, enabled) {
@@ -28,10 +27,8 @@ impl AutoplayManager {
     }
 
     pub fn is_autoplay_enabled(&mut self, guild_id: GuildId) -> bool {
-        let guild_id_u64 = guild_id.get();
-
         // Check if the setting is in the cache
-        if let Some(&enabled) = self.autoplay_settings.get(&guild_id_u64) {
+        if let Some(&enabled) = self.autoplay_settings.get(&guild_id) {
             return enabled;
         }
 
@@ -39,16 +36,15 @@ impl AutoplayManager {
         let enabled = database::get_autoplay_setting(guild_id);
 
         // Store in cache for future use
-        self.autoplay_settings.insert(guild_id_u64, enabled);
+        self.autoplay_settings.insert(guild_id, enabled);
 
         enabled
     }
 }
 
 // Create a global autoplay manager wrapped in a mutex for thread safety
-lazy_static::lazy_static! {
-    pub static ref AUTOPLAY_MANAGER: Arc<Mutex<AutoplayManager>> = Arc::new(Mutex::new(AutoplayManager::new()));
-}
+pub static AUTOPLAY_MANAGER: LazyLock<Arc<Mutex<AutoplayManager>>> =
+    LazyLock::new(|| Arc::new(Mutex::new(AutoplayManager::new())));
 
 // Helper functions for working with the global autoplay manager
 pub async fn set_autoplay(guild_id: GuildId, enabled: bool) {

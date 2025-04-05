@@ -1,12 +1,13 @@
+use std::sync::LazyLock;
+
 use chrono::Utc;
-use futures::{Stream, StreamExt};
-use once_cell::sync::Lazy;
-use poise::{serenity_prelude::Color, CreateReply};
+use futures::Stream;
+use poise::{CreateReply, serenity_prelude::Color};
 use serenity::builder::CreateEmbedFooter;
 use thousands::Separable;
 use tokio::sync::RwLock;
 
-use crate::{serenity::CreateEmbed, CommandResult, Context};
+use crate::{CommandResult, Context, serenity::CreateEmbed};
 
 use super::*;
 
@@ -99,7 +100,7 @@ async fn price(
     }
 }
 
-static COIN_CACHE: Lazy<RwLock<Vec<String>>> = Lazy::new(|| RwLock::new(Vec::new()));
+static COIN_CACHE: LazyLock<RwLock<Vec<String>>> = LazyLock::new(|| RwLock::new(Vec::new()));
 
 async fn list_coin_ids() -> Vec<String> {
     // First check if cache is already populated
@@ -141,7 +142,9 @@ async fn autocomplete_coin_id<'a>(
 ) -> impl Stream<Item = String> + 'a {
     let coin_id_list = list_coin_ids().await;
 
-    futures::stream::iter(coin_id_list.into_iter())
-        .map(|id| id.trim_start_matches('"').trim_end_matches('"').to_string())
-        .filter(move |id| futures::future::ready(id.starts_with(partial)))
+    futures::stream::iter(
+        coin_id_list
+            .into_iter()
+            .filter(move |id| id.starts_with(partial))
+    )
 }

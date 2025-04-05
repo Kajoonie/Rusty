@@ -1,15 +1,19 @@
-use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
-use lazy_static::lazy_static;
+use base64::prelude::BASE64_STANDARD;
 use regex::Regex;
-use reqwest::{header, Client};
+use reqwest::header;
 use serde::{Deserialize, Serialize};
+use serenity::async_trait;
 use std::env;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
+use tracing::info;
 
-use super::music_manager::MusicError;
+use crate::HTTP_CLIENT;
+use crate::commands::music::utils::music_manager::MusicError;
+
+use super::{AudioApi, TrackMetadata};
 
 pub type SpotifyResult<T> = Result<T, MusicError>;
 
@@ -18,9 +22,6 @@ pub type SpotifyResult<T> = Result<T, MusicError>;
 pub struct SpotifyTrack {
     pub name: String,
     pub artists: Vec<String>,
-    pub duration_ms: u64,
-    pub album_image: Option<String>,
-    pub url: String,
 }
 
 /// Authentication tokens for Spotify API
@@ -42,22 +43,30 @@ impl SpotifyToken {
     }
 }
 
-lazy_static! {
-    static ref HTTP_CLIENT: Client = Client::new();
-    static ref SPOTIFY_TOKEN: Arc<Mutex<Option<SpotifyToken>>> = Arc::new(Mutex::new(None));
-    static ref SPOTIFY_TRACK_REGEX: Regex =
-        Regex::new(r"^(https?://)?(open\.spotify\.com|spotify)/track/([a-zA-Z0-9]+)(\?.*)?$")
-            .unwrap();
-    static ref SPOTIFY_PLAYLIST_REGEX: Regex =
-        Regex::new(r"^(https?://)?(open\.spotify\.com|spotify)/playlist/([a-zA-Z0-9]+)(\?.*)?$")
-            .unwrap();
-    static ref SPOTIFY_ALBUM_REGEX: Regex =
-        Regex::new(r"^(https?://)?(open\.spotify\.com|spotify)/album/([a-zA-Z0-9]+)(\?.*)?$")
-            .unwrap();
-}
+static SPOTIFY_TOKEN: LazyLock<Arc<Mutex<Option<SpotifyToken>>>> =
+    LazyLock::new(|| Arc::new(Mutex::new(None)));
+
+static SPOTIFY_TRACK_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^(https?://)?(open\.spotify\.com|spotify)/track/([a-zA-Z0-9]+)(\?.*)?$").unwrap()
+});
+
+static SPOTIFY_PLAYLIST_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^(https?://)?(open\.spotify\.com|spotify)/playlist/([a-zA-Z0-9]+)(\?.*)?$")
+        .unwrap()
+});
+
+static SPOTIFY_ALBUM_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^(https?://)?(open\.spotify\.com|spotify)/album/([a-zA-Z0-9]+)(\?.*)?$").unwrap()
+});
 
 /// Spotify API client
 pub struct SpotifyApi;
+
+impl Default for SpotifyApi {
+    fn default() -> Self {
+        Self {}
+    }
+}
 
 impl SpotifyApi {
     /// Check if the given URL is a Spotify URL
@@ -178,11 +187,6 @@ impl SpotifyApi {
         })?;
 
         // Extract track data
-        let id = track_data["id"]
-            .as_str()
-            .ok_or_else(|| MusicError::ExternalApiError("Missing track ID".to_string()))?
-            .to_string();
-
         let name = track_data["name"]
             .as_str()
             .ok_or_else(|| MusicError::ExternalApiError("Missing track name".to_string()))?
@@ -197,37 +201,24 @@ impl SpotifyApi {
             })
             .unwrap_or_default();
 
-        let duration_ms = track_data["duration_ms"].as_u64().unwrap_or(0);
-
-        let album_image = track_data["album"]["images"]
-            .as_array()
-            .and_then(|imgs| imgs.first())
-            .and_then(|img| img["url"].as_str())
-            .map(|s| s.to_string());
-
-        let url = format!("https://open.spotify.com/track/{}", id);
-
-        Ok(SpotifyTrack {
-            name,
-            artists,
-            duration_ms,
-            album_image,
-            url,
-        })
+        Ok(SpotifyTrack { name, artists })
     }
 
-    /// Get tracks from a Spotify playlist
+    /// Get tracks and name from a Spotify playlist
     pub async fn get_playlist_tracks(playlist_id: &str) -> SpotifyResult<Vec<SpotifyTrack>> {
         let token = Self::get_access_token().await?;
+
         let mut tracks = Vec::new();
-        let mut url = format!(
+
+        // Fetch the tracks
+        let mut tracks_url = format!(
             "https://api.spotify.com/v1/playlists/{}/tracks?limit=50",
             playlist_id
         );
 
         loop {
             let response = HTTP_CLIENT
-                .get(&url)
+                .get(&tracks_url)
                 .header(header::AUTHORIZATION, format!("Bearer {}", token))
                 .send()
                 .await
@@ -265,13 +256,6 @@ impl SpotifyApi {
                             continue; // Skip local tracks that don't have Spotify IDs
                         }
 
-                        let id = track["id"]
-                            .as_str()
-                            .ok_or_else(|| {
-                                MusicError::ExternalApiError("Missing track ID".to_string())
-                            })?
-                            .to_string();
-
                         let name = track["name"]
                             .as_str()
                             .ok_or_else(|| {
@@ -288,30 +272,14 @@ impl SpotifyApi {
                             })
                             .unwrap_or_default();
 
-                        let duration_ms = track["duration_ms"].as_u64().unwrap_or(0);
-
-                        let album_image = track["album"]["images"]
-                            .as_array()
-                            .and_then(|imgs| imgs.first())
-                            .and_then(|img| img["url"].as_str())
-                            .map(|s| s.to_string());
-
-                        let url = format!("https://open.spotify.com/track/{}", id);
-
-                        tracks.push(SpotifyTrack {
-                            name,
-                            artists,
-                            duration_ms,
-                            album_image,
-                            url,
-                        });
+                        tracks.push(SpotifyTrack { name, artists });
                     }
                 }
             }
 
             // Check if there are more pages
             if let Some(next_url) = playlist_data["next"].as_str() {
-                url = next_url.to_string();
+                tracks_url = next_url.to_string();
             } else {
                 break;
             }
@@ -320,7 +288,7 @@ impl SpotifyApi {
         Ok(tracks)
     }
 
-    /// Get tracks from a Spotify album
+    /// Get tracks and name from a Spotify album
     pub async fn get_album_tracks(album_id: &str) -> SpotifyResult<Vec<SpotifyTrack>> {
         let token = Self::get_access_token().await?;
         let mut tracks = Vec::new();
@@ -347,16 +315,6 @@ impl SpotifyApi {
                 status, text
             )));
         }
-
-        let album_data: serde_json::Value = album_response.json().await.map_err(|e| {
-            MusicError::ExternalApiError(format!("Failed to parse Spotify album data: {}", e))
-        })?;
-
-        let album_image = album_data["images"]
-            .as_array()
-            .and_then(|imgs| imgs.first())
-            .and_then(|img| img["url"].as_str())
-            .map(|s| s.to_string());
 
         // Now get tracks from album
         let mut url = format!(
@@ -403,13 +361,6 @@ impl SpotifyApi {
                         continue; // Skip local tracks that don't have Spotify IDs
                     }
 
-                    let id = track["id"]
-                        .as_str()
-                        .ok_or_else(|| {
-                            MusicError::ExternalApiError("Missing track ID".to_string())
-                        })?
-                        .to_string();
-
                     let name = track["name"]
                         .as_str()
                         .ok_or_else(|| {
@@ -426,17 +377,7 @@ impl SpotifyApi {
                         })
                         .unwrap_or_default();
 
-                    let duration_ms = track["duration_ms"].as_u64().unwrap_or(0);
-
-                    let url = format!("https://open.spotify.com/track/{}", id);
-
-                    tracks.push(SpotifyTrack {
-                        name,
-                        artists,
-                        duration_ms,
-                        album_image: album_image.clone(),
-                        url,
-                    });
+                    tracks.push(SpotifyTrack { name, artists });
                 }
             }
 
@@ -455,5 +396,70 @@ impl SpotifyApi {
     pub fn get_youtube_search_query(track: &SpotifyTrack) -> String {
         let artists_str = track.artists.join(", ");
         format!("{} by {} audio", track.name, artists_str)
+    }
+}
+
+#[async_trait]
+impl AudioApi for SpotifyApi {
+    fn is_valid_url(&self, url: &str) -> bool {
+        SpotifyApi::is_spotify_url(url)
+    }
+
+    async fn get_metadata(
+        &self,
+        url: &str,
+        requestor_name: String,
+    ) -> Result<Vec<TrackMetadata>, MusicError> {
+        info!("Creating audio source from Spotify URL: {}", url);
+
+        // Determine the type of Spotify URL (track, playlist, album)
+        if let Some(track_id) = SpotifyApi::extract_track_id(url) {
+            // It's a track URL
+
+            let track = SpotifyApi::get_track(&track_id).await?;
+            match TrackMetadata::try_from(track) {
+                Ok(metadata) => return Ok(vec![metadata]),
+                Err(e) => return Err(e),
+            }
+        } else if let Some(playlist_id) = SpotifyApi::extract_playlist_id(url) {
+            // It's a playlist URL
+
+            let tracks = SpotifyApi::get_playlist_tracks(&playlist_id).await?;
+            if tracks.is_empty() {
+                return Err(MusicError::AudioSourceError(
+                    "Spotify playlist is empty".to_string(),
+                ));
+            }
+
+            let metadata = tracks
+                .into_iter()
+                .map(|track| {
+                    TrackMetadata::from_spotify(track, requestor_name.clone()).unwrap_or_default()
+                })
+                .collect();
+
+            return Ok(metadata);
+        } else if let Some(album_id) = SpotifyApi::extract_album_id(url) {
+            // It's an album URL
+            let tracks = SpotifyApi::get_album_tracks(&album_id).await?;
+            if tracks.is_empty() {
+                return Err(MusicError::AudioSourceError(
+                    "Spotify album is empty".to_string(),
+                ));
+            }
+
+            let metadata = tracks
+                .into_iter()
+                .map(|track| {
+                    TrackMetadata::from_spotify(track, requestor_name.clone()).unwrap_or_default()
+                })
+                .collect();
+
+            return Ok(metadata);
+        }
+
+        Err(MusicError::AudioSourceError(
+            "Invalid Spotify URL".to_string(),
+        ))
     }
 }
