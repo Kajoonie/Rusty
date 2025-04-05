@@ -18,7 +18,8 @@ mod utils;
 use commands::{
     ai::{chat::*, get_model::*, list_models::*, set_model::*},
     coingecko::coin::*,
-    general::ping::*, music::remove::remove,
+    general::ping::*,
+    music::remove::remove,
 };
 
 type Error = Box<dyn std::error::Error + Send + Sync>;

@@ -1,4 +1,5 @@
 use crate::utils::ollama_client::OLLAMA_CLIENT;
+use std::env;
 
 use super::*;
 use tracing::{debug, error, info};
@@ -11,15 +12,26 @@ pub async fn search(
     #[rest]
     query: String,
 ) -> CommandResult {
-    let author = ctx.author();
-    debug!("Search request received from user {}", author.name);
-
     ctx.defer().await?;
+
+    let author = ctx.author();
 
     info!("Processing search request from {}: {}", author.name, query);
 
+    // Get API Key
+    let api_key = match env::var("BRAVE_API_KEY") {
+        Ok(key) => key,
+        Err(_) => {
+            error!("BRAVE_API_KEY not found in environment for search command");
+            ctx.say("Search functionality is disabled: Missing API key configuration.")
+                .await?;
+            return Ok(());
+        }
+    };
+
     // Perform the search using Brave Search API
-    match brave::search(&query).await {
+    match brave::search(&query, "https://api.search.brave.com", &api_key).await {
+        // Pass api_key
         Ok(results) => {
             debug!("Received search results for query: {}", query);
             let formatted_results = brave::format_search_results(&results, &query);

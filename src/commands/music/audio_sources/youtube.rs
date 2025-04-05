@@ -1,6 +1,9 @@
+use super::related_songs::serp_api::{RealSerpApiSearcher, SerpApiFetcher};
+use std::sync::Arc;
+
 use crate::commands::music::{
     audio_sources::related_songs::{
-        RelatedSongsFetcher, serp_api::SerpApiFetcher, ytdl::YtDlpFetcher,
+        RelatedSongsFetcher, ytdl::YtDlpFetcher,
     },
     utils::music_manager::MusicError,
 };
@@ -118,7 +121,10 @@ impl YoutubeApi {
 
         // Try using SerpAPI first
         if let Ok(serp_api_key) = std::env::var("SERP_API_KEY") {
-            let serp_fetcher = SerpApiFetcher::new(serp_api_key);
+            // Instantiate the real searcher and wrap it in Arc
+            let real_searcher = Arc::new(RealSerpApiSearcher::new(serp_api_key));
+            // Specify the generic type for SerpApiFetcher
+            let serp_fetcher: SerpApiFetcher<RealSerpApiSearcher> = SerpApiFetcher::new(real_searcher);
             let related_songs = serp_fetcher.fetch_related_songs(&video_id).await?;
 
             if !related_songs.is_empty() {

@@ -36,7 +36,7 @@ impl From<Emoji> for ReactionType {
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum RepeatState {
     Disabled,
-    RepeatOne,
+    Track,
 }
 
 pub struct ButtonData {
@@ -101,7 +101,7 @@ fn search() -> CreateButton {
 fn repeat(state: RepeatState) -> CreateButton {
     let style = match state {
         RepeatState::Disabled => ButtonStyle::Secondary,
-        RepeatState::RepeatOne => ButtonStyle::Primary,
+        RepeatState::Track => ButtonStyle::Primary,
     };
 
     CreateButton::new("music_repeat")
