@@ -230,3 +230,41 @@ pub fn generic_error(description: &str) -> CreateReply {
         )
         .ephemeral(true)
 }
+
+/// Create an embed for when the queue is empty
+pub fn queue_is_empty() -> CreateReply {
+    CreateReply::default().embed(
+        CreateEmbed::new()
+            .title("❌ Error")
+            .description("The queue is empty")
+            .color(0xff0000),
+    )
+}
+
+/// Create an embed for when a queue position is invalid
+pub fn invalid_queue_position(queue_length: usize) -> CreateReply {
+    CreateReply::default().embed(
+        CreateEmbed::new()
+            .title("❌ Error")
+            .description(format!(
+                "Invalid position. The queue has {} tracks",
+                queue_length - 1
+            ))
+            .color(0xff0000),
+    )
+}
+
+/// Create an embed for when a track is removed from the queue
+pub fn track_removed(metadata: &TrackMetadata, position: usize) -> CreateReply {
+    let (title, url, _) = parse_metadata(metadata);
+
+    CreateReply::default().embed(
+        CreateEmbed::new()
+            .title("🗑️ Track Removed")
+            .description(format!(
+                "Removed [{}]({}) from position #{}",
+                title, url, position
+            ))
+            .color(0x00ff00),
+    )
+}
