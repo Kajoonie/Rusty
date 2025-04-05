@@ -77,5 +77,5 @@ rstest = "0.22.0"
 async-trait = "0.1.88"
 
 [dev-dependencies.fake]
-version = "2.9.2"
+version = "4.2.0"
 features = ["derive"]
