@@ -7,8 +7,7 @@ enum Emoji {
     Play,
     Previous,
     Queue,
-    RepeatAll,
-    RepeatOne,
+    Repeat,
     Search,
     Shuffle,
 }
@@ -22,8 +21,7 @@ impl From<Emoji> for String {
             Emoji::Play => "▶️",
             Emoji::Previous => "⏮️",
             Emoji::Queue => "📃",
-            Emoji::RepeatAll => "🔁",
-            Emoji::RepeatOne => "🔂",
+            Emoji::Repeat => "🔂",
             Emoji::Search => "🔍",
             Emoji::Shuffle => "🔀",
         };
@@ -40,7 +38,6 @@ impl From<Emoji> for ReactionType {
 #[derive(Clone, Debug)] // Add Clone and Debug derives
 pub enum RepeatState {
     Disabled,
-    RepeatAll,
     RepeatOne,
 }
 
@@ -110,20 +107,13 @@ fn search() -> CreateButton {
 }
 
 fn repeat(state: RepeatState) -> CreateButton {
-    let (emoji, style) = match state {
-        RepeatState::Disabled => {
-            (Emoji::RepeatAll, ButtonStyle::Secondary) // When repeat is disabled, display a secondary "Repeat All" button
-        }
-        RepeatState::RepeatAll => {
-            (Emoji::RepeatAll, ButtonStyle::Success) // When repeat is 'all', display active "Repeat All" button
-        }
-        RepeatState::RepeatOne => {
-            (Emoji::RepeatOne, ButtonStyle::Success) // When repeat is 'one', display active "Repeat One" button
-        }
+    let style = match state {
+        RepeatState::Disabled => ButtonStyle::Secondary,
+        RepeatState::RepeatOne => ButtonStyle::Success,
     };
 
     CreateButton::new("music_repeat")
-        .emoji(emoji)
+        .emoji(Emoji::Repeat)
         .style(style)
         .disabled(false)
 }
