@@ -261,9 +261,9 @@ async fn handle_repeat(
             RepeatState::Disabled => {
                 debug!("Looping track '{}'", track.data::<TrackMetadata>().title);
                 track.enable_loop()?;
-                RepeatState::RepeatOne
+                RepeatState::Track
             }
-            RepeatState::RepeatOne => {
+            RepeatState::Track => {
                 debug!(
                     "Disabling loop for track '{}'",
                     track.data::<TrackMetadata>().title

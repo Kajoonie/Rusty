@@ -15,7 +15,7 @@ pub static AUDIO_CACHE: LazyLock<Arc<DashMap<Url, TrackMetadata>>> =
     LazyLock::new(|| Arc::new(DashMap::new()));
 
 /// Represents metadata for a track
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TrackMetadata {
     pub title: String,
     pub url: Option<String>,

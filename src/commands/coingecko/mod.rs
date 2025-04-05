@@ -1,4 +1,5 @@
 use serde_json::Value;
+use reqwest::Url;
 use thiserror::Error;
 
 pub(crate) mod coin;
@@ -105,9 +106,14 @@ enum CoingeckoError {
     Invalid,
 }
 
-async fn send_request(url: &str, query: &[(&str, &str)]) -> Result<Value, CoingeckoError> {
+async fn send_request(base_url: &str, path: &str, query: &[(&str, &str)]) -> Result<Value, CoingeckoError> {
     let client = reqwest::Client::new();
-    let builder = client.get(url).query(query);
+    // Parse the base URL and join the path correctly
+    let base = Url::parse(base_url)
+        .map_err(|e| CoingeckoError::BadRequest(format!("Invalid base URL '{}': {}", base_url, e)))?;
+    let full_url = base.join(path)
+        .map_err(|e| CoingeckoError::BadRequest(format!("Invalid path segment '{}' for base URL '{}': {}", path, base_url, e)))?;
+    let builder = client.get(full_url).query(query); // Use the parsed Url object
     let response = builder
         .send()
         .await
@@ -122,4 +128,161 @@ async fn send_request(url: &str, query: &[(&str, &str)]) -> Result<Value, Coinge
         Value::String(x) => Err(CoingeckoError::BadRequest(x.to_string())),
         _ => Ok(val),
     }
+}
+
+
+
+#[cfg(test)]
+mod tests {
+    use wiremock::{
+        matchers::{method, path, query_param},
+        Mock, MockServer, ResponseTemplate,
+    };
+    use tokio;
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn test_to_api_format_simple() {
+        assert_eq!(to_api_format("bitcoin"), "bitcoin");
+    }
+
+    #[test]
+    fn test_to_api_format_with_space() {
+        assert_eq!(to_api_format("ethereum classic"), "ethereum-classic");
+    }
+
+    #[test]
+    fn test_to_api_format_with_uppercase() {
+        assert_eq!(to_api_format("Bitcoin Cash"), "bitcoin-cash");
+    }
+
+    #[test]
+    fn test_to_api_format_with_multiple_spaces() {
+        assert_eq!(to_api_format("  usd coin  "), "usd-coin"); // Assumes leading/trailing spaces are trimmed by split_whitespace
+    }
+
+    #[test]
+    fn test_to_api_format_empty() {
+        assert_eq!(to_api_format(""), "");
+    }
+
+    #[test]
+    fn test_to_api_format_single_space() {
+        assert_eq!(to_api_format(" "), ""); // Single space results in empty string after split/join
+    }
+
+    #[tokio::test]
+    async fn test_send_request_success() {
+        // Arrange
+        let server = MockServer::start().await;
+        let mock_response = json!({
+            "id": "bitcoin",
+            "symbol": "btc",
+            "name": "Bitcoin",
+            "image": {
+                "thumb": "https://assets.coingecko.com/coins/images/1/thumb/bitcoin.png?1547033579",
+                "small": "https://assets.coingecko.com/coins/images/1/small/bitcoin.png?1547033579",
+                "large": "https://assets.coingecko.com/coins/images/1/large/bitcoin.png?1547033579"
+            },
+            "market_data": {
+                "current_price": {
+                    "usd": 60000.0
+                },
+                "price_change_24h_in_currency": {
+                    "usd": 1234.56
+                },
+                "price_change_percentage_24h_in_currency": {
+                    "usd": 2.1
+                }
+            }
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/coins/bitcoin"))
+            .and(query_param("localization", "false"))
+            .and(query_param("tickers", "false"))
+            .and(query_param("market_data", "true"))
+            .and(query_param("community_data", "false"))
+            .and(query_param("developer_data", "false"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(mock_response.clone()))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let query = vec![
+            ("localization", "false"),
+            ("tickers", "false"),
+            ("market_data", "true"),
+            ("community_data", "false"),
+            ("developer_data", "false"),
+        ];
+
+        // Act
+        let result = send_request(&server.uri(), "coins/bitcoin", &query).await;
+
+        // Assert
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), mock_response);
+        server.verify().await; // Verifies expectations
+    }
+
+    #[tokio::test]
+    async fn test_send_request_api_error() {
+        // Arrange
+        let server = MockServer::start().await;
+        let error_message = "Could not find coin with the given id";
+        let mock_response = json!({
+            "error": error_message
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/coins/invalid-coin"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(mock_response))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let query = vec![("localization", "false")]; // Example query
+
+        // Act
+        let result = send_request(&server.uri(), "coins/invalid-coin", &query).await;
+
+        // Assert
+        assert!(result.is_err());
+        match result.err().unwrap() {
+            CoingeckoError::BadRequest(msg) => assert_eq!(msg, error_message),
+            e => panic!("Expected BadRequest error, got {:?}", e),
+        }
+        server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn test_send_request_http_error_404() {
+        // Arrange
+        let server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/coins/nonexistent"))
+            .respond_with(ResponseTemplate::new(404).set_body_string("Not Found")) // Non-JSON body
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let query = vec![("localization", "false")];
+
+        // Act
+        let result = send_request(&server.uri(), "coins/nonexistent", &query).await;
+
+        // Assert
+        assert!(result.is_err());
+        match result.err().unwrap() {
+            // Expecting JSON parsing error because the 404 body is not JSON
+            CoingeckoError::Json(_) => { /* Expected */ }
+            e => panic!("Expected Json error due to non-JSON 404 body, got {:?}", e),
+        }
+        server.verify().await;
+    }
+
 }

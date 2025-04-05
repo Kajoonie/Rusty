@@ -520,3 +520,67 @@ impl MusicManager {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio;
+
+    // Helper to create a dummy GuildId for testing
+    fn test_guild_id() -> GuildId {
+        GuildId::new(1)
+    }
+
+    #[tokio::test]
+    async fn test_toggle_queue_view() {
+        let guild_id = test_guild_id();
+
+        // Initial state should default to true (or whatever the default is, let's assume true)
+        let initial_state =
+            with_manager(|m| m.show_queue.get(&guild_id).copied().unwrap_or(true)).await;
+        assert_eq!(initial_state, true, "Initial state should be true");
+
+        // Toggle 1: true -> false
+        MusicManager::toggle_queue_view(guild_id).await;
+        let state_after_toggle1 =
+            with_manager(|m| m.show_queue.get(&guild_id).copied().unwrap()).await;
+        assert_eq!(
+            state_after_toggle1, false,
+            "State after first toggle should be false"
+        );
+
+        // Toggle 2: false -> true
+        MusicManager::toggle_queue_view(guild_id).await;
+        let state_after_toggle2 =
+            with_manager(|m| m.show_queue.get(&guild_id).copied().unwrap()).await;
+        assert_eq!(
+            state_after_toggle2, true,
+            "State after second toggle should be true"
+        );
+
+        // Clean up state for other tests if necessary (though LazyLock persists)
+        with_manager_mut(|m| m.show_queue.remove(&guild_id)).await;
+    }
+
+    #[tokio::test]
+    async fn test_repeat_state() {
+        let guild_id = test_guild_id();
+
+        // Initial state should be Disabled
+        let initial_state = MusicManager::get_repeat_state(guild_id).await;
+        assert_eq!(initial_state, RepeatState::Disabled);
+
+        // Set to Track
+        MusicManager::set_repeat_state(guild_id, RepeatState::Track).await;
+        let state_track = MusicManager::get_repeat_state(guild_id).await;
+        assert_eq!(state_track, RepeatState::Track);
+
+        // Set back to Disabled
+        MusicManager::set_repeat_state(guild_id, RepeatState::Disabled).await;
+        let state_disabled = MusicManager::get_repeat_state(guild_id).await;
+        assert_eq!(state_disabled, RepeatState::Disabled);
+
+        // Clean up
+        with_manager_mut(|m| m.repeat_state.remove(&guild_id)).await;
+    }
+}
