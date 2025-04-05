@@ -498,6 +498,16 @@ impl MusicManager {
         Ok((first_track, number_of_tracks))
     }
 
+    pub fn play_success_response(metadata: TrackMetadata, number_of_tracks: usize) -> CreateReply {
+        let reply_content = if number_of_tracks > 1 {
+            format!("✅ Added playlist: with {} tracks", number_of_tracks)
+        } else {
+            format!("✅ Added to queue: {}", metadata.title)
+        };
+
+        embedded_messages::generic_success("Music", &reply_content)
+    }
+
     pub async fn add_to_queue(call: Arc<Mutex<Call>>, metadata: TrackMetadata) {
         let input = YoutubeDl::new(HTTP_CLIENT.clone(), metadata.clone().url.unwrap());
         let mut track = Track::from(input);

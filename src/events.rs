@@ -1,16 +1,8 @@
-use std::env;
-use std::time::Duration;
-
-use serenity::all::{ComponentInteraction, InputTextStyle, ModalInteraction};
+use serenity::all::ComponentInteraction;
 use serenity::async_trait;
-use serenity::builder::{
-    CreateActionRow, CreateButton, CreateCommand, CreateInputText, CreateInteractionResponse,
-    CreateInteractionResponseMessage,
-};
-use serenity::model::{application::Interaction, gateway::Ready, id::GuildId};
+use serenity::model::application::Interaction;
 use serenity::prelude::*;
-use serenity::utils::CreateQuickModal;
-use tracing::{debug, error};
+use tracing::error;
 
 use crate::commands::music::utils::component_handlers;
 
@@ -25,9 +17,11 @@ impl serenity::prelude::EventHandler for Handler {
                     music_component_interaction(&ctx, &mut component).await;
                 }
             }
-            Interaction::Modal(modal) => {
-                debug!("Modal interaction: {:?}", modal)
-            }
+            // Interaction::Modal(mut modal) => {
+            //     if modal.data.custom_id.starts_with("music_") {
+            //         music_modal_interaction(&ctx, &mut modal).await;
+            //     }
+            // }
             _ => (),
         }
     }
@@ -40,7 +34,9 @@ async fn music_component_interaction(ctx: &Context, mut component: &mut Componen
     }
 }
 
-/// Handle modal interactions for modals with identities starting with "music_"
-async fn music_modal_interaction(ctx: &Context, modal: ModalInteraction) {
-    todo!()
-}
+// /// Handle modal interactions for modals with identities starting with "music_"
+// async fn music_modal_interaction(ctx: &Context, mut modal: &mut ModalInteraction) {
+//     if let Err(e) = modal_handlers::handle_interaction(&ctx, &mut modal).await {
+//         error!("Error handling modal interaction: {}", e);
+//     }
+// }

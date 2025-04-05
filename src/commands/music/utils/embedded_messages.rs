@@ -204,3 +204,15 @@ pub fn generic_success(title: &str, description: &str) -> CreateReply {
         )
         .ephemeral(true)
 }
+
+/// Generic error message (ephemeral)
+pub fn generic_error(description: &str) -> CreateReply {
+    CreateReply::default()
+        .embed(
+            CreateEmbed::new()
+                .title("❌ Error")
+                .description(description)
+                .color(0xff0000), // Red color
+        )
+        .ephemeral(true)
+}

@@ -1,6 +1,8 @@
-use ::serenity::all::{CreateQuickModal, GuildId};
+use ::serenity::all::{
+    ComponentInteraction, CreateInteractionResponseFollowup, CreateQuickModal, GuildId,
+};
 use poise::serenity_prelude::{self as serenity, Context};
-use serenity::{ComponentInteraction, InputTextStyle, builder::CreateInputText};
+use serenity::{InputTextStyle, builder::CreateInputText};
 use songbird::tracks::PlayMode;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -338,17 +340,57 @@ async fn handle_search(
     let response = interaction.quick_modal(ctx, modal).await?;
 
     if let Some(response) = response {
-        tracing::debug!("Response: {:?}", response.inputs);
+        let interaction = response.interaction;
+        // Defer the response immediately
+        interaction.defer(&ctx.http).await?;
+
+        // This modal only has a single input field
+        let input = response.inputs[0].clone();
+
+        match MusicManager::process_play_request(
+            &ctx,
+            interaction.guild_id.unwrap(),
+            interaction.channel_id,
+            &interaction.user,
+            input,
+        )
+        .await
+        {
+            Ok((metadata, number_of_tracks)) => {
+                let response = MusicManager::play_success_response(metadata, number_of_tracks);
+
+                interaction
+                    .create_followup(
+                        &ctx.http,
+                        CreateInteractionResponseFollowup::new()
+                            .embeds(response.embeds)
+                            .ephemeral(true),
+                    )
+                    .await?;
+            }
+            Err(e) => {
+                let response = embedded_messages::generic_error(&e.to_string());
+
+                interaction
+                    .create_followup(
+                        &ctx.http,
+                        CreateInteractionResponseFollowup::new()
+                            .embeds(response.embeds)
+                            .ephemeral(true),
+                    )
+                    .await?;
+            }
+        }
     }
 
-    Ok(()) // Modal presentation itself is the success case here
+    Ok(())
 }
 
 /// Update the original player message after a button interaction
 async fn update_player_message(
     ctx: &Context,
     interaction: &ComponentInteraction,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+) -> ButtonInteractionResult {
     let guild_id = interaction.guild_id.ok_or("Not in a guild")?;
 
     let player_message_data = MusicManager::get_player_message_data(guild_id).await;
@@ -374,7 +416,7 @@ async fn error_followup(
     ctx: &Context,
     interaction: &ComponentInteraction,
     content: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+) -> ButtonInteractionResult {
     interaction
         .create_followup(
             &ctx.http,
