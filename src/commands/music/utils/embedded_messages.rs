@@ -21,11 +21,15 @@ pub struct PlayerMessageData {
 /// Create a progress bar for the current track
 fn format_progress_bar(position: Duration, total: Duration) -> String {
     const BAR_LENGTH: usize = 15;
-    let progress = if total.as_secs() == 0 {
-        0.0
-    } else {
-        position.as_secs_f64() / total.as_secs_f64()
-    };
+
+    // Handle the case where total duration is 0 to avoid division by zero
+    if total.as_secs() == 0 {
+        return format!("{}🔘{}", "", "▬".repeat(BAR_LENGTH)); // Return empty progress bar
+    }
+
+    // Use modulo to wrap the position within the track duration
+    let wrapped_position = Duration::from_secs(position.as_secs() % total.as_secs());
+    let progress = wrapped_position.as_secs_f64() / total.as_secs_f64();
 
     let filled = (progress * BAR_LENGTH as f64).round() as usize;
     let empty = BAR_LENGTH - filled;
@@ -75,15 +79,17 @@ pub async fn music_player_message(data: PlayerMessageData) -> Result<CreateReply
                     embed = embed.thumbnail(thumbnail);
                 }
 
-                let duration = metadata.duration.unwrap_or(Duration::from_secs(0));
-                let position = track_info.position;
                 let (title, url, _) = parse_metadata(&metadata);
-
                 let mut description = format!("**Now Playing:** [{}]({})\n", title, url);
 
-                // Progress Bar and Timings
+                // Progress Bar
+                let duration = metadata.duration.unwrap_or(Duration::from_secs(0));
+                let position = track_info.position;
                 let progress = format_progress_bar(position, duration);
-                let pos_str = format_duration(position);
+
+                // Position / Duration
+                let wrapped_position = Duration::from_secs(position.as_secs() % duration.as_secs());
+                let pos_str = format_duration(wrapped_position);
                 let dur_str = format_duration(duration);
                 description.push_str(&format!("{} `{}/{}`\n\n", progress, pos_str, dur_str));
 

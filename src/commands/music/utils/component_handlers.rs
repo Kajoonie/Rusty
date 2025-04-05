@@ -6,7 +6,9 @@ use serenity::{InputTextStyle, builder::CreateInputText};
 use songbird::tracks::PlayMode;
 use std::time::Duration;
 use tokio::time::sleep;
-use tracing::{error, info};
+use tracing::{debug, error, info};
+
+use crate::commands::music::audio_sources::track_metadata::TrackMetadata;
 
 use super::{button_controls::RepeatState, embedded_messages, music_manager::MusicManager};
 use tracing::warn;
@@ -401,10 +403,12 @@ async fn handle_repeat(
         let current_state = MusicManager::get_repeat_state(guild_id).await;
         let new_state = match current_state {
             RepeatState::Disabled => {
+                debug!("Looping track '{}'", track.data::<TrackMetadata>().title);
                 track.enable_loop()?;
                 RepeatState::RepeatOne
             }
             RepeatState::RepeatOne => {
+                debug!("Disabling loop for track '{}'", track.data::<TrackMetadata>().title);
                 track.disable_loop()?;
                 RepeatState::Disabled
             }
