@@ -17,7 +17,6 @@ use super::{
 pub struct PlayerMessageData {
     pub queue: Option<TrackQueue>,
     pub show_queue: bool,
-    pub has_history: bool,
     pub repeat_state: RepeatState,
 }
 
@@ -63,7 +62,6 @@ pub async fn music_player_message(guild_id: GuildId) -> Result<CreateReply, Musi
     let current_track_opt = queue.current();
 
     let show_queue = data.show_queue;
-    let has_history = data.has_history;
     let has_queue = !queue.is_empty();
 
     let mut is_playing = false;
@@ -176,7 +174,6 @@ pub async fn music_player_message(guild_id: GuildId) -> Result<CreateReply, Musi
         is_playing,
         has_queue,
         show_queue,
-        has_history,
         no_track,
         repeat_state,
     };

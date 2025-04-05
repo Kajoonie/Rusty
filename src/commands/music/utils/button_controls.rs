@@ -5,7 +5,6 @@ enum Emoji {
     Next,
     Pause,
     Play,
-    Previous,
     Queue,
     Repeat,
     Search,
@@ -19,7 +18,6 @@ impl From<Emoji> for String {
             Emoji::Next => "⏭️",
             Emoji::Pause => "⏸️",
             Emoji::Play => "▶️",
-            Emoji::Previous => "⏮️",
             Emoji::Queue => "📃",
             Emoji::Repeat => "🔂",
             Emoji::Search => "🔍",
@@ -45,7 +43,6 @@ pub struct ButtonData {
     pub is_playing: bool,
     pub has_queue: bool,
     pub show_queue: bool,
-    pub has_history: bool,
     pub no_track: bool,
     pub repeat_state: RepeatState,
 }
@@ -54,7 +51,6 @@ pub struct ButtonData {
 pub fn stateful_interaction_buttons(data: ButtonData) -> Vec<CreateActionRow> {
     let first_row = CreateActionRow::Buttons(vec![
         eject(),
-        previous(data.has_history),
         play_pause(data.is_playing, data.no_track),
         next(data.is_playing, data.has_queue),
     ]);
@@ -67,13 +63,6 @@ pub fn stateful_interaction_buttons(data: ButtonData) -> Vec<CreateActionRow> {
     ]);
 
     vec![first_row, second_row]
-}
-
-fn previous(has_history: bool) -> CreateButton {
-    CreateButton::new("music_previous")
-        .emoji(Emoji::Previous)
-        .style(ButtonStyle::Secondary)
-        .disabled(!has_history)
 }
 
 fn play_pause(is_playing: bool, no_track: bool) -> CreateButton {

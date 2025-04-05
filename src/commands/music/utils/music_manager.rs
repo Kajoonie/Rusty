@@ -8,7 +8,7 @@ use serenity::prelude::Mutex as SerenityMutex;
 use songbird::input::YoutubeDl;
 use songbird::tracks::{Track, TrackHandle, TrackQueue};
 use songbird::{Call, Songbird};
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
 use thiserror::Error;
 use tokio::sync::Mutex;
@@ -67,8 +67,6 @@ pub struct MusicManager {
     channel_ids: HashMap<GuildId, ChannelId>,
     // Store message IDs for each guild
     message_ids: HashMap<GuildId, MessageId>,
-    // Map of guild ID to track history metadata (most recent first)
-    history: HashMap<GuildId, VecDeque<TrackMetadata>>,
     // Map of guild ID to queue view toggle state
     show_queue: HashMap<GuildId, bool>,
     // Map of guild ID to periodic update task handle
@@ -83,7 +81,6 @@ impl Default for MusicManager {
             queues: Default::default(),
             channel_ids: Default::default(),
             message_ids: Default::default(),
-            history: Default::default(),
             show_queue: Default::default(),
             update_tasks: Default::default(),
             repeat_state: Default::default(),
@@ -210,11 +207,10 @@ impl MusicManager {
     }
 
     pub async fn get_player_message_data(guild_id: &GuildId) -> PlayerMessageData {
-        let (queue, show_queue, has_history, repeat_state) = with_manager(|m| {
+        let (queue, show_queue, repeat_state) = with_manager(|m| {
             (
                 m.queues.get(&guild_id).cloned(),
                 m.show_queue.get(&guild_id).copied().unwrap_or(true),
-                m.history.get(&guild_id).is_some_and(|h| !h.is_empty()),
                 m.repeat_state
                     .get(&guild_id)
                     .copied()
@@ -226,7 +222,6 @@ impl MusicManager {
         PlayerMessageData {
             queue,
             show_queue,
-            has_history,
             repeat_state,
         }
     }
