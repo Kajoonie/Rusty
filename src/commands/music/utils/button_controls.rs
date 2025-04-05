@@ -35,34 +35,35 @@ impl From<Emoji> for ReactionType {
     }
 }
 
-#[derive(Clone, Debug)] // Add Clone and Debug derives
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum RepeatState {
     Disabled,
     RepeatOne,
 }
 
+pub struct ButtonData {
+    pub is_playing: bool,
+    pub has_queue: bool,
+    pub show_queue: bool,
+    pub has_history: bool,
+    pub no_track: bool,
+    pub repeat_state: RepeatState,
+}
+
 /// Creates updated music control buttons based on player status
-pub fn stateful_interaction_buttons(
-    is_playing: bool,
-    has_queue: bool,
-    show_queue: bool,
-    has_history: bool,
-    no_track: bool,
-    repeat_state: RepeatState,
-    is_shuffle: bool,
-) -> Vec<CreateActionRow> {
+pub fn stateful_interaction_buttons(data: ButtonData) -> Vec<CreateActionRow> {
     let first_row = CreateActionRow::Buttons(vec![
         eject(),
-        previous(has_history),
-        play_pause(is_playing, no_track),
-        next(is_playing, has_queue),
+        previous(data.has_history),
+        play_pause(data.is_playing, data.no_track),
+        next(data.is_playing, data.has_queue),
     ]);
 
     let second_row = CreateActionRow::Buttons(vec![
         search(),
-        repeat(repeat_state),
-        shuffle(is_shuffle),
-        queue(has_queue, show_queue),
+        repeat(data.repeat_state),
+        shuffle(),
+        queue(data.has_queue, data.show_queue),
     ]);
 
     vec![first_row, second_row]
@@ -120,15 +121,10 @@ fn repeat(state: RepeatState) -> CreateButton {
         .disabled(false)
 }
 
-fn shuffle(active: bool) -> CreateButton {
-    let style = match active {
-        true => ButtonStyle::Success,
-        false => ButtonStyle::Secondary,
-    };
-
+fn shuffle() -> CreateButton {
     CreateButton::new("music_shuffle")
         .emoji(Emoji::Shuffle)
-        .style(style)
+        .style(ButtonStyle::Secondary)
         .disabled(false)
 }
 

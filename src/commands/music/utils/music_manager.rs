@@ -1,5 +1,7 @@
 use ::serenity::all::{CreateMessage, EditMessage, MessageId, User, UserId};
 use poise::{CreateReply, serenity_prelude as serenity};
+use rand::seq::SliceRandom;
+use rand::thread_rng;
 use serenity::client::Context;
 use serenity::model::id::{ChannelId, GuildId};
 use serenity::prelude::Mutex as SerenityMutex;
@@ -73,27 +75,18 @@ pub struct MusicManager {
     update_tasks: HashMap<GuildId, JoinHandle<()>>,
     // Map of guild ID to repeat state
     repeat_state: HashMap<GuildId, RepeatState>,
-    // Map of guild ID to shuffle state
-    // shuffle_enabled: HashMap<GuildId, bool>,
-    // Track whether a guild has manually stopped playback
-    // manual_stop_flags: HashMap<GuildId, bool>,
-    // Flags to indicate a "previous track" action is in progress
-    // previous_action_flags: HashMap<GuildId, bool>,
 }
 
 impl Default for MusicManager {
     fn default() -> Self {
         Self {
             queues: Default::default(),
+            channel_ids: Default::default(),
+            message_ids: Default::default(),
             history: Default::default(),
             show_queue: Default::default(),
             update_tasks: Default::default(),
             repeat_state: Default::default(),
-            // shuffle_enabled: Default::default(),
-            channel_ids: Default::default(),
-            message_ids: Default::default(),
-            // manual_stop_flags: Default::default(),
-            // previous_action_flags: Default::default(),
         }
     }
 }
@@ -216,12 +209,16 @@ impl MusicManager {
         Ok(message.id)
     }
 
-    pub async fn get_player_message_data(guild_id: GuildId) -> PlayerMessageData {
-        let (queue, show_queue, has_history) = with_manager(|m| {
+    pub async fn get_player_message_data(guild_id: &GuildId) -> PlayerMessageData {
+        let (queue, show_queue, has_history, repeat_state) = with_manager(|m| {
             (
                 m.queues.get(&guild_id).cloned(),
                 m.show_queue.get(&guild_id).copied().unwrap_or(true),
                 m.history.get(&guild_id).is_some_and(|h| !h.is_empty()),
+                m.repeat_state
+                    .get(&guild_id)
+                    .copied()
+                    .unwrap_or(RepeatState::Disabled),
             )
         })
         .await;
@@ -230,7 +227,7 @@ impl MusicManager {
             queue,
             show_queue,
             has_history,
-            guild_id,
+            repeat_state,
         }
     }
 
@@ -239,9 +236,7 @@ impl MusicManager {
         guild_id: GuildId,
         channel_id: ChannelId,
     ) -> Result<MessageId, Error> {
-        let data = Self::get_player_message_data(guild_id).await;
-
-        let reply = embedded_messages::music_player_message(data).await?;
+        let reply = embedded_messages::music_player_message(guild_id).await?;
 
         let message_id = match Self::get_message_id(guild_id).await {
             Some(message_id) => {
@@ -270,27 +265,6 @@ impl MusicManager {
         Ok(message_id)
     }
 
-    // /// Get the previous track's metadata from history. Does NOT modify the main queue or current track state.
-    // /// Returns the TrackMetadata of the track retrieved from history.
-    // pub fn previous(&mut self, guild_id: GuildId) -> Option<TrackMetadata> {
-    //     // Get the history queue, return None if no history
-    //     let history_queue = self.history.get_mut(&guild_id)?;
-    //     // Pop the most recent metadata from history
-    //     let previous_metadata = history_queue.pop_front()?;
-    //     debug!(
-    //         "Retrieved track '{}' from history for guild {} (state not modified yet)",
-    //         previous_metadata.title, guild_id
-    //     );
-
-    //     // Return the metadata retrieved from history
-    //     Some(previous_metadata)
-    // }
-
-    // /// Check if there is any track history for the guild
-    // pub fn has_history(&self, guild_id: GuildId) -> bool {
-    //     self.history.get(&guild_id).is_some_and(|h| !h.is_empty())
-    // }
-
     /// Toggle the queue view state for a guild (async)
     pub async fn toggle_queue_view(guild_id: GuildId) {
         with_manager_mut(|m| {
@@ -302,68 +276,37 @@ impl MusicManager {
             );
         })
         .await;
-        // let current_state = self.show_queue.entry(guild_id).or_insert(true);
-        // *current_state = !*current_state;
-        // info!(
-        //     "Toggled queue view for guild {}: {}",
-        //     guild_id, *current_state
-        // );
     }
 
-    /// Get the current repeat state for a guild
-    // pub fn get_repeat_state(&self, guild_id: GuildId) -> RepeatState {
-    //     self.repeat_state
-    //         .get(&guild_id)
-    //         .cloned()
-    //         .unwrap_or(RepeatState::Disabled) // Default to Disabled
-    // }
+    pub async fn shuffle_queue(guild_id: &GuildId) {
+        with_manager_mut(|m| {
+            if let Some(queue) = m.queues.get(guild_id) {
+                if queue.len() <= 1 {
+                    return;
+                }
 
-    // /// Cycle the repeat state for a guild
-    // pub fn cycle_repeat_state(&mut self, guild_id: GuildId) -> RepeatState {
-    //     let current_state = self.get_repeat_state(guild_id);
-    //     let next_state = match current_state {
-    //         RepeatState::Disabled => RepeatState::RepeatAll,
-    //         RepeatState::RepeatAll => RepeatState::RepeatOne,
-    //         RepeatState::RepeatOne => RepeatState::Disabled,
-    //     };
-    //     self.repeat_state.insert(guild_id, next_state.clone());
-    //     info!(
-    //         "Cycled repeat state for guild {}: {:?}",
-    //         guild_id, next_state
-    //     );
-    //     next_state
-    // }
+                let mut rng = thread_rng();
 
-    // /// Check if shuffle is enabled for a guild
-    // pub fn is_shuffle_enabled(&self, guild_id: GuildId) -> bool {
-    //     *self.shuffle_enabled.get(&guild_id).unwrap_or(&false) // Default to false
-    // }
+                queue.modify_queue(|q| {
+                    // Keep the first track (currently playing)
+                    let current = q.pop_front();
 
-    // /// Toggle the shuffle state for a guild
-    // pub fn toggle_shuffle(&mut self, guild_id: GuildId) -> bool {
-    //     let current_state = self.is_shuffle_enabled(guild_id);
-    //     let next_state = !current_state;
-    //     self.shuffle_enabled.insert(guild_id, next_state);
-    //     info!(
-    //         "Toggled shuffle state for guild {}: {}",
-    //         guild_id, next_state
-    //     );
-    //     next_state
-    // }
+                    // Convert remaining queue to Vec for shuffling
+                    let mut remaining: Vec<_> = q.drain(..).collect();
+                    remaining.shuffle(&mut rng);
 
-    // /// Shuffle the current queue for a guild
-    // pub fn shuffle_queue(&mut self, guild_id: GuildId) {
-    //     if let Some(queue) = self.queues.get_mut(&guild_id) {
-    //         if queue.len() > 1 {
-    //             let mut rng = thread_rng();
-    //             // VecDeque doesn't directly support shuffle, so convert to Vec and back
-    //             // Or use make_contiguous if efficiency is critical and possible
-    //             let contiguous_slice = queue.make_contiguous(); // Remove mut
-    //             contiguous_slice.shuffle(&mut rng);
-    //             info!("Shuffled queue for guild {}", guild_id);
-    //         }
-    //     }
-    // }
+                    // Put back the current track
+                    if let Some(current_track) = current {
+                        q.push_back(current_track);
+                    }
+
+                    // Add shuffled tracks back
+                    q.extend(remaining);
+                });
+            }
+        })
+        .await;
+    }
 
     /// Start the periodic update task for a guild (async)
     async fn start_update_task(

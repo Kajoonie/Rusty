@@ -9,13 +9,16 @@ use crate::commands::music::{
     utils::{button_controls, format_duration, music_manager::MusicError},
 };
 
-use super::music_manager::MusicManager;
+use super::{
+    button_controls::{ButtonData, RepeatState},
+    music_manager::MusicManager,
+};
 
 pub struct PlayerMessageData {
     pub queue: Option<TrackQueue>,
     pub show_queue: bool,
     pub has_history: bool,
-    pub guild_id: GuildId,
+    pub repeat_state: RepeatState,
 }
 
 /// Create a progress bar for the current track
@@ -50,8 +53,10 @@ fn parse_metadata(metadata: &TrackMetadata) -> (String, String, String) {
 }
 
 /// Generates the main music player message embed and components.
-pub async fn music_player_message(data: PlayerMessageData) -> Result<CreateReply, MusicError> {
+pub async fn music_player_message(guild_id: GuildId) -> Result<CreateReply, MusicError> {
     let mut embed = CreateEmbed::new().color(0x00ff00); // Green color
+
+    let data = MusicManager::get_player_message_data(&guild_id).await;
 
     let queue = data.queue.ok_or(MusicError::NoQueue)?;
 
@@ -165,19 +170,20 @@ pub async fn music_player_message(data: PlayerMessageData) -> Result<CreateReply
         embed = embed.description("**🔇 Nothing playing or queued.**");
     }
 
-    let repeat_state = MusicManager::get_repeat_state(data.guild_id).await;
+    let repeat_state = data.repeat_state;
 
-    let reply = CreateReply::default().embed(embed).components(
-        button_controls::stateful_interaction_buttons(
-            is_playing,
-            has_queue,
-            show_queue,
-            has_history,
-            no_track,
-            repeat_state,
-            false,
-        ),
-    );
+    let button_data = ButtonData {
+        is_playing,
+        has_queue,
+        show_queue,
+        has_history,
+        no_track,
+        repeat_state,
+    };
+
+    let reply = CreateReply::default()
+        .embed(embed)
+        .components(button_controls::stateful_interaction_buttons(button_data));
 
     Ok(reply)
 }
