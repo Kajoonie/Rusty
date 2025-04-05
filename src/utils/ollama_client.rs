@@ -1,19 +1,18 @@
 use dashmap::DashMap;
+use ollama_rs::Ollama;
 use ollama_rs::error::OllamaError;
 use ollama_rs::generation::chat::request::ChatMessageRequest;
 use ollama_rs::generation::chat::{ChatMessage, ChatMessageResponse};
 use ollama_rs::models::LocalModel;
-use ollama_rs::Ollama;
-use once_cell::sync::Lazy;
 use serenity::all::User;
 use std::env;
-use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::{Arc, LazyLock};
 use tracing::{debug, error, info, warn};
 
 use crate::utils::database;
 
-pub type Result<T> = std::result::Result<T, OllamaError>;
+pub type OllamaResult<T> = Result<T, OllamaError>;
 
 pub struct OllamaClient {
     client: Ollama,
@@ -21,7 +20,7 @@ pub struct OllamaClient {
     convo_map: DashMap<User, Mutex<Vec<ChatMessage>>>,
 }
 
-pub static OLLAMA_CLIENT: Lazy<Arc<OllamaClient>> = Lazy::new(|| {
+pub static OLLAMA_CLIENT: LazyLock<Arc<OllamaClient>> = LazyLock::new(|| {
     debug!("Initializing OllamaClient");
     Arc::new(OllamaClient::default())
 });
@@ -53,7 +52,7 @@ impl OllamaClient {
         self.default_model.clone()
     }
 
-    pub async fn list_models(&self) -> Result<Vec<LocalModel>> {
+    pub async fn list_models(&self) -> OllamaResult<Vec<LocalModel>> {
         info!("Fetching list of local models from Ollama");
         self.client.list_local_models().await
     }
@@ -78,14 +77,14 @@ impl OllamaClient {
         messages.clone()
     }
 
-    pub async fn chat(&self, user: &User, message: &str) -> Result<ChatMessageResponse> {
+    pub async fn chat(&self, user: &User, message: &str) -> OllamaResult<ChatMessageResponse> {
         info!("Processing chat request for user {}", user.name);
         let model = match database::get_user_model(user) {
             Some(model) => model,
             None => {
                 return Err(OllamaError::Other(
                     "No model set for user or default defined".to_string(),
-                ))
+                ));
             }
         };
 

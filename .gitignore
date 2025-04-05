@@ -3,3 +3,7 @@
 /.cargo/*
 .env
 application_data.db
+.aider*
+*.md
+!README.md
+/.track_cache/

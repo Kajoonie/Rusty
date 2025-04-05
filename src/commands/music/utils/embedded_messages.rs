@@ -1,23 +1,42 @@
-use poise::{serenity_prelude as serenity, CreateReply};
+use ::serenity::all::GuildId;
+use poise::{CreateReply, serenity_prelude as serenity};
 use serenity::all::CreateEmbed;
-use songbird::tracks::TrackHandle;
-use std::time::Duration;
+use songbird::tracks::{PlayMode, TrackQueue};
+use std::{sync::Arc, time::Duration};
 
-use super::{audio_sources::TrackMetadata, format_duration, music_manager::MusicError};
+use crate::commands::music::{
+    audio_sources::track_metadata::TrackMetadata,
+    utils::{button_controls, format_duration, music_manager::MusicError},
+};
+
+use super::{
+    button_controls::{ButtonData, RepeatState},
+    music_manager::MusicManager,
+};
+
+pub struct PlayerMessageData {
+    pub queue: Option<TrackQueue>,
+    pub show_queue: bool,
+    pub repeat_state: RepeatState,
+}
 
 /// Create a progress bar for the current track
 fn format_progress_bar(position: Duration, total: Duration) -> String {
     const BAR_LENGTH: usize = 15;
-    let progress = if total.as_secs() == 0 {
-        0.0
-    } else {
-        position.as_secs_f64() / total.as_secs_f64()
-    };
+
+    // Handle the case where total duration is 0 to avoid division by zero
+    if total.as_secs() == 0 {
+        return format!("{}🔘{}", "", "▬".repeat(BAR_LENGTH)); // Return empty progress bar
+    }
+
+    // Use modulo to wrap the position within the track duration
+    let wrapped_position = Duration::from_secs(position.as_secs() % total.as_secs());
+    let progress = wrapped_position.as_secs_f64() / total.as_secs_f64();
 
     let filled = (progress * BAR_LENGTH as f64).round() as usize;
     let empty = BAR_LENGTH - filled;
 
-    format!("▬{}🔘{}▬", "▬".repeat(filled), "▬".repeat(empty))
+    format!("{}🔘{}", "▬".repeat(filled), "▬".repeat(empty))
 }
 
 /// Parse the metadata for the now playing and added to queue embeds
@@ -32,255 +51,184 @@ fn parse_metadata(metadata: &TrackMetadata) -> (String, String, String) {
     (title, url, duration_str)
 }
 
-/// Create an embed for when a song is now playing
-pub fn now_playing(metadata: &TrackMetadata) -> CreateEmbed {
-    let (title, url, duration_str) = parse_metadata(metadata);
+/// Generates the main music player message embed and components.
+pub async fn music_player_message(guild_id: GuildId) -> Result<CreateReply, MusicError> {
+    let mut embed = CreateEmbed::new().color(0x00ff00); // Green color
 
-    let mut embed = CreateEmbed::new()
-        .title("🎵 Now Playing")
-        .description(format!("[{}]({})", title, url))
-        .field("Duration", format!("`{}`", duration_str), true)
-        .color(0x00ff00);
+    let data = MusicManager::get_player_message_data(&guild_id).await;
 
-    // Add thumbnail if available
-    if let Some(thumbnail) = &metadata.thumbnail {
-        embed = embed.thumbnail(thumbnail);
-    }
+    let queue = data.queue.ok_or(MusicError::NoQueue)?;
 
-    embed
-}
+    let current_track_opt = queue.current();
 
-/// Create an embed for when a song is added to the queue
-pub fn added_to_queue(metadata: &TrackMetadata, position: &usize) -> CreateEmbed {
-    let (title, url, duration_str) = parse_metadata(metadata);
+    let show_queue = data.show_queue;
+    let has_queue = !queue.is_empty();
 
-    let mut embed = CreateEmbed::new()
-        .title("🎵 Added to Queue")
-        .description(format!("[{}]({})", title, url))
-        .field("Duration", format!("`{}`", duration_str), true)
-        .field("Position", format!("`#{}`", position), true)
-        .color(0x00ff00);
+    let mut is_playing = false;
+    let mut no_track = false;
 
-    // Add thumbnail if available
-    if let Some(thumbnail) = &metadata.thumbnail {
-        embed = embed.thumbnail(thumbnail);
-    }
+    if let Some(track_handle) = &current_track_opt {
+        let metadata: Arc<TrackMetadata> = track_handle.data();
 
-    embed
-}
+        match track_handle.get_info().await {
+            Ok(track_info) => {
+                is_playing = track_info.playing == PlayMode::Play;
 
-/// Create an embed for the music queue
-pub async fn music_queue(
-    current_track: &Option<(TrackHandle, TrackMetadata)>,
-    queue: &[TrackMetadata],
-) -> CreateEmbed {
-    // Build the queue display
-    let mut description = String::new();
+                // Track is valid and playing/paused, build the detailed embed
+                embed = embed.title("🎵 Music Player");
 
-    // Add current track information if there is one playing
-    if let Some((track_handle, metadata)) = &current_track {
-        let track_info = track_handle.get_info().await.ok();
-        let position = track_info.as_ref().map(|info| info.position);
+                // Add thumbnail if available
+                if let Some(thumbnail) = &metadata.thumbnail {
+                    embed = embed.thumbnail(thumbnail);
+                }
 
-        description.push_str("**🎵 Now Playing**\n");
-        description.push_str(&format!(
-            "**[{}]({})**\n",
-            metadata.title,
-            metadata.url.as_deref().unwrap_or("#")
-        ));
+                let (title, url, _) = parse_metadata(&metadata);
+                let mut description = format!("**Now Playing:** [{}]({})\n", title, url);
 
-        // Add progress bar if we have duration and position
-        if let (Some(duration), Some(pos)) = (metadata.duration, position) {
-            let progress = format_progress_bar(pos, duration);
-            let pos_str = format_duration(pos);
-            let dur_str = format_duration(duration);
-            description.push_str(&format!("{} `{}/{}`\n", progress, pos_str, dur_str));
-        }
+                // Progress Bar
+                let duration = metadata.duration.unwrap_or(Duration::from_secs(0));
+                let position = track_info.position;
+                let progress = format_progress_bar(position, duration);
 
-        description.push('\n');
-    } else {
-        description.push_str("**🔇 Nothing playing**\n\n");
-    }
+                // Position / Duration
+                let wrapped_position = Duration::from_secs(position.as_secs() % duration.as_secs());
+                let pos_str = format_duration(wrapped_position);
+                let dur_str = format_duration(duration);
+                description.push_str(&format!("{} `{}/{}`\n\n", progress, pos_str, dur_str));
 
-    // Add upcoming tracks
-    if queue.is_empty() {
-        description.push_str("**📭 Queue is empty**");
-    } else {
-        description.push_str(&format!("**📋 Queue - {} tracks**\n", queue.len()));
-        for (index, track) in queue.iter().enumerate() {
-            // Add track number emoji (1-9) or default bullet point
-            let number = if index < 9 {
-                format!("{}\u{FE0F}\u{20E3}", index + 1) // Unicode keycap emoji
-            } else {
-                "•".to_string()
-            };
+                if !queue.is_empty() {
+                    let remaining_in_current_track = duration.saturating_sub(position);
 
-            description.push_str(&format!(
-                "{} [{}]({})",
-                number,
-                track.title,
-                track.url.as_deref().unwrap_or("#")
-            ));
+                    let queue_duration: Duration = queue
+                        .current_queue()
+                        .iter()
+                        .skip(1) // Ignore head of queue, currently-playing song
+                        .filter_map(|track| {
+                            let metadata: Arc<TrackMetadata> = track.data();
+                            metadata.duration
+                        })
+                        .sum();
 
-            if let Some(duration) = track.duration {
-                description.push_str(&format!(" `{}`", format_duration(duration)));
+                    let total_duration_str =
+                        format_duration(queue_duration + remaining_in_current_track);
+                    description.push_str(&format!(
+                        "**Queue:** {} tracks (`{}` remaining)\n",
+                        queue.len() - 1, // Ignore head of queue, currently-playing song
+                        total_duration_str
+                    ));
+                } else {
+                    description.push_str("**Queue:** Empty\n");
+                }
+
+                // Detailed Queue View (if toggled)
+                if show_queue && queue.len() > 1 {
+                    // Again, > 1 rather than !is_empty() to ignore head of queue
+                    description.push_str("\n**Upcoming Tracks:**\n");
+                    for (index, track) in queue
+                        .current_queue()
+                        .iter()
+                        .skip(1) // Ignore head of queue
+                        .take(10) // Display only the first 10 tracks
+                        .enumerate()
+                    {
+                        let metadata: Arc<TrackMetadata> = track.data();
+                        description.push_str(&format!(
+                            "{}. [{}]({})",
+                            index + 1,
+                            metadata.title,
+                            metadata.url.as_deref().unwrap_or("#")
+                        ));
+                        if let Some(dur) = metadata.duration {
+                            description.push_str(&format!(" `{}`", format_duration(dur)));
+                        }
+                        description.push('\n');
+                    }
+                    if queue.len() > 11 {
+                        description.push_str(&format!("... and {} more\n", queue.len() - 11));
+                    }
+                }
+
+                embed = embed.description(description);
             }
-            description.push('\n');
+            Err(songbird::error::ControlError::Finished) => {
+                // Track just finished, treat as if nothing is playing for this update cycle
+                no_track = true;
+            }
+            Err(e) => {
+                // Propagate other errors
+                return Err(MusicError::AudioSourceError(e.to_string()));
+            }
         }
-
-        // Add total duration if available
-        let total_duration: Duration = queue.iter().filter_map(|track| track.duration).sum();
-        if total_duration.as_secs() > 0 {
-            description.push_str(&format!(
-                "\n**⏱️ Total Duration:** `{}`",
-                format_duration(total_duration)
-            ));
-        }
+    } else {
+        no_track = true;
     }
 
-    // Create and send the embed
-    CreateEmbed::new()
-        .title("Music Queue")
-        .description(description)
-        .color(0x00ff00)
+    if no_track {
+        // Nothing playing or track just ended
+        embed = embed.description("**🔇 Nothing playing or queued.**");
+    }
+
+    let repeat_state = data.repeat_state;
+
+    let button_data = ButtonData {
+        is_playing,
+        has_queue,
+        show_queue,
+        no_track,
+        repeat_state,
+    };
+
+    let reply = CreateReply::default()
+        .embed(embed)
+        .components(button_controls::stateful_interaction_buttons(button_data));
+
+    Ok(reply)
 }
 
-/// Create an embed for when the bot is not connected to a voice channel
-pub fn bot_not_in_voice_channel(err: MusicError) -> CreateReply {
-    CreateReply::default().embed(
-        CreateEmbed::new()
-            .title("❌ Error")
-            .description(format!("Not connected to a voice channel: {}", err))
-            .color(0xff0000),
-    )
-}
+// --- Simple Ephemeral Messages ---
 
-/// Create an embed for when a user is not connected to a voice channel
-pub fn user_not_in_voice_channel(err: MusicError) -> CreateReply {
+/// Create an embed for when autoplay is enabled or disabled (ephemeral)
+pub fn autoplay_status(enabled: bool) -> CreateReply {
     CreateReply::default()
         .embed(
             CreateEmbed::new()
-                .title("❌ Error")
-                .description(format!("You need to be in a voice channel: {}", err))
-                .color(0xff0000),
+                .title(if enabled {
+                    "🔄 Autoplay Enabled"
+                } else {
+                    "⏹️ Autoplay Disabled"
+                })
+                .description(if enabled {
+                    "I will automatically play related songs when the queue is empty"
+                } else {
+                    "I will stop playing when the queue is empty"
+                })
+                .color(if enabled { 0x00ff00 } else { 0xff0000 }), // Green/Red
         )
         .ephemeral(true)
 }
 
-/// Create an embed for when a track is paused
-pub fn paused(metadata: &TrackMetadata) -> CreateReply {
-    CreateReply::default().embed(
-        CreateEmbed::new()
-            .title("⏸️ Paused")
-            .description(format!(
-                "Paused [{}]({})",
-                metadata.title,
-                metadata.url.as_deref().unwrap_or("#")
-            ))
-            .color(0x00ff00),
-    )
+/// Generic success message (ephemeral)
+pub fn generic_success(title: &str, description: &str) -> CreateReply {
+    CreateReply::default()
+        .embed(
+            CreateEmbed::new()
+                .title(title)
+                .description(description)
+                .color(0x00ff00), // Green color
+        )
+        .ephemeral(true)
 }
 
-/// Create an embed for when a track is resumed
-pub fn resumed(metadata: &TrackMetadata) -> CreateReply {
-    CreateReply::default().embed(
-        CreateEmbed::new()
-            .title("▶️ Resumed")
-            .description(format!(
-                "Resumed [{}]({})",
-                metadata.title,
-                metadata.url.as_deref().unwrap_or("#")
-            ))
-            .color(0x00ff00),
-    )
-}
-
-/// Create an embed for when a track is not in a pausable state
-pub fn not_pausable() -> CreateReply {
-    CreateReply::default().embed(
-        CreateEmbed::new()
-            .title("❌ Error")
-            .description("The track is not in a pausable state")
-            .color(0xff0000),
-    )
-}
-
-/// Create an embed for when no track is playing
-pub fn no_track_playing() -> CreateReply {
-    CreateReply::default().embed(
-        CreateEmbed::new()
-            .title("❌ Error")
-            .description("No track is currently playing")
-            .color(0xff0000),
-    )
-}
-
-/// Create an embed for when autoplay is enabled or disabled
-pub fn autoplay_status(enabled: bool) -> CreateReply {
-    CreateReply::default().embed(
-        CreateEmbed::new()
-            .title(if enabled {
-                "🔄 Autoplay Enabled"
-            } else {
-                "⏹️ Autoplay Disabled"
-            })
-            .description(if enabled {
-                "I will automatically play related songs when the queue is empty"
-            } else {
-                "I will stop playing when the queue is empty"
-            })
-            .color(if enabled { 0x00ff00 } else { 0xff0000 }),
-    )
-}
-
-/// Create an embed for when the bot leaves a voice channel
-pub fn left_voice_channel() -> CreateReply {
-    CreateReply::default().embed(
-        CreateEmbed::new()
-            .title("👋 Left Voice Channel")
-            .description("Successfully disconnected and cleared the queue")
-            .color(0x00ff00),
-    )
-}
-
-/// Create an embed for when the bot fails to leave a voice channel
-pub fn failed_to_leave_voice_channel(err: MusicError) -> CreateReply {
-    CreateReply::default().embed(
-        CreateEmbed::new()
-            .title("❌ Error")
-            .description(format!("Failed to leave voice channel: {}", err))
-            .color(0xff0000),
-    )
-}
-
-/// Create an embed for when the bot fails to join a voice channel
-pub fn failed_to_join_voice_channel(err: MusicError) -> CreateReply {
-    CreateReply::default().embed(
-        CreateEmbed::new()
-            .title("❌ Error")
-            .description(format!("Failed to join voice channel: {}", err))
-            .color(0xff0000),
-    )
-}
-
-/// Create an embed for when the bot fails to process an audio source
-pub fn failed_to_process_audio_source(err: MusicError) -> CreateReply {
-    CreateReply::default().embed(
-        CreateEmbed::new()
-            .title("❌ Error")
-            .description(format!("Failed to process audio source: {}", err))
-            .color(0xff0000),
-    )
-}
-
-/// Create an embed for when the bot fails to add a track to the queue
-pub fn failed_to_add_to_queue(err: MusicError) -> CreateReply {
-    CreateReply::default().embed(
-        CreateEmbed::new()
-            .title("❌ Error")
-            .description(format!("Failed to add track to queue: {}", err))
-            .color(0xff0000),
-    )
+/// Generic error message (ephemeral)
+pub fn generic_error(description: &str) -> CreateReply {
+    CreateReply::default()
+        .embed(
+            CreateEmbed::new()
+                .title("❌ Error")
+                .description(description)
+                .color(0xff0000), // Red color
+        )
+        .ephemeral(true)
 }
 
 /// Create an embed for when the queue is empty
@@ -300,7 +248,7 @@ pub fn invalid_queue_position(queue_length: usize) -> CreateReply {
             .title("❌ Error")
             .description(format!(
                 "Invalid position. The queue has {} tracks",
-                queue_length
+                queue_length - 1
             ))
             .color(0xff0000),
     )
@@ -318,54 +266,5 @@ pub fn track_removed(metadata: &TrackMetadata, position: usize) -> CreateReply {
                 title, url, position
             ))
             .color(0x00ff00),
-    )
-}
-
-/// Create an embed for when the bot fails to remove a track
-pub fn failed_to_remove_track() -> CreateReply {
-    CreateReply::default().embed(
-        CreateEmbed::new()
-            .title("❌ Error")
-            .description("Failed to remove track")
-            .color(0xff0000),
-    )
-}
-
-/// Create an embed for when the bot stops playing music
-pub fn stopped(autoplay_enabled: bool) -> CreateReply {
-    let mut embed = CreateEmbed::new()
-        .title("⏹️ Stopped")
-        .description("Playback stopped and queue cleared")
-        .color(0x00ff00);
-
-    // Add information about autoplay if it's enabled
-    if autoplay_enabled {
-        embed = embed.field(
-            "Autoplay",
-            "Autoplay is paused and will resume on next play",
-            false,
-        );
-    }
-
-    CreateReply::default().embed(embed)
-}
-
-/// Create an embed for when a track is skipped
-pub fn skipped(metadata: &TrackMetadata) -> CreateReply {
-    let (title, url, _) = parse_metadata(metadata);
-
-    CreateReply::default().embed(
-        CreateEmbed::new()
-            .title("⏭️ Skipped")
-            .description(format!("Skipped [{}]({})", title, url)),
-    )
-}
-
-/// Create an embed for when there is no track to skip
-pub fn no_track_to_skip() -> CreateReply {
-    CreateReply::default().embed(
-        CreateEmbed::new()
-            .title("❌ Error")
-            .description("No track is currently playing"),
     )
 }
