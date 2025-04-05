@@ -1,3 +1,4 @@
+use ::serenity::all::GuildId;
 use poise::{CreateReply, serenity_prelude as serenity};
 use serenity::all::CreateEmbed;
 use songbird::tracks::{PlayMode, TrackQueue};
@@ -8,12 +9,13 @@ use crate::commands::music::{
     utils::{button_controls, format_duration, music_manager::MusicError},
 };
 
-use super::button_controls::RepeatState;
+use super::music_manager::MusicManager;
 
 pub struct PlayerMessageData {
     pub queue: Option<TrackQueue>,
     pub show_queue: bool,
     pub has_history: bool,
+    pub guild_id: GuildId,
 }
 
 /// Create a progress bar for the current track
@@ -157,13 +159,16 @@ pub async fn music_player_message(data: PlayerMessageData) -> Result<CreateReply
         embed = embed.description("**🔇 Nothing playing or queued.**");
     }
 
+    let repeat_state = MusicManager::get_repeat_state(data.guild_id).await;
+
     let reply = CreateReply::default().embed(embed).components(
         button_controls::stateful_interaction_buttons(
             is_playing,
             has_queue,
+            show_queue,
             has_history,
             no_track,
-            RepeatState::Disabled,
+            repeat_state,
             false,
         ),
     );

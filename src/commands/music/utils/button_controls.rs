@@ -45,6 +45,7 @@ pub enum RepeatState {
 pub fn stateful_interaction_buttons(
     is_playing: bool,
     has_queue: bool,
+    show_queue: bool,
     has_history: bool,
     no_track: bool,
     repeat_state: RepeatState,
@@ -61,7 +62,7 @@ pub fn stateful_interaction_buttons(
         search(),
         repeat(repeat_state),
         shuffle(is_shuffle),
-        queue(has_queue),
+        queue(has_queue, show_queue),
     ]);
 
     vec![first_row, second_row]
@@ -75,13 +76,14 @@ fn previous(has_history: bool) -> CreateButton {
 }
 
 fn play_pause(is_playing: bool, no_track: bool) -> CreateButton {
+    let (emoji, style) = match is_playing {
+        true => (Emoji::Pause, ButtonStyle::Primary),
+        false => (Emoji::Play, ButtonStyle::Secondary),
+    };
+
     CreateButton::new("music_play_pause")
-        .emoji(if is_playing {
-            Emoji::Pause
-        } else {
-            Emoji::Play
-        })
-        .style(ButtonStyle::Primary)
+        .emoji(emoji)
+        .style(style)
         .disabled(no_track) // Disable play/pause if there's no track
 }
 
@@ -109,7 +111,7 @@ fn search() -> CreateButton {
 fn repeat(state: RepeatState) -> CreateButton {
     let style = match state {
         RepeatState::Disabled => ButtonStyle::Secondary,
-        RepeatState::RepeatOne => ButtonStyle::Success,
+        RepeatState::RepeatOne => ButtonStyle::Primary,
     };
 
     CreateButton::new("music_repeat")
@@ -119,19 +121,25 @@ fn repeat(state: RepeatState) -> CreateButton {
 }
 
 fn shuffle(active: bool) -> CreateButton {
+    let style = match active {
+        true => ButtonStyle::Success,
+        false => ButtonStyle::Secondary,
+    };
+
     CreateButton::new("music_shuffle")
         .emoji(Emoji::Shuffle)
-        .style(if active {
-            ButtonStyle::Success
-        } else {
-            ButtonStyle::Secondary
-        })
+        .style(style)
         .disabled(false)
 }
 
-fn queue(has_queue: bool) -> CreateButton {
+fn queue(has_queue: bool, show_queue: bool) -> CreateButton {
+    let style = match show_queue {
+        true => ButtonStyle::Primary,
+        false => ButtonStyle::Secondary,
+    };
+
     CreateButton::new("music_queue_toggle")
         .emoji(Emoji::Queue)
-        .style(ButtonStyle::Secondary)
+        .style(style)
         .disabled(!has_queue) // Disable queue if nothing queued
 }

@@ -8,7 +8,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{error, info};
 
-use super::{embedded_messages, music_manager::MusicManager};
+use super::{button_controls::RepeatState, embedded_messages, music_manager::MusicManager};
 use tracing::warn;
 
 type ButtonInteractionResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
@@ -39,6 +39,7 @@ pub async fn handle_interaction(
         "music_queue_toggle" => handle_queue_toggle(ctx, interaction, guild_id).await?,
         // "music_previous" => handle_previous(ctx, interaction, guild_id).await?,
         "music_search" => handle_search(ctx, interaction).await?,
+        "music_repeat" => handle_repeat(ctx, interaction, guild_id).await?,
         // Add cases for repeat and shuffle later
         _ => {
             error!("Unknown button ID: {}", interaction.data.custom_id);
@@ -384,6 +385,39 @@ async fn handle_search(
     }
 
     Ok(())
+}
+
+/// Handler for Repeat button
+async fn handle_repeat(
+    ctx: &Context,
+    interaction: &mut ComponentInteraction,
+    guild_id: GuildId,
+) -> ButtonInteractionResult {
+    // Get the current track
+    let current_track_opt = MusicManager::get_current_track(&guild_id).await;
+
+    if let Some(track) = current_track_opt {
+        // Toggle the repeat state
+        let current_state = MusicManager::get_repeat_state(guild_id).await;
+        let new_state = match current_state {
+            RepeatState::Disabled => {
+                track.enable_loop()?;
+                RepeatState::RepeatOne
+            }
+            RepeatState::RepeatOne => {
+                track.disable_loop()?;
+                RepeatState::Disabled
+            }
+        };
+
+        // Update the state in MusicManager
+        MusicManager::set_repeat_state(guild_id, new_state).await;
+
+        // Update the message
+        update_player_message(ctx, interaction).await
+    } else {
+        error_followup(ctx, interaction, "No track is currently playing.").await
+    }
 }
 
 /// Update the original player message after a button interaction

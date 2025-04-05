@@ -17,6 +17,7 @@ use crate::commands::music::audio_sources::track_metadata::TrackMetadata;
 use crate::commands::music::audio_sources::youtube::YoutubeApi;
 use crate::commands::music::audio_sources::{AUDIO_APIS, AudioSource};
 
+use super::button_controls::RepeatState;
 use super::embedded_messages::{self, PlayerMessageData};
 
 use crate::HTTP_CLIENT;
@@ -71,7 +72,7 @@ pub struct MusicManager {
     // Map of guild ID to periodic update task handle
     update_tasks: HashMap<GuildId, JoinHandle<()>>,
     // Map of guild ID to repeat state
-    // repeat_state: HashMap<GuildId, RepeatState>,
+    repeat_state: HashMap<GuildId, RepeatState>,
     // Map of guild ID to shuffle state
     // shuffle_enabled: HashMap<GuildId, bool>,
     // Track whether a guild has manually stopped playback
@@ -87,7 +88,7 @@ impl Default for MusicManager {
             history: Default::default(),
             show_queue: Default::default(),
             update_tasks: Default::default(),
-            // repeat_state: Default::default(),
+            repeat_state: Default::default(),
             // shuffle_enabled: Default::default(),
             channel_ids: Default::default(),
             message_ids: Default::default(),
@@ -165,11 +166,26 @@ impl MusicManager {
         with_manager_mut(|m| m.update_tasks.remove(guild_id)).await
     }
 
+    pub async fn get_repeat_state(guild_id: GuildId) -> RepeatState {
+        with_manager(|m| {
+            m.repeat_state
+                .get(&guild_id)
+                .cloned()
+                .unwrap_or(RepeatState::Disabled)
+        })
+        .await
+    }
+
+    pub async fn set_repeat_state(guild_id: GuildId, state: RepeatState) {
+        with_manager_mut(|m| m.repeat_state.insert(guild_id, state)).await;
+    }
+
     pub async fn drop_all(guild_id: &GuildId) {
         with_manager_mut(|m| {
             m.queues.remove(guild_id);
             m.message_ids.remove(guild_id);
             m.channel_ids.remove(guild_id);
+            m.repeat_state.remove(guild_id);
         })
         .await;
     }
@@ -214,6 +230,7 @@ impl MusicManager {
             queue,
             show_queue,
             has_history,
+            guild_id,
         }
     }
 
