@@ -29,7 +29,7 @@ async fn price(
     ctx.defer().await?;
 
     let formatted = to_api_format(&symbol);
-    let url = [API, "coins/", &formatted].concat();
+    let path = format!("coins/{}", formatted);
     let query = vec![
         ("localization", "false"),
         ("tickers", "false"),
@@ -38,7 +38,7 @@ async fn price(
         ("developer_data", "false"),
     ];
 
-    let result = send_request(&url, &query).await?;
+    let result = send_request(super::API, &path, &query).await?;
 
     let coin_data = CoinInfo::from_json(&result);
 
@@ -113,10 +113,10 @@ async fn list_coin_ids() -> Vec<String> {
 
     // If cache is empty, fetch and populate it
     let mut results = Vec::new();
-    let url = [API, "coins/list"].concat();
+    let path = "coins/list";
     let query = vec![("localization", "false")];
 
-    let result = send_request(&url, &query).await;
+    let result = send_request(super::API, path, &query).await;
 
     if let Ok(value) = result {
         if let Some(arr) = value.as_array() {
@@ -145,6 +145,6 @@ async fn autocomplete_coin_id<'a>(
     futures::stream::iter(
         coin_id_list
             .into_iter()
-            .filter(move |id| id.starts_with(partial))
+            .filter(move |id| id.starts_with(partial)),
     )
 }

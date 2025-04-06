@@ -1,5 +1,5 @@
 use ::serenity::all::CreateEmbed;
-use poise::{serenity_prelude as serenity, CreateReply};
+use poise::{CreateReply, serenity_prelude as serenity};
 use std::time::Duration;
 
 use crate::{CommandResult, Context};
