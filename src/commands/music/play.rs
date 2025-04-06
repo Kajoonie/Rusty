@@ -28,7 +28,7 @@ pub async fn play(
 
     // Delegate the core logic (joining channel, searching/fetching track, adding to queue) to the MusicManager.
     match MusicManager::process_play_request(
-        &ctx.serenity_context(),
+        ctx.serenity_context(),
         guild_id,
         ctx.channel_id(),
         ctx.author(),

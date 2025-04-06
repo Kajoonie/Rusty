@@ -78,13 +78,9 @@ static SPOTIFY_ALBUM_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 /// The main struct implementing Spotify API logic.
+#[derive(Default)]
 pub struct SpotifyApi;
 
-impl Default for SpotifyApi {
-    fn default() -> Self {
-        Self {}
-    }
-}
 
 impl SpotifyApi {
     /// Checks if the provided URL matches any of the known Spotify URL patterns

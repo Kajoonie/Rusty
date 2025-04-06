@@ -110,7 +110,7 @@ impl<S: SerpApiSearcher + Send + Sync> RelatedSongsFetcher for SerpApiFetcher<S>
             .searcher
             .search_youtube_video(video_id)
             .await
-            .map_err(|e| MusicError::AudioSourceError(e))?;
+            .map_err(MusicError::AudioSourceError)?;
 
         let mut related_songs = Vec::new();
 

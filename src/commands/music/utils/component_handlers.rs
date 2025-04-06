@@ -36,7 +36,7 @@ pub async fn handle_interaction(
         interaction.defer(ctx).await?;
 
         // Check if the bot is connected to a voice channel in this guild.
-        if let Err(_) = MusicManager::get_call(ctx, guild_id).await {
+        if (MusicManager::get_call(ctx, guild_id).await).is_err() {
             // Send an error message if not connected.
             return error_followup(ctx, interaction, "I'm not in a voice channel.").await;
         }
@@ -234,7 +234,7 @@ async fn handle_search(
 
         // Process the input as a play request.
         match MusicManager::process_play_request(
-            &ctx,
+            ctx,
             interaction.guild_id.unwrap(),
             interaction.channel_id,
             &interaction.user,
