@@ -1,45 +1,73 @@
+//! Utilities for interacting with the Brave Search API.
+//! Requires the `brave_search` feature flag and `BRAVE_API_KEY` environment variable.
+
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-// Removed unused std::env
 use thiserror::Error;
 
+/// Errors that can occur during Brave Search API interactions.
 #[derive(Error, Debug)]
 pub enum BraveSearchError {
+    /// Error during HTTP request communication.
     #[error("API communication failure: {0}")]
     Api(#[from] reqwest::Error),
 
+    /// Error parsing the JSON response from the API.
     #[error("Unable to parse response: {0}")]
     Json(#[from] serde_json::Error),
 
+    /// The API returned a successful response, but it contained no search results.
     #[error("No search results found")]
     NoResults,
 }
 
+/// Represents the overall structure of the Brave Search API response.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BraveSearchResponse {
+    /// Contains the web search results.
     pub web: BraveWebResults,
 }
 
+/// Represents the web search results section of the response.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BraveWebResults {
+    /// A list of individual web search results.
     pub results: Vec<BraveWebResult>,
 }
 
+/// Represents a single web search result item.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BraveWebResult {
+    /// The title of the search result page.
     pub title: String,
+    /// The URL of the search result page.
     pub url: String,
+    /// A snippet or description of the search result page.
     pub description: String,
 }
 
+/// Performs a web search using the Brave Search API.
+///
+/// # Arguments
+///
+/// * `query` - The search query string.
+/// * `base_url` - The base URL of the Brave Search API endpoint.
+/// * `api_key` - The Brave Search API subscription token.
+///
+/// # Returns
+///
+/// A `Result` containing a `Vec<BraveWebResult>` on success, or a `BraveSearchError` on failure.
 pub async fn search(
     query: &str,
     base_url: &str,
     api_key: &str,
 ) -> Result<Vec<BraveWebResult>, BraveSearchError> {
+    // Construct the full API endpoint URL.
     let url = format!("{}/res/v1/web/search", base_url);
 
+    // Create a new reqwest client.
     let client = Client::new();
+    // Build and send the GET request with query parameters and necessary headers.
     let response = client
         .get(&url) 
         .query(&[("q", query)])
@@ -48,27 +76,43 @@ pub async fn search(
         .send()
         .await?;
 
-    // Check for non-success status codes before attempting to parse JSON
+    // Check for non-2xx status codes.
     if !response.status().is_success() {
-        // Propagate the error status from the response
+        // Convert HTTP error status into our custom API error.
         return Err(BraveSearchError::Api(
             response.error_for_status().unwrap_err(),
         ));
     }
 
+    // Parse the successful JSON response.
     let search_response: BraveSearchResponse = response.json().await?;
 
+    // Check if the results list is empty.
     if search_response.web.results.is_empty() {
         return Err(BraveSearchError::NoResults);
     }
 
+    // Return the vector of results.
     Ok(search_response.web.results)
 }
 
+/// Formats a slice of `BraveWebResult` into a human-readable string, limited to the first 5 results.
+///
+/// # Arguments
+///
+/// * `results` - A slice of search results.
+/// * `query` - The original search query string.
+///
+/// # Returns
+///
+/// A formatted string suitable for display (e.g., in a Discord message).
 pub fn format_search_results(results: &[BraveWebResult], query: &str) -> String {
+    // Start with a header including the original query.
     let mut formatted = format!("Search results for: \"{}\"\n\n", query);
 
+    // Iterate through the first 5 results (or fewer if less than 5).
     for (i, result) in results.iter().take(5).enumerate() {
+        // Append formatted result (index, title, URL, description).
         formatted.push_str(&format!(
             "{}. {}\n   URL: {}\n   {}\n\n",
             i + 1,
@@ -81,12 +125,14 @@ pub fn format_search_results(results: &[BraveWebResult], query: &str) -> String 
     formatted
 }
 
+/// Module containing tests for the Brave Search utility functions.
 #[cfg(test)]
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
     use wiremock::matchers::{header, method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
+    /// Tests basic formatting of a couple of search results.
     #[test]
     fn test_format_search_results_basic() {
         let results = vec![
@@ -111,6 +157,7 @@ mod tests {
         assert_eq!(actual_output, expected_output);
     }
 
+    /// Tests formatting when the input result list is empty.
     #[test]
     fn test_format_search_results_empty() {
         let results: Vec<BraveWebResult> = vec![];
@@ -123,6 +170,7 @@ mod tests {
         assert_eq!(actual_output, expected_output);
     }
 
+    /// Tests that formatting correctly limits the output to the first 5 results.
     #[test]
     fn test_format_search_results_limit_5() {
         let results = (0..7)
@@ -141,7 +189,7 @@ mod tests {
         assert_eq!(actual_output, expected_output);
     }
 
-    // Helper function to create BraveWebResult, assuming Clone is needed or useful
+    /// Helper function to simplify creating `BraveWebResult` instances in tests.
     fn create_result(title: &str, url: &str, description: &str) -> BraveWebResult {
         BraveWebResult {
             title: title.to_string(),
@@ -150,6 +198,7 @@ mod tests {
         }
     }
 
+    /// Tests the `search` function with a successful mock API response.
     #[tokio::test]
     async fn test_search_success() {
         // Arrange
@@ -224,6 +273,7 @@ mod tests {
         }
     }
 
+    /// Tests the `search` function handling a non-2xx HTTP status code from the mock API.
     #[tokio::test]
     async fn test_search_api_error() {
         // Arrange
@@ -257,6 +307,7 @@ mod tests {
         }
     }
 
+    /// Tests the `search` function handling a successful API response that contains no results.
     #[tokio::test]
     async fn test_search_no_results() {
         // Arrange
