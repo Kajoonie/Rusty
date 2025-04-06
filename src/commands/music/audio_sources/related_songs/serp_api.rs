@@ -1,3 +1,6 @@
+//! Implements the `RelatedSongsFetcher` trait using the SerpAPI (Google Search Results API)
+//! to find videos related to a given YouTube video.
+
 use crate::commands::music::audio_sources::track_metadata::TrackMetadata;
 use crate::commands::music::utils::music_manager::MusicError;
 use serenity::async_trait;
@@ -7,17 +10,23 @@ use std::time::Duration;
 
 use super::{RelatedSongsFetcher, RelatedSongsResult};
 
+/// Trait abstracting the action of searching SerpAPI for a YouTube video.
+/// This allows mocking the API call during testing.
 #[async_trait]
 pub trait SerpApiSearcher: Send + Sync {
+    /// Performs the search for a specific YouTube video ID.
+    /// Returns the parsed JSON response or an error string.
     async fn search_youtube_video(&self, video_id: &str) -> Result<serde_json::Value, String>;
 }
 
-/// Concrete implementation using the serpapi-search-rust crate
+/// The concrete implementation of `SerpApiSearcher` that uses the `serpapi-search-rust` crate
+/// to make actual HTTP requests to SerpAPI.
 pub struct RealSerpApiSearcher {
     api_key: String,
 }
 
 impl RealSerpApiSearcher {
+    /// Creates a new `RealSerpApiSearcher` with the provided API key.
     pub fn new(api_key: String) -> Self {
         Self { api_key }
     }
@@ -25,12 +34,17 @@ impl RealSerpApiSearcher {
 
 #[async_trait]
 impl SerpApiSearcher for RealSerpApiSearcher {
+    /// Implementation of `search_youtube_video` for the real SerpAPI searcher.
+    /// Sets up parameters and calls the `serpapi-search-rust` crate.
     async fn search_youtube_video(&self, video_id: &str) -> Result<serde_json::Value, String> {
+        // Prepare parameters for the SerpAPI YouTube Video endpoint.
         let mut params: HashMap<String, String> = HashMap::new();
         params.insert("v".to_string(), video_id.to_string());
 
+        // Create the search object.
         let search = SerpApiSearch::new("youtube_video".to_string(), params, self.api_key.clone());
 
+        // Execute the search and get the JSON response.
         search
             .json()
             .await
@@ -38,37 +52,48 @@ impl SerpApiSearcher for RealSerpApiSearcher {
     }
 }
 
-use std::sync::Arc; // Add Arc for shared ownership
+use std::sync::Arc;
 
-/// SerpAPI implementation for fetching related songs, generic over the searcher
+/// Implements `RelatedSongsFetcher` using a generic `SerpApiSearcher`.
+/// This struct holds the searcher instance (potentially a mock or the real one).
 pub struct SerpApiFetcher<S: SerpApiSearcher> {
-    searcher: Arc<S>, // Store the searcher instance
+    /// An `Arc` holding the searcher implementation (e.g., `RealSerpApiSearcher` or a mock).
+    searcher: Arc<S>,
 }
 
 impl<S: SerpApiSearcher> SerpApiFetcher<S> {
-    // Accept an Arc<S> to allow shared ownership if needed
+    /// Creates a new `SerpApiFetcher` with the given searcher instance.
+    /// The searcher is wrapped in an `Arc` to allow shared ownership if needed.
     pub fn new(searcher: Arc<S>) -> Self {
         Self { searcher }
     }
 
-    /// Helper function to parse YouTube duration strings (e.g. "5:32" or "1:23:45")
+    /// Parses duration strings commonly found in YouTube/SerpAPI responses (MM:SS or HH:MM:SS)
+    /// into a `std::time::Duration`.
     fn parse_duration_string(duration_str: &str) -> Option<Duration> {
+        // Split the string by colons.
         let parts: Vec<&str> = duration_str.split(':').collect();
 
+        // Match based on the number of parts.
         match parts.len() {
             // MM:SS format
             2 => {
+                // Try parsing minutes and seconds.
                 let minutes = parts[0].parse::<u64>().ok()?;
                 let seconds = parts[1].parse::<u64>().ok()?;
+                // Calculate total seconds.
                 Some(Duration::from_secs(minutes * 60 + seconds))
             }
             // HH:MM:SS format
             3 => {
+                // Try parsing hours, minutes, and seconds.
                 let hours = parts[0].parse::<u64>().ok()?;
                 let minutes = parts[1].parse::<u64>().ok()?;
                 let seconds = parts[2].parse::<u64>().ok()?;
+                // Calculate total seconds.
                 Some(Duration::from_secs(hours * 3600 + minutes * 60 + seconds))
             }
+            // Invalid format.
             _ => None,
         }
     }
@@ -77,8 +102,10 @@ impl<S: SerpApiSearcher> SerpApiFetcher<S> {
 #[async_trait]
 // Add generic parameter and Send + Sync bounds for async trait safety
 impl<S: SerpApiSearcher + Send + Sync> RelatedSongsFetcher for SerpApiFetcher<S> {
+    /// Implementation of `fetch_related_songs` for the `RelatedSongsFetcher` trait.
+    /// Uses the injected `SerpApiSearcher` to get related video data and parses it.
     async fn fetch_related_songs(&self, video_id: &str) -> RelatedSongsResult {
-        // Use the injected searcher
+        // Perform the search using the injected searcher.
         let results = self
             .searcher
             .search_youtube_video(video_id)
@@ -87,28 +114,29 @@ impl<S: SerpApiSearcher + Send + Sync> RelatedSongsFetcher for SerpApiFetcher<S>
 
         let mut related_songs = Vec::new();
 
-        // Check if the response contains related videos
+        // Check if the 'related_videos' key exists and is an array.
         if let Some(related_videos) = results.get("related_videos").and_then(|v| v.as_array()) {
+            // Iterate through the video objects in the array.
             for video in related_videos {
+                // Ensure both title and link are present and are strings.
                 if let (Some(title), Some(link)) = (
                     video.get("title").and_then(|t| t.as_str()),
                     video.get("link").and_then(|l| l.as_str()),
                 ) {
-                    // Extract duration if available
-                    // Note: The parse_duration_string is associated with SerpApiFetcher,
-                    // so we need Self:: or SerpApiFetcher::<S>::
+                    // Attempt to parse the duration string.
                     let duration = video
                         .get("length")
                         .and_then(|d| d.as_str())
                         .and_then(SerpApiFetcher::<S>::parse_duration_string);
 
-                    // Extract thumbnail if available
+                    // Attempt to extract the static thumbnail URL.
                     let thumbnail = video
                         .get("thumbnail")
                         .and_then(|t| t.get("static"))
                         .and_then(|t| t.as_str())
                         .map(|s| s.to_string());
 
+                    // Create TrackMetadata from the extracted info.
                     related_songs.push(TrackMetadata {
                         title: title.to_string(),
                         url: Some(link.to_string()),
@@ -117,7 +145,7 @@ impl<S: SerpApiSearcher + Send + Sync> RelatedSongsFetcher for SerpApiFetcher<S>
                         requested_by: Some("Autoplay".into()),
                     });
 
-                    // Limit to 5 related videos
+                    // Stop after finding 5 related videos.
                     if related_songs.len() >= 5 {
                         break;
                     }
@@ -129,6 +157,7 @@ impl<S: SerpApiSearcher + Send + Sync> RelatedSongsFetcher for SerpApiFetcher<S>
     }
 }
 
+/// Module containing tests for the SerpAPI related songs fetcher.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -136,20 +165,22 @@ mod tests {
     use pretty_assertions::assert_eq;
     use serde_json::json;
 
-    // Mock Searcher for testing
+    /// A mock implementation of `SerpApiSearcher` for testing purposes.
+    /// Returns a predefined result (Ok or Err).
     struct MockSerpApiSearcher {
         expected_result: Result<serde_json::Value, String>,
     }
 
     #[async_trait]
     impl SerpApiSearcher for MockSerpApiSearcher {
+        /// Returns the predefined result.
         async fn search_youtube_video(&self, _video_id: &str) -> Result<serde_json::Value, String> {
             // Clone the result to return ownership
             self.expected_result.clone()
         }
     }
 
-    // Helper to create TrackMetadata for assertions
+    /// Helper function to create `TrackMetadata` instances for test assertions.
     fn create_metadata(
         title: &str,
         url: Option<&str>,
@@ -165,6 +196,7 @@ mod tests {
         }
     }
 
+    /// Tests successful fetching and parsing of related songs from a mock SerpAPI response.
     #[tokio::test]
     async fn test_fetch_related_songs_success() {
         // Arrange
@@ -266,6 +298,7 @@ mod tests {
         assert_eq!(songs, expected_songs);
     }
 
+    /// Tests the handling of an error returned by the `SerpApiSearcher`.
     #[tokio::test]
     async fn test_fetch_related_songs_api_error() {
         // Arrange
@@ -291,6 +324,7 @@ mod tests {
         }
     }
 
+    /// Tests the handling of a successful SerpAPI response that contains an empty `related_videos` array.
     #[tokio::test]
     async fn test_fetch_related_songs_empty_results() {
         // Arrange
@@ -318,6 +352,7 @@ mod tests {
         assert!(songs.is_empty(), "Expected empty results, got {:?}", songs);
     }
 
+    /// Tests the handling of a successful SerpAPI response that is missing the `related_videos` key.
     #[tokio::test]
     async fn test_fetch_related_songs_no_related_videos_key() {
         // Arrange
@@ -348,6 +383,7 @@ mod tests {
         );
     }
 
+    /// Tests the handling of a simulated error during the SerpAPI search (e.g., network or parsing error).
     #[tokio::test]
     async fn test_fetch_related_songs_malformed_json() {
         // Arrange
@@ -374,6 +410,7 @@ mod tests {
         }
     }
 
+    /// Tests the `parse_duration_string` helper function with various valid and invalid inputs.
     #[test]
     fn test_parse_duration_string() {
         assert_eq!(
