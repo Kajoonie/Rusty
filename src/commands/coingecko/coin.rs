@@ -153,6 +153,9 @@ async fn list_coin_ids() -> Vec<String> {
                 .map(|coin| coin["id"].to_string().trim_matches('"').to_string())
                 .collect();
 
+            // Sort the results alphabetically before caching.
+            results.sort_unstable();
+
             // Acquire a write lock to update the cache.
             let mut cache = COIN_CACHE.write().await;
             *cache = results.clone(); // Replace the cache content
@@ -174,11 +177,20 @@ async fn autocomplete_coin_id<'a>(
     // Get the list of coin IDs (potentially fetching/caching it).
     let coin_id_list = list_coin_ids().await;
 
-    // Create a stream from the list.
+    // Perform binary search to find the range of matching coin IDs.
+    // `partition_point` finds the index `k` such that all elements at indices `< k` satisfy the
+    // predicate and all elements at indices `>= k` do not.
+    // `start` will be the index of the first element >= `partial`.
+    let start = coin_id_list.partition_point(|id| id.as_str() < partial);
+
+    // Find the end index (exclusive). This partitions the slice starting from `start`
+    // based on whether the element starts with `partial`. The partition point is the index
+    // (relative to the slice `[start..]`) of the first element that *doesn't* start with `partial`.
+    // Adding `start` gives the absolute index in the original `coin_id_list`.
+    let end = start + coin_id_list[start..].partition_point(|id| id.starts_with(partial));
+
+    // Create a stream from the slice of matching IDs, limit to 25, and clone the strings.
     futures::stream::iter(
-        coin_id_list
-            .into_iter()
-            // Filter IDs that start with the partial input.
-            .filter(move |id| id.starts_with(partial)),
+        coin_id_list[start..end].to_vec().into_iter().take(25), // Limit to 25 suggestions
     )
 }
