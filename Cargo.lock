@@ -1775,18 +1775,18 @@ dependencies = [
 
 [[package]]
 name = "mock-it"
-version = "0.4.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efa708585d105b1a85107b761cddecd5b1d1709716e3a79ba04da13ab2d404f5"
+checksum = "9c79f6245a4564f117ae4e640a829a7b425e641ca3e6ea279d74a9caf05d2daf"
 dependencies = [
  "mock-it_codegen",
 ]
 
 [[package]]
 name = "mock-it_codegen"
-version = "0.2.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f80c9bb04a0dec5c0dafb12595e3a1deefa637564a55aac629ebf6b355023f32"
+checksum = "d8a887ee7c909093b773c59ee57412f0fd29d2f262905eeea721cfc31a38e18f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1795,14 +1795,13 @@ dependencies = [
 
 [[package]]
 name = "mockall"
-version = "0.12.1"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43766c2b5203b10de348ffe19f7e54564b64f3d6018ff7648d1e2d6d3a0f0a48"
+checksum = "39a6bfcc6c8c7eed5ee98b9c3e33adc726054389233e201c95dab2d41a3839d2"
 dependencies = [
  "cfg-if",
  "downcast",
  "fragile",
- "lazy_static",
  "mockall_derive",
  "predicates",
  "predicates-tree",
@@ -1810,9 +1809,9 @@ dependencies = [
 
 [[package]]
 name = "mockall_derive"
-version = "0.12.1"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af7cbce79ec385a1d4f54baa90a76401eb15d9cab93685f62e7e9f942aa00ae2"
+checksum = "25ca3004c2efe9011bd4e461bd8256445052b9615405b4f7ea43fc8ca5c20898"
 dependencies = [
  "cfg-if",
  "proc-macro2",
