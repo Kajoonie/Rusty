@@ -28,13 +28,9 @@ static YOUTUBE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 /// The main struct implementing YouTube API logic (via `yt-dlp`).
+#[derive(Default)]
 pub struct YoutubeApi;
 
-impl Default for YoutubeApi {
-    fn default() -> Self {
-        Self {}
-    }
-}
 
 #[async_trait]
 impl AudioApi for YoutubeApi {

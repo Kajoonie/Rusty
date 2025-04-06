@@ -190,6 +190,7 @@ async fn autocomplete_coin_id<'a>(
     let end = start + coin_id_list[start..].partition_point(|id| id.starts_with(partial));
 
     // Create a stream from the slice of matching IDs, limit to 25, and clone the strings.
+    #[allow(clippy::unnecessary_to_owned)]
     futures::stream::iter(
         coin_id_list[start..end].to_vec().into_iter().take(25), // Limit to 25 suggestions
     )

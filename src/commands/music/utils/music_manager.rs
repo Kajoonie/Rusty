@@ -74,6 +74,7 @@ pub enum MusicError {
 pub type MusicResult<T> = Result<T, MusicError>;
 
 /// Central struct managing the state of music playback across guilds.
+#[derive(Default)]
 pub struct MusicManager {
     /// Maps GuildId to the corresponding Songbird `TrackQueue`.
     queues: HashMap<GuildId, TrackQueue>,
@@ -89,18 +90,6 @@ pub struct MusicManager {
     repeat_state: HashMap<GuildId, RepeatState>,
 }
 
-impl Default for MusicManager {
-    fn default() -> Self {
-        Self {
-            queues: Default::default(),
-            channel_ids: Default::default(),
-            message_ids: Default::default(),
-            show_queue: Default::default(),
-            update_tasks: Default::default(),
-            repeat_state: Default::default(),
-        }
-    }
-}
 
 /// Global, thread-safe instance of the `MusicManager`.
 /// Lazily initialized and wrapped in `Arc<Mutex>` for safe concurrent access.
@@ -251,10 +240,10 @@ impl MusicManager {
         // Access the manager to get queue, show_queue, and repeat_state.
         let (queue, show_queue, repeat_state) = with_manager(|m| {
             (
-                m.queues.get(&guild_id).cloned(),
-                m.show_queue.get(&guild_id).copied().unwrap_or(true),
+                m.queues.get(guild_id).cloned(),
+                m.show_queue.get(guild_id).copied().unwrap_or(true),
                 m.repeat_state
-                    .get(&guild_id)
+                    .get(guild_id)
                     .copied()
                     .unwrap_or(RepeatState::Disabled),
             )
@@ -514,7 +503,7 @@ impl MusicManager {
             .expect("Songbird Voice client placed in scope at initialization.")
             .clone();
 
-        Self::try_join_voice(ctx, &manager, guild_id.clone(), user.id).await?;
+        Self::try_join_voice(ctx, &manager, guild_id, user.id).await?;
 
         let inputs = Self::query_to_youtube_inputs(&input, user.name.clone()).await?;
         let number_of_tracks = inputs.len();
@@ -607,7 +596,7 @@ impl MusicManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio;
+    
 
     // Helper to create a dummy GuildId for testing
     fn test_guild_id() -> GuildId {
@@ -621,14 +610,14 @@ mod tests {
         // Initial state should default to true (or whatever the default is, let's assume true)
         let initial_state =
             with_manager(|m| m.show_queue.get(&guild_id).copied().unwrap_or(true)).await;
-        assert_eq!(initial_state, true, "Initial state should be true");
+        assert!(initial_state, "Initial state should be true");
 
         // Toggle 1: true -> false
         MusicManager::toggle_queue_view(guild_id).await;
         let state_after_toggle1 =
             with_manager(|m| m.show_queue.get(&guild_id).copied().unwrap()).await;
-        assert_eq!(
-            state_after_toggle1, false,
+        assert!(
+            !state_after_toggle1,
             "State after first toggle should be false"
         );
 
@@ -636,8 +625,8 @@ mod tests {
         MusicManager::toggle_queue_view(guild_id).await;
         let state_after_toggle2 =
             with_manager(|m| m.show_queue.get(&guild_id).copied().unwrap()).await;
-        assert_eq!(
-            state_after_toggle2, true,
+        assert!(
+            state_after_toggle2,
             "State after second toggle should be true"
         );
 
