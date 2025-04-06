@@ -3,215 +3,182 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.com/)
+[![Version](https://img.shields.io/badge/version-1.1.34-blue.svg)](Cargo.toml)
 
-A Discord bot built with Rust using the Poise framework, designed to enhance your server interactions with a variety of features.
+A versatile Discord bot built with Rust using the Poise framework. Rusty enhances server interactions with AI capabilities, music playback, cryptocurrency information, and more.
 
 ## Table of Contents
 - [Features](#features)
 - [System Requirements](#system-requirements)
 - [Setup](#setup)
-- [Building and Running](#building-and-running)
+- [Configuration](#configuration)
+- [Feature Flags](#feature-flags)
+- [Building](#building)
+- [Usage](#usage)
 - [Commands](#commands)
-  - [General Commands](#general-commands)
-  - [AI Commands](#ai-commands)
-  - [Music Commands](#music-commands)
-- [Development](#development)
-- [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 - [License](#license)
 
 ## Features
 
-- **General Commands**:
-  - **Ping**: Responds with "Pong!" to check if the bot is online.
-  - **Cryptocurrency Information**: Provides real-time updates on various cryptocurrencies.
+Rusty offers a range of functionalities powered by different command modules:
 
-- **AI Commands**:
-  - **Chat**: Engages in conversation with users through an AI model that maintains context.
-  - **Search**: Searches the web and provides AI-summarized results for any query.
-  - **List Models**: Displays all available AI models that can be used.
-  - **Set Model**: Changes which AI model is used for your interactions.
-  - **Get Model**: Shows which AI model you're currently using.
-
-- **Music Commands**:
-  - **Play**: Initiates playback of a song from a URL or search query.
-  - **Queue**: Displays the current music queue.
-  - **Skip**: Skips to the next song in the queue.
-  - **Stop**: Stops the current music playback and clears the queue.
-  - **Leave**: Disconnects the bot from the voice channel.
+- **AI Integration (`ai` module):**
+    - Engage in contextual conversations using Ollama models (`/chat`).
+    - Get AI-summarized web search results via Brave Search (`/search`).
+    - Manage available AI models (`/list_models`, `/set_model`, `/get_model`).
+- **Music Playback (`music` module):**
+    - Play audio from YouTube and Spotify (tracks, playlists, albums) (`/play`).
+    - Manage the playback queue (`/remove`).
+    - Toggle autoplay for related songs based on YouTube recommendations (`/autoplay`).
+    - Control playback with embedded button controls for easier management.
+- **Cryptocurrency Info (`coingecko` module):**
+    - Fetch real-time cryptocurrency data from CoinGecko (`/coin price`).
+- **General Utilities (`general` module):**
+    - Check bot responsiveness (`/ping`).
 
 ## System Requirements
 
-- Rust (latest stable version)
-- Discord Bot Token
-- Brave Search API Key
-- YouTube Data API Key
-- FFmpeg
-- yt-dlp
+- **Rust:** Latest stable version recommended.
+- **FFmpeg:** Required for audio processing (music feature).
+- **yt-dlp:** Required for downloading audio from various sources (music feature).
 
 ## Setup
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/Kajoonie/Rusty.git
-   cd Rusty
-   ```
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/Kajoonie/Rusty.git
+    cd Rusty
+    ```
 
-2. Install system dependencies:
+2.  **Install System Dependencies:**
+    *   **FFmpeg & yt-dlp:** These are required for the music features.
 
-   #### Windows
-   ```bash
-   winget install yt-dlp.yt-dlp
-   winget install Gyan.FFmpeg
-   ```
+    *   **Windows (using winget):**
+        ```bash
+        winget install yt-dlp.yt-dlp
+        winget install Gyan.FFmpeg
+        ```
+    *   **macOS (using Homebrew):**
+        ```bash
+        brew install yt-dlp ffmpeg
+        ```
+    *   **Linux (Debian/Ubuntu):**
+        ```bash
+        sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+        sudo chmod a+rx /usr/local/bin/yt-dlp
+        sudo apt update && sudo apt install ffmpeg -y
+        ```
 
-   #### macOS
-   ```bash
-   brew install yt-dlp ffmpeg
-   ```
+3.  **Create Configuration File:**
+    *   Copy the example environment file:
+        ```bash
+        cp .env.example .env
+        ```
+    *   Edit the `.env` file with your credentials (see [Configuration](#configuration) below).
 
-   #### Linux (Debian/Ubuntu)
-   ```bash
-   sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
-   sudo chmod a+rx /usr/local/bin/yt-dlp
-   sudo apt update && sudo apt install ffmpeg
-   ```
+## Configuration
 
-3. Create a `.env` file in the root directory:
-   ```env
-   # Required for basic bot functionality
-   DISCORD_TOKEN=your_discord_bot_token
-   
-   # Required unless the `brave_search` feature is disabled
-   BRAVE_API_KEY=your_brave_search_api_key
-   
-   # Required for the 'autoplay' function of the `music` feature
-   SERP_API_KEY=your-serp-api-key
-   ```
+Configure the bot by editing the `.env` file in the project root. Refer to `.env.example` for a template.
+
+**Required Variables:**
+
+-   `DISCORD_TOKEN`: Your Discord bot token.
+
+**Optional Variables (Required for specific features):**
+
+-   `BRAVE_API_KEY`: Required for the `/search` command (if `brave_search` feature is enabled).
+-   `SERP_API_KEY`: Required for the `/autoplay` functionality (if `music` feature is enabled).
+-   `SPOTIFY_CLIENT_ID` & `SPOTIFY_CLIENT_SECRET`: Required for Spotify integration (if `music` feature is enabled).
+    *   To get these, create an application on the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
 
 ## Feature Flags
 
-The bot supports feature flags to enable/disable specific functionality:
+Control optional features using Cargo feature flags:
 
-- `brave_search`: Enables the `/search` command that uses the Brave Search API
-- `music`: Enables all music commands that use YouTube functionality
+-   `brave_search`: Enables the `/search` command (uses Brave Search API).
+-   `music`: Enables all music commands (uses yt-dlp, FFmpeg, Spotify API, SERP API).
 
-By default, all features are enabled. To build with only specific features:
+**Default:** Both `brave_search` and `music` are enabled by default.
+
+**Build/Run Examples:**
 
 ```bash
-# Build with only search functionality
-cargo build --no-default-features --features "brave_search"
-
-# Build with only music functionality
-cargo build --no-default-features --features "music" 
-
-# Build with both features explicitly
-cargo build --features "brave_search music"
-
-# Build with no optional features
-cargo build --no-default-features
-```
-
-## Building and Running
-
-Development build:
-```bash
+# Build/Run with default features (all enabled)
 cargo build
 cargo run
+
+# Build/Run with only search functionality
+cargo build --no-default-features --features "brave_search"
+cargo run --no-default-features --features "brave_search"
+
+# Build/Run with only music functionality
+cargo build --no-default-features --features "music"
+cargo run --no-default-features --features "music"
+
+# Build/Run with no optional features
+cargo build --no-default-features
+cargo run --no-default-features
 ```
 
-Production build:
-```bash
-cargo build --release
-cargo run --release
-```
+## Building
+
+Compile the project using Cargo:
+
+-   **Development Build:**
+    ```bash
+    cargo build
+    ```
+-   **Production Build (Optimized):**
+    ```bash
+    cargo build --release
+    ```
+
+## Usage
+
+Run the compiled bot:
+
+-   **Development:**
+    ```bash
+    cargo run
+    ```
+-   **Production:**
+    ```bash
+    cargo run --release
+    ```
 
 ## Commands
 
-### General Commands
-- `/ping`: Check bot responsiveness
-- `/crypto <symbol>`: Get cryptocurrency information
+Here are the primary commands available, grouped by module:
 
-### AI Commands
-- `/chat <message>`: Chat with an AI model, maintaining conversation context
-- `/search <query>`: Search the web and receive an AI-summarized response
-- `/list_models`: View all available AI models on the server
-- `/set_model <model>`: Change the AI model used for your interactions
-- `/get_model`: Check which AI model you're currently using
+**General:**
+-   `/ping`: Checks if the bot is responsive.
 
-### Music Commands
-- `/play <URL or search term>`: Play a song from YouTube, Spotify, or a direct URL
-  ```bash
-  /play https://www.youtube.com/watch?v=dQw4w9WgXcQ
-  ```
-- `/skip`: Skip the current song
-- `/stop`: Stop playing and clear the queue
-- `/pause`: Pause/resume the current song
-- `/queue`: View the current music queue
-- `/leave`: Disconnect from the voice channel
-- `/remove <position>`: Remove a song from the queue
-- `/autoplay [enabled]`: Toggle or set autoplay feature
+**AI:**
+-   `/chat <message>`: Start or continue a conversation with the configured Ollama AI model.
+-   `/search <query>`: Perform a web search using Brave Search and get an AI-summarized answer.
+-   `/list_models`: Show available Ollama models.
+-   `/set_model <model_name>`: Set the Ollama model for your interactions.
+-   `/get_model`: Display the currently set Ollama model.
 
-## Troubleshooting
+**CoinGecko:**
+-   `/coin price <name>`: Get price information for a specific cryptocurrency.
 
-Common issues and solutions:
-
-1. **Bot doesn't respond**: Verify your Discord token and bot permissions
-2. **Music doesn't play**: 
-   - Check if FFmpeg is properly installed
-   - Verify yt-dlp is up to date
-   - Ensure bot has voice channel permissions
-3. **API errors**: Verify your API keys in the `.env` file
+**Music:**
+-   `/play <url_or_search_query>`: Play audio from YouTube/Spotify URL or search term. Queues playlists/albums.
+-   `/autoplay [true/false]`: Enable or disable automatic playback of related songs when the queue is empty.
+-   `/remove <position>`: Remove a song from the queue by its position number.
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Contributions are welcome! Please follow these steps:
+
+1.  Fork the repository.
+2.  Create a feature branch (`git checkout -b feature/your-feature`).
+3.  Commit your changes (`git commit -m 'Add some feature'`).
+4.  Push to the branch (`git push origin feature/your-feature`).
+5.  Open a Pull Request.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## New Features
-
-### Autoplay
-When enabled, the bot will automatically play related songs when the queue is empty. This feature uses YouTube's recommendations to find related songs.
-
-### Spotify Integration
-The bot can now play songs from Spotify URLs, including:
-- Single tracks
-- Playlists (queues all tracks)
-- Albums (queues all tracks)
-
-## Setup Instructions
-
-### Basic Setup
-1. Ensure your bot has the necessary permissions:
-   - View Channels
-   - Send Messages
-   - Connect to Voice Channel
-   - Speak in Voice Channel
-
-### Spotify Integration Setup
-To use Spotify integration, you need to set up a Spotify Developer application:
-
-1. Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
-2. Create a new application
-3. Get your Client ID and Client Secret
-4. Set these as environment variables:
-   ```
-   SPOTIFY_CLIENT_ID=your_client_id
-   SPOTIFY_CLIENT_SECRET=your_client_secret
-   ```
-
-## Requirements
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) must be installed and available in PATH
-- FFmpeg must be installed and available in PATH
-
-## Development Notes
-- The autoplay feature works by fetching related songs from YouTube when the queue is empty
-- Spotify integration uses the Spotify API to fetch track information, then searches for the track on YouTube
-- For playlists and albums, the first track is returned immediately, and the rest are processed and queued in the background
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.

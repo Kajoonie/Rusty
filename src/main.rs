@@ -11,8 +11,11 @@ use std::{
 use tracing::debug;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
+/// Module containing all bot commands.
 mod commands;
+/// Module handling Discord gateway events.
 mod events;
+/// Module for utility functions and shared resources.
 mod utils;
 
 use commands::{
@@ -22,15 +25,23 @@ use commands::{
     music::remove::remove,
 };
 
+/// Custom error type for handling various errors across the bot.
 type Error = Box<dyn std::error::Error + Send + Sync>;
+/// Custom context type alias using the bot's `Data` and `Error` types.
 type Context<'a> = poise::Context<'a, Data, Error>;
+/// Custom result type alias for command functions.
 type CommandResult = Result<(), Error>;
 
+/// Lazily initialized static HTTP client for making requests.
 pub static HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::new);
 
-// Define the user data type we'll be using in our bot
-struct Data {} // User data, which is stored and accessible in all command invocations
+/// Struct to hold shared data accessible across commands and events.
+/// Currently empty, but can be expanded as needed.
+struct Data {}
 
+/// Displays help information for commands.
+///
+/// Uses poise's built-in help command functionality.
 #[poise::command(slash_command, category = "General")]
 async fn help(
     ctx: Context<'_>,
@@ -50,6 +61,9 @@ async fn help(
     .map_err(|e| e.into())
 }
 
+/// Registers application commands (slash commands) with Discord.
+///
+/// Hidden from the help menu, typically run once by the bot owner.
 #[poise::command(prefix_command, hide_in_help)]
 async fn register(ctx: Context<'_>) -> Result<(), Error> {
     poise::builtins::register_application_commands_buttons(ctx)
@@ -58,6 +72,10 @@ async fn register(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 #[cfg(feature = "music")]
+/// Checks if `yt-dlp` is installed and executable.
+///
+/// Panics if `yt-dlp --version` fails, as it's required for the music feature.
+/// This function is only compiled if the `music` feature is enabled.
 fn check_ytdlp() {
     // First, verify yt-dlp is working
     let output = Command::new("yt-dlp")
@@ -75,9 +93,10 @@ fn check_ytdlp() {
     );
 }
 
+/// The main entry point of the bot application.
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    // Initialize logging with debug level for our crate
+    // Initialize the tracing subscriber for logging.
     FmtSubscriber::builder()
         .with_env_filter(
             EnvFilter::try_from_default_env()
@@ -91,20 +110,23 @@ async fn main() -> Result<(), Error> {
         .pretty()
         .init();
 
+    // Load environment variables from a .env file if present.
     dotenv().ok();
 
-    // Initialize the SQLite database
+    // Initialize the SQLite database connection.
     if let Err(e) = utils::database::init_db() {
         eprintln!("Failed to initialize database: {}", e);
     }
 
+    // Retrieve the Discord bot token from environment variables.
     let token = env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN");
 
+    // Define the necessary gateway intents for the bot.
     let intents = serenity::GatewayIntents::non_privileged()
         | serenity::GatewayIntents::MESSAGE_CONTENT
         | serenity::GatewayIntents::GUILD_VOICE_STATES;
 
-    // Create a vector to hold our commands
+    // Initialize a vector to store all available commands.
     let mut commands = vec![
         // Default commands
         register(),
@@ -120,7 +142,7 @@ async fn main() -> Result<(), Error> {
         coin(),
     ];
 
-    // Handle brave search feature
+    // Conditionally add the 'search' command if the 'brave_search' feature is enabled.
     #[cfg(feature = "brave_search")]
     {
         use commands::ai::search::*;
@@ -128,7 +150,7 @@ async fn main() -> Result<(), Error> {
         commands.extend(vec![search()]);
     }
 
-    // Handle Music feature
+    // Conditionally add music-related commands and perform checks if the 'music' feature is enabled.
     #[cfg(feature = "music")]
     {
         check_ytdlp();
@@ -139,6 +161,7 @@ async fn main() -> Result<(), Error> {
         commands.extend(vec![autoplay(), play(), remove()]);
     }
 
+    // Configure and build the poise framework.
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands,
@@ -166,6 +189,7 @@ async fn main() -> Result<(), Error> {
         })
         .setup(|_ctx, _ready, _framework| Box::pin(async move { Ok(Data {}) }));
 
+    // Build the Serenity client builder with the token, intents, event handler, and framework.
     let client_builder = ClientBuilder::new(token, intents)
         .event_handler(events::Handler)
         .framework(framework.build());
@@ -173,6 +197,9 @@ async fn main() -> Result<(), Error> {
     build_and_start_client(client_builder).await
 }
 
+/// Builds the Serenity client and starts the bot.
+///
+/// Conditionally registers songbird if the `music` feature is enabled.
 async fn build_and_start_client(client_builder: serenity::ClientBuilder) -> Result<(), Error> {
     #[cfg(feature = "music")]
     {
