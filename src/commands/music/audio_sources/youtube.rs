@@ -123,6 +123,7 @@ impl YoutubeApi {
         if let Ok(serp_api_key) = std::env::var("SERP_API_KEY") {
             // Instantiate the real searcher and wrap it in Arc
             let real_searcher = Arc::new(RealSerpApiSearcher::new(serp_api_key));
+          
             // Specify the generic type for SerpApiFetcher
             let serp_fetcher: SerpApiFetcher<RealSerpApiSearcher> = SerpApiFetcher::new(real_searcher);
             let related_songs = serp_fetcher.fetch_related_songs(&video_id).await?;

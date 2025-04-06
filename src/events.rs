@@ -28,7 +28,3 @@ async fn music_component_interaction(ctx: &Context, mut component: &mut Componen
         error!("Error handling component interaction: {}", e);
     }
 }
-
-// TODO: Re-enable tests once mocking strategy for non_exhaustive serenity structs is resolved.
-// #[cfg(test)]
-// mod tests { ... original content ... }
