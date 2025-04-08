@@ -6,7 +6,6 @@
 use ::serenity::all::{CreateMessage, EditMessage, MessageId, User, UserId};
 use poise::{CreateReply, serenity_prelude as serenity};
 use rand::seq::SliceRandom;
-use rand::thread_rng;
 use serenity::client::Context;
 use serenity::model::id::{ChannelId, GuildId};
 use serenity::prelude::Mutex as SerenityMutex;
@@ -327,7 +326,7 @@ impl MusicManager {
                     return;
                 }
 
-                let mut rng = thread_rng();
+                let mut rng = rand::rng();
 
                 queue.modify_queue(|q| {
                     // Keep the first track (currently playing)
