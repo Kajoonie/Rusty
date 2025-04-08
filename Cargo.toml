@@ -27,7 +27,7 @@ url = "2.5.4"
 regex = "1.10.3"
 serpapi-search-rust = "0.1.0"
 humantime-serde = "1.1.1"
-rand = "0.8"
+rand = "0.9"
 
 [dependencies.tokio]
 version = "1.37.0"
