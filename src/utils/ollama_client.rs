@@ -46,9 +46,9 @@ fn set_default_model() -> Option<String> {
     } else {
         // Fallback to hardcoded default if env var is missing.
         warn!(
-            "DEFAULT_OLLAMA_MODEL environment variable not set. Using hardcoded default 'test-default-model'."
+            "DEFAULT_OLLAMA_MODEL environment variable not set. Using hardcoded default 'llama3.1:8b'."
         );
-        Some("test-default-model".to_string()) // Return a default string instead of None
+        Some("llama3.1:8b".to_string()) // Return a default string instead of None
     }
 }
 
@@ -211,7 +211,7 @@ mod tests {
         OllamaClient {
             client: ollama_rs_client,
             // Set a default model, although chat() currently relies on database::get_user_model
-            default_model: Some("test-default-model".to_string()),
+            default_model: Some("llama3.1:8b".to_string()),
             convo_map: DashMap::new(),
         }
     }
@@ -293,7 +293,7 @@ mod tests {
         let user_message = "Hello, Ollama!";
         // The actual model used will be the default from setup_test_client,
         // as the database lookup for the test user will fail.
-        let model_name = "test-default-model"; // Use the actual default model name
+        let model_name = "llama3.1:8b"; // Use the actual default model name
 
         // Define the expected response message and structure.
         let response_message = ChatMessage::assistant("Hi there!".to_string());
