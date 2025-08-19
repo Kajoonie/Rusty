@@ -30,7 +30,7 @@ humantime-serde = "1.1.1"
 rand = "0.9"
 
 [dependencies.tokio]
-version = "1.46.1"
+version = "1.47.1"
 features = ["rt-multi-thread", "macros", "signal"]
 
 [dependencies.serde]
