@@ -79,3 +79,6 @@ async-trait = "0.1.88"
 [dev-dependencies.fake]
 version = "4.3.0"
 features = ["derive"]
+
+[patch.crates-io]
+songbird = { git = "https://github.com/serenity-rs/songbird", branch = "next" }
