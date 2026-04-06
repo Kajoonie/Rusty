@@ -538,26 +538,24 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_is_spotify_url_valid_track() {
-        assert!(SpotifyApi::is_spotify_url("https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT"));
-        assert!(SpotifyApi::is_spotify_url("http://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT"));
-        assert!(SpotifyApi::is_spotify_url("open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT"));
-        assert!(SpotifyApi::is_spotify_url("spotify/track/4cOdK2wGLETKBW3PvgPWqT"));
-        assert!(SpotifyApi::is_spotify_url("https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT?si=abcdef123456"));
-    }
+    fn test_is_spotify_url_valid() {
+        let cases = [
+            "https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT",
+            "http://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT",
+            "open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT",
+            "spotify/track/4cOdK2wGLETKBW3PvgPWqT",
+            "https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT?si=abcdef123456",
+            "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M",
+            "open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=12345",
+            "spotify/playlist/37i9dQZF1DXcBWIGoYBM5M",
+            "https://open.spotify.com/album/4aawyAB9vmqN3uQ7FjRGTy",
+            "open.spotify.com/album/4aawyAB9vmqN3uQ7FjRGTy?si=123",
+            "spotify/album/4aawyAB9vmqN3uQ7FjRGTy",
+        ];
 
-    #[test]
-    fn test_is_spotify_url_valid_playlist() {
-        assert!(SpotifyApi::is_spotify_url("https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M"));
-        assert!(SpotifyApi::is_spotify_url("open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=12345"));
-        assert!(SpotifyApi::is_spotify_url("spotify/playlist/37i9dQZF1DXcBWIGoYBM5M"));
-    }
-
-    #[test]
-    fn test_is_spotify_url_valid_album() {
-        assert!(SpotifyApi::is_spotify_url("https://open.spotify.com/album/4aawyAB9vmqN3uQ7FjRGTy"));
-        assert!(SpotifyApi::is_spotify_url("open.spotify.com/album/4aawyAB9vmqN3uQ7FjRGTy?si=123"));
-        assert!(SpotifyApi::is_spotify_url("spotify/album/4aawyAB9vmqN3uQ7FjRGTy"));
+        for url in cases {
+            assert!(SpotifyApi::is_spotify_url(url), "URL should be valid: {}", url);
+        }
     }
 
     #[test]
