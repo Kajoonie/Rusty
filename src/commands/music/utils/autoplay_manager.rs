@@ -75,3 +75,14 @@ pub async fn is_autoplay_enabled(guild_id: GuildId) -> bool {
     // Call the manager's method.
     manager.is_autoplay_enabled(guild_id)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_autoplay_manager_new() {
+        let manager = AutoplayManager::new();
+        assert!(manager.autoplay_settings.is_empty(), "Autoplay settings should be empty on creation");
+    }
+}
