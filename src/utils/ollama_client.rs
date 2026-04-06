@@ -94,7 +94,7 @@ impl OllamaClient {
                 user.name
             );
             Mutex::new(vec![])
-        });
+        }).downgrade();
 
         // Lock the mutex to access the message vector.
         let messages = user_convo.lock().unwrap();
