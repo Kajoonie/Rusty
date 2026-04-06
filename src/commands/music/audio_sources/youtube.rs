@@ -80,13 +80,14 @@ impl YoutubeApi {
             Ok(url) => {
                 // Check if the host matches known YouTube domains.
                 let is_youtube_host = url.host_str().is_some_and(|host| {
-                    host == "www.youtube.com" || host == "youtube.com"
+                    host == "www.youtube.com" || host == "youtube.com" || host == "m.youtube.com" || host == "music.youtube.com"
                 });
 
                 let is_youtu_be_host = url.host_str() == Some("youtu.be");
 
-                // Check if it's a standard watch page or a short youtu.be link.
-                (is_youtube_host && url.path().starts_with("/watch")) || is_youtu_be_host
+                // Check if it's a standard watch page, an embedded/legacy link, or a youtu.be link with an ID.
+                (is_youtube_host && (url.path().starts_with("/watch") || url.path().starts_with("/v/") || url.path().starts_with("/embed/")))
+                    || (is_youtu_be_host && url.path().len() > 1)
             }
             // If parsing fails, it's not a valid URL.
             Err(_) => false,
@@ -177,10 +178,12 @@ mod tests {
     fn test_is_youtube_url_valid() {
         assert!(YoutubeApi::is_youtube_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ"));
         assert!(YoutubeApi::is_youtube_url("http://youtube.com/watch?v=dQw4w9WgXcQ"));
-        assert!(YoutubeApi::is_youtube_url("https://m.youtube.com/watch?v=dQw4w9WgXcQ"));
-        assert!(YoutubeApi::is_youtube_url("https://music.youtube.com/watch?v=dQw4w9WgXcQ"));
         assert!(YoutubeApi::is_youtube_url("https://youtu.be/dQw4w9WgXcQ"));
         assert!(YoutubeApi::is_youtube_url("http://youtu.be/dQw4w9WgXcQ"));
+        assert!(YoutubeApi::is_youtube_url("https://m.youtube.com/watch?v=dQw4w9WgXcQ"));
+        assert!(YoutubeApi::is_youtube_url("https://music.youtube.com/watch?v=dQw4w9WgXcQ"));
+        assert!(YoutubeApi::is_youtube_url("https://www.youtube.com/embed/dQw4w9WgXcQ"));
+        assert!(YoutubeApi::is_youtube_url("https://www.youtube.com/v/dQw4w9WgXcQ"));
     }
 
     #[test]
@@ -193,10 +196,10 @@ mod tests {
     #[test]
     fn test_is_youtube_url_invalid_path() {
         assert!(!YoutubeApi::is_youtube_url("https://www.youtube.com/"));
-        assert!(!YoutubeApi::is_youtube_url("https://youtu.be/"));
         assert!(!YoutubeApi::is_youtube_url("https://www.youtube.com/channel/UC1234567890"));
         assert!(!YoutubeApi::is_youtube_url("https://www.youtube.com/playlist?list=PL1234567890"));
         assert!(!YoutubeApi::is_youtube_url("https://www.youtube.com/shorts/dQw4w9WgXcQ"));
+        assert!(!YoutubeApi::is_youtube_url("https://youtu.be/"));
     }
 
     #[test]
