@@ -79,12 +79,14 @@ impl YoutubeApi {
         match Url::parse(query) {
             Ok(url) => {
                 // Check if the host matches known YouTube domains.
-                url.host_str().is_some_and(|host| {
-                    host == "www.youtube.com" || host == "youtube.com" || host == "youtu.be"
-                    // Check if it's a standard watch page or a short youtu.be link.
-                }) && url.path().starts_with("/watch")
-                    || url.host_str() == Some("youtu.be")
-                // Basic check, might need refinement for shorts, playlists etc. if needed
+                let is_youtube_host = url.host_str().is_some_and(|host| {
+                    host == "www.youtube.com" || host == "youtube.com"
+                });
+
+                let is_youtu_be_host = url.host_str() == Some("youtu.be");
+
+                // Check if it's a standard watch page or a short youtu.be link.
+                (is_youtube_host && url.path().starts_with("/watch")) || is_youtu_be_host
             }
             // If parsing fails, it's not a valid URL.
             Err(_) => false,
@@ -164,5 +166,40 @@ impl YoutubeApi {
         // If SerpAPI failed or is unavailable, use the yt-dlp fetcher.
         let ytdlp_fetcher = YtDlpFetcher::new();
         ytdlp_fetcher.fetch_related_songs(&video_id).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_youtube_url_valid() {
+        assert!(YoutubeApi::is_youtube_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ"));
+        assert!(YoutubeApi::is_youtube_url("http://youtube.com/watch?v=dQw4w9WgXcQ"));
+        assert!(YoutubeApi::is_youtube_url("https://youtu.be/dQw4w9WgXcQ"));
+        assert!(YoutubeApi::is_youtube_url("http://youtu.be/dQw4w9WgXcQ"));
+    }
+
+    #[test]
+    fn test_is_youtube_url_invalid_domain() {
+        assert!(!YoutubeApi::is_youtube_url("https://www.google.com/watch?v=dQw4w9WgXcQ"));
+        assert!(!YoutubeApi::is_youtube_url("https://example.com/"));
+        assert!(!YoutubeApi::is_youtube_url("https://vimeo.com/123456789"));
+    }
+
+    #[test]
+    fn test_is_youtube_url_invalid_path() {
+        assert!(!YoutubeApi::is_youtube_url("https://www.youtube.com/"));
+        assert!(!YoutubeApi::is_youtube_url("https://www.youtube.com/channel/UC1234567890"));
+        assert!(!YoutubeApi::is_youtube_url("https://www.youtube.com/playlist?list=PL1234567890"));
+        assert!(!YoutubeApi::is_youtube_url("https://www.youtube.com/shorts/dQw4w9WgXcQ"));
+    }
+
+    #[test]
+    fn test_is_youtube_url_unparseable() {
+        assert!(!YoutubeApi::is_youtube_url("not a url"));
+        assert!(!YoutubeApi::is_youtube_url(""));
+        assert!(!YoutubeApi::is_youtube_url("file:///C:/path/to/file.mp4"));
     }
 }
