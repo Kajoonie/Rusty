@@ -561,6 +561,22 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_ids() {
+        assert_eq!(
+            SpotifyApi::extract_track_id("https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT"),
+            Some("4cOdK2wGLETKBW3PvgPWqT".to_string())
+        );
+        assert_eq!(
+            SpotifyApi::extract_playlist_id("open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=123"),
+            Some("37i9dQZF1DXcBWIGoYBM5M".to_string())
+        );
+        assert_eq!(
+            SpotifyApi::extract_album_id("spotify/album/4aawyAB9vmqN3uQ7FjRGTy"),
+            Some("4aawyAB9vmqN3uQ7FjRGTy".to_string())
+        );
+    }
+
+    #[test]
     fn test_is_spotify_url_invalid() {
         // Missing ID
         assert!(!SpotifyApi::is_spotify_url("https://open.spotify.com/track/"));
