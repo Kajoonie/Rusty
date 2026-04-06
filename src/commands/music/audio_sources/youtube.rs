@@ -191,6 +191,7 @@ mod tests {
     #[test]
     fn test_is_youtube_url_invalid_path() {
         assert!(!YoutubeApi::is_youtube_url("https://www.youtube.com/"));
+        assert!(!YoutubeApi::is_youtube_url("https://youtu.be/"));
         assert!(!YoutubeApi::is_youtube_url("https://www.youtube.com/channel/UC1234567890"));
         assert!(!YoutubeApi::is_youtube_url("https://www.youtube.com/playlist?list=PL1234567890"));
         assert!(!YoutubeApi::is_youtube_url("https://www.youtube.com/shorts/dQw4w9WgXcQ"));
