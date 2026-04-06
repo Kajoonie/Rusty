@@ -88,16 +88,14 @@ impl OllamaClient {
     fn get_conversation_history(&self, user: &User) -> Vec<ChatMessage> {
         debug!("Retrieving conversation history for user {}", user.name);
         // Get or insert an entry for the user, initializing with an empty Mutex<Vec> if new.
-        self.convo_map.entry(user.clone()).or_insert_with(|| {
+        let user_convo = self.convo_map.entry(user.clone()).or_insert_with(|| {
             debug!(
                 "Initializing new conversation history for user {}",
                 user.name
             );
             Mutex::new(vec![])
-        });
+        }).downgrade();
 
-        // Get the entry (guaranteed to exist now).
-        let user_convo = self.convo_map.get(user).unwrap();
         // Lock the mutex to access the message vector.
         let messages = user_convo.lock().unwrap();
         debug!(
