@@ -177,6 +177,8 @@ mod tests {
     fn test_is_youtube_url_valid() {
         assert!(YoutubeApi::is_youtube_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ"));
         assert!(YoutubeApi::is_youtube_url("http://youtube.com/watch?v=dQw4w9WgXcQ"));
+        assert!(YoutubeApi::is_youtube_url("https://m.youtube.com/watch?v=dQw4w9WgXcQ"));
+        assert!(YoutubeApi::is_youtube_url("https://music.youtube.com/watch?v=dQw4w9WgXcQ"));
         assert!(YoutubeApi::is_youtube_url("https://youtu.be/dQw4w9WgXcQ"));
         assert!(YoutubeApi::is_youtube_url("http://youtu.be/dQw4w9WgXcQ"));
     }
