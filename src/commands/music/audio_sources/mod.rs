@@ -61,3 +61,22 @@ impl AudioSource {
         Url::parse(input).is_ok()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_url() {
+        // Valid URLs
+        assert!(AudioSource::is_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ"));
+        assert!(AudioSource::is_url("http://example.com"));
+        assert!(AudioSource::is_url("ftp://ftp.is.co.za/rfc/rfc1808.txt"));
+        assert!(AudioSource::is_url("spotify:track:4uLU6hMCjMI75M1A2tKUQC"));
+
+        // Invalid URLs
+        assert!(!AudioSource::is_url("just a string"));
+        assert!(!AudioSource::is_url("www.google.com")); // Missing scheme
+        assert!(!AudioSource::is_url(""));
+    }
+}
