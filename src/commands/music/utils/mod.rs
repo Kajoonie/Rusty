@@ -34,3 +34,34 @@ pub fn format_duration(duration: Duration) -> String {
         format!("{}:{:02}", minutes, seconds)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn test_format_duration_zero_seconds() {
+        assert_eq!(format_duration(Duration::from_secs(0)), "0:00");
+    }
+
+    #[test]
+    fn test_format_duration_seconds_only() {
+        assert_eq!(format_duration(Duration::from_secs(9)), "0:09");
+        assert_eq!(format_duration(Duration::from_secs(59)), "0:59");
+    }
+
+    #[test]
+    fn test_format_duration_minutes_and_seconds() {
+        assert_eq!(format_duration(Duration::from_secs(60)), "1:00");
+        assert_eq!(format_duration(Duration::from_secs(225)), "3:45");
+        assert_eq!(format_duration(Duration::from_secs(3599)), "59:59");
+    }
+
+    #[test]
+    fn test_format_duration_hours_minutes_seconds() {
+        assert_eq!(format_duration(Duration::from_secs(3600)), "1:00:00");
+        assert_eq!(format_duration(Duration::from_secs(3723)), "1:02:03");
+        assert_eq!(format_duration(Duration::from_secs(36000)), "10:00:00");
+    }
+}
