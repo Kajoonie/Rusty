@@ -532,3 +532,66 @@ impl AudioApi for SpotifyApi {
         ))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_spotify_url_valid_track() {
+        assert!(SpotifyApi::is_spotify_url("https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT"));
+        assert!(SpotifyApi::is_spotify_url("http://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT"));
+        assert!(SpotifyApi::is_spotify_url("open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT"));
+        assert!(SpotifyApi::is_spotify_url("spotify/track/4cOdK2wGLETKBW3PvgPWqT"));
+        assert!(SpotifyApi::is_spotify_url("https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT?si=abcdef123456"));
+    }
+
+    #[test]
+    fn test_is_spotify_url_valid_playlist() {
+        assert!(SpotifyApi::is_spotify_url("https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M"));
+        assert!(SpotifyApi::is_spotify_url("open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=12345"));
+        assert!(SpotifyApi::is_spotify_url("spotify/playlist/37i9dQZF1DXcBWIGoYBM5M"));
+    }
+
+    #[test]
+    fn test_is_spotify_url_valid_album() {
+        assert!(SpotifyApi::is_spotify_url("https://open.spotify.com/album/4aawyAB9vmqN3uQ7FjRGTy"));
+        assert!(SpotifyApi::is_spotify_url("open.spotify.com/album/4aawyAB9vmqN3uQ7FjRGTy?si=123"));
+        assert!(SpotifyApi::is_spotify_url("spotify/album/4aawyAB9vmqN3uQ7FjRGTy"));
+    }
+
+    #[test]
+    fn test_extract_ids() {
+        assert_eq!(
+            SpotifyApi::extract_track_id("https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT"),
+            Some("4cOdK2wGLETKBW3PvgPWqT".to_string())
+        );
+        assert_eq!(
+            SpotifyApi::extract_playlist_id("open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=123"),
+            Some("37i9dQZF1DXcBWIGoYBM5M".to_string())
+        );
+        assert_eq!(
+            SpotifyApi::extract_album_id("spotify/album/4aawyAB9vmqN3uQ7FjRGTy"),
+            Some("4aawyAB9vmqN3uQ7FjRGTy".to_string())
+        );
+    }
+
+    #[test]
+    fn test_is_spotify_url_invalid() {
+        // Missing ID
+        assert!(!SpotifyApi::is_spotify_url("https://open.spotify.com/track/"));
+        assert!(!SpotifyApi::is_spotify_url("https://open.spotify.com/playlist/"));
+        assert!(!SpotifyApi::is_spotify_url("https://open.spotify.com/album/"));
+
+        // Unsupported resource type
+        assert!(!SpotifyApi::is_spotify_url("https://open.spotify.com/artist/0TnOYISbd1XYRBk9myaseg"));
+        assert!(!SpotifyApi::is_spotify_url("https://open.spotify.com/show/2MAi0BvDc6GTFvKFPXnkJQ"));
+        assert!(!SpotifyApi::is_spotify_url("https://open.spotify.com/episode/512campNegbqXEGKzK7Y2L"));
+
+        // Non-Spotify URLs
+        assert!(!SpotifyApi::is_spotify_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ"));
+        assert!(!SpotifyApi::is_spotify_url("https://soundcloud.com/artist/track"));
+        assert!(!SpotifyApi::is_spotify_url("just a random string"));
+        assert!(!SpotifyApi::is_spotify_url("open.spotify.com.bad.org/track/12345"));
+    }
+}
