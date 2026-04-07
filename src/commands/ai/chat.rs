@@ -23,7 +23,7 @@ pub async fn chat(
     // Defer the response to indicate the bot is processing.
     ctx.defer().await?;
 
-    info!("Processing chat request from {}: {}", author.name, message);
+    info!("Processing chat request from {} ({})", author.name, author.id);
 
     // Call the Ollama client to get the chat response.
     match OLLAMA_CLIENT.clone().chat(author, &message).await {
