@@ -38,6 +38,7 @@ impl RelatedSongsFetcher for YtDlpFetcher {
             .args([
                 "-j", // Output metadata as JSON
                 "--no-playlist",
+                "--",
                 &url,
             ])
             .output()
@@ -77,6 +78,7 @@ impl RelatedSongsFetcher for YtDlpFetcher {
                 "--no-download",
                 "--default-search",
                 "ytsearch5", // Search for 5 videos
+                "--",
                 &search_term,
             ])
             .output()

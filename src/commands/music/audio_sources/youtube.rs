@@ -57,6 +57,7 @@ impl AudioApi for YoutubeApi {
             .args([
                 "-j",            // Output as JSON
                 "--no-playlist", // Don't process playlists
+                "--",
                 url,
             ])
             .output()
@@ -106,6 +107,7 @@ impl YoutubeApi {
             .args([
                 "-j",            // Output as JSON
                 "--no-playlist", // Don't process playlists
+                "--",
                 &search_param,
             ])
             .output()
