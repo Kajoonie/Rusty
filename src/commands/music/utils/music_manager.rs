@@ -509,11 +509,14 @@ impl MusicManager {
         let first_track = inputs[0].clone();
 
         if let Some(handler_lock) = manager.get(guild_id) {
-            let mut handler = handler_lock.lock().await;
-            for metadata in inputs.into_iter() {
-                Self::add_to_queue(&mut handler, metadata).await;
-            }
-            Self::store_queue(guild_id, handler.queue().clone()).await;
+            let queue = {
+                let mut handler = handler_lock.lock().await;
+                for metadata in inputs.into_iter() {
+                    Self::add_to_queue(&mut handler, metadata).await;
+                }
+                handler.queue().clone()
+            };
+            Self::store_queue(guild_id, queue).await;
         }
 
         Self::start_update_task(ctx, ctx.http.clone(), guild_id, channel_id).await;
