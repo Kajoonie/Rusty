@@ -55,10 +55,11 @@ pub trait AudioApi: Send + Sync {
 pub struct AudioSource;
 
 impl AudioSource {
-    /// Performs a basic check if the input string can be parsed as a URL.
-    /// Does not validate if the URL is actually reachable or supported by any specific API.
+    /// Performs a basic check if the input string can be parsed as a URL,
+    /// or if it matches any specifically supported format by an `AudioApi`
+    /// (e.g., schemeless `spotify/track/...` links).
     pub fn is_url(input: &str) -> bool {
-        Url::parse(input).is_ok()
+        Url::parse(input).is_ok() || AUDIO_APIS.iter().any(|api| api.is_valid_url(input))
     }
 }
 
@@ -68,15 +69,18 @@ mod tests {
 
     #[test]
     fn test_is_url() {
-        // Valid URLs
+        // Valid generic URLs
         assert!(AudioSource::is_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ"));
         assert!(AudioSource::is_url("http://example.com"));
         assert!(AudioSource::is_url("ftp://ftp.is.co.za/rfc/rfc1808.txt"));
-        assert!(AudioSource::is_url("spotify:track:4uLU6hMCjMI75M1A2tKUQC"));
+
+        // Valid API-specific links without standard URL schemes
+        assert!(AudioSource::is_url("spotify/track/4uLU6hMCjMI75M1A2tKUQC"));
+        assert!(AudioSource::is_url("open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M"));
 
         // Invalid URLs
         assert!(!AudioSource::is_url("just a string"));
-        assert!(!AudioSource::is_url("www.google.com")); // Missing scheme
+        assert!(!AudioSource::is_url("www.google.com")); // Missing scheme and not recognized by any AudioApi
         assert!(!AudioSource::is_url(""));
     }
 }
