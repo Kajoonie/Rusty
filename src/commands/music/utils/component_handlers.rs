@@ -232,10 +232,12 @@ async fn handle_search(
         // Get the user's input from the modal.
         let input = response.inputs[0].clone();
 
+        let guild_id = interaction.guild_id.ok_or("Not in a guild")?;
+
         // Process the input as a play request.
         match MusicManager::process_play_request(
             ctx,
-            interaction.guild_id.unwrap(),
+            guild_id,
             interaction.channel_id,
             &interaction.user,
             input,
