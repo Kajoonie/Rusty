@@ -532,7 +532,14 @@ impl MusicManager {
     }
 
     pub async fn add_to_queue(call: Arc<Mutex<Call>>, metadata: TrackMetadata) {
-        let input = YoutubeDl::new(HTTP_CLIENT.clone(), metadata.clone().url.unwrap());
+        let url = match metadata.url.clone() {
+            Some(u) => u,
+            None => {
+                warn!("Track metadata is missing a URL: {}", metadata.title);
+                return;
+            }
+        };
+        let input = YoutubeDl::new(HTTP_CLIENT.clone(), url);
         let mut track = Track::from(input);
         track.user_data = Arc::new(metadata);
         call.lock().await.enqueue(track).await;
