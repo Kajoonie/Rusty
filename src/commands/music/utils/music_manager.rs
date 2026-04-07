@@ -509,10 +509,10 @@ impl MusicManager {
         let first_track = inputs[0].clone();
 
         if let Some(handler_lock) = manager.get(guild_id) {
+            let mut handler = handler_lock.lock().await;
             for metadata in inputs.into_iter() {
-                Self::add_to_queue(handler_lock.clone(), metadata).await;
+                Self::add_to_queue(&mut handler, metadata).await;
             }
-            let handler = handler_lock.lock().await;
             Self::store_queue(guild_id, handler.queue().clone()).await;
         }
 
@@ -531,7 +531,7 @@ impl MusicManager {
         embedded_messages::generic_success("Music", &reply_content)
     }
 
-    pub async fn add_to_queue(call: Arc<Mutex<Call>>, metadata: TrackMetadata) {
+    pub async fn add_to_queue(call: &mut Call, metadata: TrackMetadata) {
         let Some(url) = metadata.url.clone() else {
             warn!("Track metadata is missing a URL: {}", metadata.title);
             return;
@@ -539,7 +539,7 @@ impl MusicManager {
         let input = YoutubeDl::new(HTTP_CLIENT.clone(), url);
         let mut track = Track::from(input);
         track.user_data = Arc::new(metadata);
-        call.lock().await.enqueue(track).await;
+        call.enqueue(track).await;
     }
 
     /// If it's a URL, it iterates through `AUDIO_APIS` to find a handler.
