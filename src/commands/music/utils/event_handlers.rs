@@ -78,7 +78,8 @@ impl SongEndNotifier {
                     }
 
                     // Add the valid related song's metadata to the queue.
-                    MusicManager::add_to_queue(self.call.clone(), metadata.clone()).await;
+                    let mut call = self.call.lock().await;
+                    MusicManager::add_to_queue(&mut call, metadata.clone()).await;
                     info!(
                         "Added related song '{}' to queue for guild {}",
                         metadata.title, self.guild_id
