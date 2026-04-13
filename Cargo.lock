@@ -2473,13 +2473,13 @@ dependencies = [
 
 [[package]]
 name = "ollama-rs"
-version = "0.3.2"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "659dd1460a1079db751a236b301e78e63486758fee7e2db1ddcd2372c264be36"
+checksum = "f647d8676b95a6b6205e11453c9fac338d73c9cdcc011c94d1ba9c9bfea582cd"
 dependencies = [
  "async-stream",
  "log",
- "reqwest 0.12.23",
+ "reqwest 0.12.28",
  "schemars",
  "serde",
  "serde_json",
@@ -3330,9 +3330,9 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.12.23"
+version = "0.12.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d429f34c8092b2d42c7c93cec323bb4adeb7c67698f70839adec842ec10c7ceb"
+checksum = "eddd3ca559203180a307f12d114c268abf583f59b03cb906fd0b3ff8646c1147"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -3636,7 +3636,7 @@ dependencies = [
  "pretty_assertions",
  "rand 0.10.0",
  "regex",
- "reqwest 0.12.23",
+ "reqwest 0.12.28",
  "rstest",
  "rusqlite",
  "serde",
@@ -3704,9 +3704,9 @@ dependencies = [
 
 [[package]]
 name = "schemars"
-version = "1.0.3"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1375ba8ef45a6f15d83fa8748f1079428295d403d6ea991d09ab100155fbc06d"
+checksum = "a2b42f36aa1cd011945615b92222f6bf73c599a102a300334cd7f8dbeec726cc"
 dependencies = [
  "dyn-clone",
  "ref-cast",
@@ -3717,9 +3717,9 @@ dependencies = [
 
 [[package]]
 name = "schemars_derive"
-version = "1.0.3"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b13ed22d6d49fe23712e068770b5c4df4a693a2b02eeff8e7ca3135627a24f6"
+checksum = "7d115b50f4aaeea07e79c1912f645c7513d81715d0420f8bc77a18c6260b307f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4160,7 +4160,7 @@ dependencies = [
  "parking_lot 0.12.3",
  "pin-project",
  "rand 0.9.2",
- "reqwest 0.12.23",
+ "reqwest 0.12.28",
  "ringbuf",
  "rubato",
  "rusty_pool",
@@ -4237,7 +4237,7 @@ dependencies = [
  "futures-util",
  "hls_m3u8",
  "patricia_tree",
- "reqwest 0.12.23",
+ "reqwest 0.12.28",
  "tokio",
  "tracing",
  "url",
@@ -4959,9 +4959,9 @@ dependencies = [
 
 [[package]]
 name = "tower-http"
-version = "0.6.6"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adc82fd73de2a9722ac5da747f12383d2bfdb93591ee6c58486e0097890f05f2"
+checksum = "d4e6559d53cc268e5031cd8429d05415bc4cb4aefc4aa5d6cc35fbf5b924a1f8"
 dependencies = [
  "bitflags 2.9.0",
  "bytes",
