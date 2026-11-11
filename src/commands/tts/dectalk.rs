@@ -34,7 +34,7 @@ const FALLBACK_UNPRIVILEGED_ID: u32 = 65_534;
 /// Longest a single synthesis may take before the process is killed.
 pub const SYNTH_TIMEOUT: Duration = Duration::from_secs(5);
 /// Longest clip that is played; longer audio is cut off.
-pub const MAX_AUDIO_SECONDS: u32 = 60;
+pub const MAX_AUDIO_SECONDS: u32 = 180;
 /// Sample rate of DECtalk's output (16-bit mono PCM).
 pub const SAMPLE_RATE: u32 = 11_025;
 /// Bytes per 16-bit mono sample.
@@ -595,12 +595,15 @@ mod tests {
     }
 
     #[test]
-    fn test_cap_pcm_cuts_audio_at_sixty_seconds() {
-        // 61 seconds of audio.
+    fn test_cap_pcm_cuts_audio_at_the_cap() {
+        // One second more than the cap.
         let mut pcm = vec![0u8; MAX_PCM_BYTES + SAMPLE_RATE as usize * BYTES_PER_SAMPLE];
         assert!(cap_pcm(&mut pcm, MAX_PCM_BYTES));
         assert_eq!(pcm.len(), MAX_PCM_BYTES);
-        assert_eq!(pcm_duration(pcm.len()), Duration::from_secs(60));
+        assert_eq!(
+            pcm_duration(pcm.len()),
+            Duration::from_secs(u64::from(MAX_AUDIO_SECONDS))
+        );
     }
 
     #[test]
@@ -622,8 +625,8 @@ mod tests {
     }
 
     #[test]
-    fn test_max_pcm_bytes_is_sixty_seconds() {
-        assert_eq!(MAX_PCM_BYTES, 1_323_000);
+    fn test_max_pcm_bytes_matches_max_audio_seconds() {
+        assert_eq!(MAX_PCM_BYTES, 3_969_000);
         assert_eq!(
             pcm_duration(MAX_PCM_BYTES),
             Duration::from_secs(u64::from(MAX_AUDIO_SECONDS))
@@ -1073,7 +1076,7 @@ mod tests {
         assert!(!Path::new("/tmp/rusty-tts-should-not-exist.wav").exists());
 
         // Long text is cut at the cap.
-        let long_text = "aeiou ".repeat(160);
+        let long_text = "aeiou ".repeat(600);
         let long = synthesize(&config, long_text.trim()).await.unwrap();
         assert!(long.cut_off);
         assert_eq!(
