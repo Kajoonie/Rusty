@@ -260,7 +260,7 @@ Here are the primary commands available, grouped by module:
 -   `/remove <position>`: Remove a song from the queue by its position number.
 
 **Text-to-Speech:**
--   `/say <text>`: Speak text in your voice channel with DECtalk. Up to 1,000 characters and 60 seconds of audio per message. The bot joins your channel if it is not in one; if it is in another channel it stays there and tells you. Messages are spoken one after another.
+-   `/say <text>`: Speak text in your voice channel with DECtalk. Up to 4,000 characters and 3 minutes of audio per message. The bot joins your channel if it is not in one; if it is in another channel it stays there and tells you. Messages are spoken one after another.
 
 ## Contributing
 

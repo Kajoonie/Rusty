@@ -3,7 +3,7 @@
 use super::{TtsError, TtsResult, dectalk::MAX_AUDIO_SECONDS};
 
 /// Maximum number of characters `/say` accepts.
-pub const MAX_TEXT_CHARS: usize = 1_000;
+pub const MAX_TEXT_CHARS: usize = 4_000;
 
 /// Maximum length of a Discord message, counted in UTF-16 code units to stay on the safe side.
 const DISCORD_MESSAGE_LIMIT: usize = 2_000;
@@ -170,7 +170,7 @@ mod tests {
         );
         assert_eq!(
             error.to_string(),
-            "That text is too long (1001 characters). The limit is 1000."
+            "That text is too long (4001 characters). The limit is 4000."
         );
     }
 
@@ -230,12 +230,13 @@ mod tests {
         let text = "😀".repeat(MAX_TEXT_CHARS);
         let reply = format_reply("Bob", &text, true);
         assert!(message_len(&reply) <= DISCORD_MESSAGE_LIMIT);
-        assert!(reply.ends_with("\n-# Cut off after 60 seconds."));
+        assert!(reply.ends_with("\n-# Cut off after 180 seconds."));
     }
 
     #[test]
-    fn test_format_reply_does_not_shorten_text_at_the_limit() {
-        let text = "a".repeat(MAX_TEXT_CHARS);
+    fn test_format_reply_does_not_shorten_text_that_fits() {
+        // The longest text allowed no longer fits in one Discord message; this one does.
+        let text = "a".repeat(1_900);
         let reply = format_reply("Bob", &text, false);
         assert!(reply.ends_with(&text));
         assert!(!reply.contains('…'));
@@ -245,7 +246,7 @@ mod tests {
     fn test_format_reply_notes_cut_off_audio() {
         assert_eq!(
             format_reply("Bob", "hi", true),
-            "🗣️ **Bob**: hi\n-# Cut off after 60 seconds."
+            "🗣️ **Bob**: hi\n-# Cut off after 180 seconds."
         );
     }
 
