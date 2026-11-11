@@ -10,3 +10,7 @@ pub(crate) mod general;
 /// Commands related to music playback (requires the `music` feature).
 #[cfg(feature = "music")]
 pub(crate) mod music;
+
+/// Commands for DECtalk text-to-speech in voice channels (requires the `tts` feature).
+#[cfg(feature = "tts")]
+pub(crate) mod tts;

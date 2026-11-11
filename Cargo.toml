@@ -7,9 +7,18 @@ publish = false
 
 # Feature flags
 [features]
-default = ["brave_search", "music"]
+default = ["brave_search", "music", "tts"]
 brave_search = []
 music = ["dep:songbird", "dep:symphonia"]
+# DECtalk text-to-speech (`/say`). Plays through the music feature's voice stack.
+tts = [
+    "music",
+    "dep:libc",
+    "tokio/io-util",
+    "tokio/process",
+    "tokio/sync",
+    "tokio/time",
+]
 
 [dependencies]
 dotenv = "0.15.0"
@@ -48,9 +57,10 @@ features = ["builtin-queue", "gateway", "driver"]
 optional = true
 
 # Additional codecs for songbird via symphonia
+# (`wav` and `pcm` decode the clips produced by the `tts` feature)
 [dependencies.symphonia]
 version = "0.5"
-features = ["aac", "mp3", "isomp4", "alac"]
+features = ["aac", "mp3", "isomp4", "alac", "wav", "pcm"]
 optional = true
 
 [dependencies.reqwest]
@@ -64,6 +74,11 @@ features = ["bundled"]
 [dependencies.tracing-subscriber]
 version = "0.3.20"
 features = ["env-filter"]
+
+# Used by the `tts` feature to tell whether the bot is running as root
+[target.'cfg(unix)'.dependencies.libc]
+version = "0.2"
+optional = true
 
 [dev-dependencies]
 mockall = "0.14.0"

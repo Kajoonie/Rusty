@@ -32,6 +32,10 @@ Rusty offers a range of functionalities powered by different command modules:
     - Manage the playback queue (`/remove`).
     - Toggle autoplay for related songs based on YouTube recommendations (`/autoplay`).
     - Control playback with embedded button controls for easier management.
+- **Text-to-Speech (`tts` module):**
+    - Speak text in your voice channel with DECtalk, the voice from Moonbase Alpha (`/say`).
+    - DECtalk's inline commands work, e.g. `[:nh]`, `[:rate 300]`, `[:t430,500]`, `[dah<600,20>]`.
+    - Speech is mixed over playing music, which is turned down while it speaks.
 - **Cryptocurrency Info (`coingecko` module):**
     - Fetch real-time cryptocurrency data from CoinGecko (`/coin price`).
 - **General Utilities (`general` module):**
@@ -42,6 +46,7 @@ Rusty offers a range of functionalities powered by different command modules:
 - **Rust:** Latest stable version recommended.
 - **FFmpeg:** Required for audio processing (music feature).
 - **yt-dlp:** Required for downloading audio from various sources (music feature).
+- **DECtalk:** Optional, for the `/say` command (tts feature). Linux only; needs `libpulse0`. The bot starts without it and `/say` then replies with an error.
 
 ## Setup
 
@@ -70,6 +75,15 @@ Rusty offers a range of functionalities powered by different command modules:
         sudo apt update && sudo apt install ffmpeg -y
         ```
 
+    *   **DECtalk (optional, for `/say`; Debian/Ubuntu):** DECtalk is not included with the bot. Install the prebuilt release to `/opt/dectalk`:
+        ```bash
+        sudo apt install libpulse0
+        sudo mkdir -p /opt/dectalk
+        curl -L https://github.com/dectalk/dectalk/releases/download/2023-10-30/ubuntu-latest.tar.gz \
+          | sudo tar -xz --no-same-owner -C /opt/dectalk
+        ```
+        `/opt/dectalk/say` must then exist. Keep it at `/opt/dectalk`: DECtalk reads its configuration from `/opt/dectalk/DECtalk.conf`. The directory must be readable by the user DECtalk runs as (see `DECTALK_RUN_AS` below), so do not install it under `/root`.
+
 3.  **Create Configuration File:**
     *   Copy the example environment file:
         ```bash
@@ -91,6 +105,8 @@ Configure the bot by editing the `.env` file in the project root. Refer to `.env
 -   `SERP_API_KEY`: Required for the `/autoplay` functionality (if `music` feature is enabled).
 -   `SPOTIFY_CLIENT_ID` & `SPOTIFY_CLIENT_SECRET`: Required for Spotify integration (if `music` feature is enabled).
     *   To get these, create an application on the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
+-   `DECTALK_PATH`: Path to the DECtalk `say` executable for the `/say` command (if `tts` feature is enabled). Defaults to `/opt/dectalk/say`. Its libraries are loaded from the `lib` directory beside it.
+-   `DECTALK_RUN_AS`: User that DECtalk runs as when the bot itself runs as root. Defaults to `nobody`. Ignored when the bot is not root. Setting it to `root` turns the privilege drop off (not recommended).
 
 ## Feature Flags
 
@@ -98,8 +114,9 @@ Control optional features using Cargo feature flags:
 
 -   `brave_search`: Enables the `/search` command (uses Brave Search API).
 -   `music`: Enables all music commands (uses yt-dlp, FFmpeg, Spotify API, SERP API).
+-   `tts`: Enables the `/say` command (uses an external DECtalk install). Includes the `music` feature, whose voice connection it shares.
 
-**Default:** Both `brave_search` and `music` are enabled by default.
+**Default:** `brave_search`, `music` and `tts` are enabled by default.
 
 **Build/Run Examples:**
 
@@ -168,6 +185,9 @@ Here are the primary commands available, grouped by module:
 -   `/play <url_or_search_query>`: Play audio from YouTube/Spotify URL or search term. Queues playlists/albums.
 -   `/autoplay [true/false]`: Enable or disable automatic playback of related songs when the queue is empty.
 -   `/remove <position>`: Remove a song from the queue by its position number.
+
+**Text-to-Speech:**
+-   `/say <text>`: Speak text in your voice channel with DECtalk. Up to 1,000 characters and 60 seconds of audio per message. The bot joins your channel if it is not in one; if it is in another channel it stays there and tells you. Messages are spoken one after another.
 
 ## Contributing
 
