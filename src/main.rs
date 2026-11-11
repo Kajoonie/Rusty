@@ -160,15 +160,17 @@ async fn main() -> Result<(), Error> {
         commands.extend(vec![autoplay(), play(), remove()]);
     }
 
-    // Conditionally add the 'tts' command if the 'tts' feature is enabled.
+    // Conditionally add the 'tts' commands if the 'tts' feature is enabled.
     #[cfg(feature = "tts")]
     {
         // Unlike yt-dlp, a missing DECtalk only logs a warning; `/say` then replies with an error.
         commands::tts::check_dectalk();
+        // Likewise a missing Anthropic API key; `/ask` then replies with an error.
+        utils::anthropic_client::check_api_key();
 
-        use commands::tts::speak::say;
+        use commands::tts::{ask::ask, speak::say};
 
-        commands.extend(vec![say()]);
+        commands.extend(vec![say(), ask()]);
     }
 
     // Configure and build the poise framework.

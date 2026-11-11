@@ -476,7 +476,10 @@ pub struct Clip {
 /// `text` should already be cleaned with `text::validate_text`. The process is killed
 /// after `SYNTH_TIMEOUT`, and the audio is cut at `MAX_AUDIO_SECONDS`.
 pub async fn synthesize(config: &DectalkConfig, text: &str) -> TtsResult<Clip> {
-    let output = run_say(config, text, SYNTH_TIMEOUT, MAX_PCM_BYTES).await?;
+    // DECtalk produces no audio at all for input with a non-ASCII byte (curly quotes
+    // from a phone keyboard, accents, emoji), so reduce the text to ASCII first.
+    let text = super::answer::to_ascii(text);
+    let output = run_say(config, &text, SYNTH_TIMEOUT, MAX_PCM_BYTES).await?;
 
     Ok(Clip {
         duration: pcm_duration(output.pcm.len()),

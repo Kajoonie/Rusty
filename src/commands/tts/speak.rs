@@ -50,19 +50,7 @@ pub async fn say(
 
     // Synthesize, connect and queue while holding this guild's turn, so clips are
     // queued in the order the requests arrived.
-    let queued = async {
-        let slot = queue.reserve()?;
-        // The channels may have changed while waiting for the turn.
-        playback::check_voice(ctx.serenity_context(), guild_id, user_id).await?;
-        let clip = dectalk::synthesize(config, &text).await?;
-        let call = playback::connect(ctx.serenity_context(), guild_id, user_id).await?;
-
-        let cut_off = clip.cut_off;
-        slot.fill(QueuedClip { call, clip });
-
-        Ok::<bool, TtsError>(cut_off)
-    }
-    .await;
+    let queued = queue_speech(ctx, &queue, guild_id, user_id, config, &text).await;
     drop(turn);
 
     match queued {
@@ -74,19 +62,52 @@ pub async fn say(
                 .allowed_mentions(serenity::CreateAllowedMentions::new());
             ctx.send(reply).await?;
         }
-        Err(e) => {
-            // The deferred response is public and cannot be turned into an ephemeral
-            // one, so remove it and follow up with the error instead.
-            if let Context::Application(app_ctx) = ctx {
-                let deleted = app_ctx.interaction.delete_response(ctx.http()).await;
-                if let Err(delete_error) = deleted {
-                    debug!("Failed to delete deferred /say response: {}", delete_error);
-                }
-            }
-            ctx.send(embedded_messages::generic_error(&e.to_string()))
-                .await?;
+        Err(e) => report_late_error(ctx, &e.to_string()).await?,
+    }
+
+    Ok(())
+}
+
+/// Synthesizes `text`, joins the caller's voice channel if needed and queues the clip.
+///
+/// Call this while holding the guild's turn (`GuildQueue::wait_turn`), so clips are
+/// queued in the order their requests arrived. Returns whether the audio was cut off.
+pub(super) async fn queue_speech(
+    ctx: Context<'_>,
+    queue: &playback::GuildQueue,
+    guild_id: serenity::GuildId,
+    user_id: serenity::UserId,
+    config: &dectalk::DectalkConfig,
+    text: &str,
+) -> TtsResult<bool> {
+    let slot = queue.reserve()?;
+    // The channels may have changed while waiting for the turn.
+    playback::check_voice(ctx.serenity_context(), guild_id, user_id).await?;
+    let clip = dectalk::synthesize(config, text).await?;
+    let call = playback::connect(ctx.serenity_context(), guild_id, user_id).await?;
+
+    let cut_off = clip.cut_off;
+    slot.fill(QueuedClip { call, clip });
+
+    Ok(cut_off)
+}
+
+/// Reports an error that happened after the public response was deferred.
+///
+/// The deferred response is public and cannot be turned into an ephemeral one, so it is
+/// removed and the error is sent as a follow-up instead.
+pub(super) async fn report_late_error(ctx: Context<'_>, message: &str) -> CommandResult {
+    if let Context::Application(app_ctx) = ctx {
+        let deleted = app_ctx.interaction.delete_response(ctx.http()).await;
+        if let Err(delete_error) = deleted {
+            debug!(
+                "Failed to delete deferred /{} response: {}",
+                ctx.command().name,
+                delete_error
+            );
         }
     }
+    ctx.send(embedded_messages::generic_error(message)).await?;
 
     Ok(())
 }
@@ -102,17 +123,30 @@ async fn early_checks(
 ) -> TtsResult<String> {
     let text = text::validate_text(raw_text)?;
 
+    voice_checks(ctx, guild_id, user_id, config).await?;
+
+    Ok(text)
+}
+
+/// Checks that DECtalk is installed, the caller is in a voice channel and the bot is
+/// not busy in another one.
+pub(super) async fn voice_checks(
+    ctx: Context<'_>,
+    guild_id: serenity::GuildId,
+    user_id: serenity::UserId,
+    config: &dectalk::DectalkConfig,
+) -> TtsResult<()> {
     if !config.is_installed() {
         return Err(TtsError::NotInstalled);
     }
 
     playback::check_voice(ctx.serenity_context(), guild_id, user_id).await?;
 
-    Ok(text)
+    Ok(())
 }
 
 /// The caller's name as shown in the guild: nickname, then global name, then username.
-async fn display_name(ctx: Context<'_>) -> String {
+pub(super) async fn display_name(ctx: Context<'_>) -> String {
     match ctx.author_member().await {
         Some(member) => member.display_name().to_string(),
         None => ctx.author().display_name().to_string(),
