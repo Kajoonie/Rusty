@@ -10,6 +10,16 @@ name: Release
 on:
   push:
     branches: [ "main" ]
+    # Changes that cannot alter the binary do not need a new build, and a new
+    # build restarts the bot on the server. Use "Run workflow" to force one.
+    paths-ignore:
+      - "README.md"
+      - "LICENSE"
+      - ".env.example"
+      - ".gitignore"
+      - "deploy/**"
+      - ".github/dependabot.yml"
+      - ".github/workflows/rust.yml"
   workflow_dispatch:
 
 # No token permissions by default; each job asks for what it needs.

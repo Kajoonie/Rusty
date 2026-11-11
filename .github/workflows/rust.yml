@@ -1,8 +1,7 @@
 name: Rust
 
+# Pull requests only. Pushes to main are tested and built by release.yml.
 on:
-  push:
-    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
