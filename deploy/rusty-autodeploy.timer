@@ -1,0 +1,15 @@
+# Installed by hand as /etc/systemd/system/rusty-autodeploy.timer
+# (see the "Deployment" section of README.md).
+
+[Unit]
+Description=Check for a new Rusty release build every 5 minutes
+
+[Timer]
+OnCalendar=*:0/5
+RandomizedDelaySec=60
+AccuracySec=15s
+# Run once right after boot if a check was missed while the machine was off.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

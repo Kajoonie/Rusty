@@ -1,0 +1,157 @@
+name: Release
+
+# Builds the bot for the Debian 12 deployment container and publishes it to the
+# rolling "latest" release. The container polls that release and deploys it
+# (see deploy/rusty-autodeploy.sh and the "Deployment" section of README.md).
+#
+# Only pushes to main (and manual runs on main) publish. This workflow must
+# never get a pull_request trigger: fork PRs must not be able to publish.
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+# No token permissions by default; each job asks for what it needs.
+permissions: {}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Test and build (Debian 12)
+    runs-on: ubuntu-latest
+    # Build inside Debian 12 so the binary links against the same glibc (2.36)
+    # and libssl (3.0) as the deployment container. ubuntu-latest itself has a
+    # newer glibc and would produce a binary that does not start there.
+    container: debian:12
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      - name: Install build packages
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates curl gcc libc6-dev make cmake pkg-config libssl-dev
+
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Rust (stable, minimal profile)
+        run: |
+          curl --proto '=https' --tlsv1.2 -fsS https://sh.rustup.rs \
+            | sh -s -- -y --profile minimal --default-toolchain stable
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Test
+        run: cargo test --locked
+
+      - name: Build release binary
+        run: cargo build --release --locked
+
+      - name: Check and package binary
+        run: |
+          set -u
+          bin=target/release/rusty
+          test -x "$bin"
+          ldd "$bin"
+          # Shared libraries the deployment container is known to have. If a
+          # dependency change adds another one, fail here instead of publishing
+          # a binary the container cannot start.
+          allowed='^(linux-vdso\.so\.1|libssl\.so\.3|libcrypto\.so\.3|libgcc_s\.so\.1|libm\.so\.6|libc\.so\.6|/lib64/ld-linux-x86-64\.so\.2)$'
+          unexpected="$(ldd "$bin" | awk '{print $1}' | grep -Ev "$allowed" || true)"
+          if [ -n "$unexpected" ]; then
+            echo "::error::Binary needs shared libraries that are not on the deployment container: $unexpected"
+            exit 1
+          fi
+          mkdir dist
+          cp "$bin" dist/rusty
+          (cd dist && sha256sum rusty > rusty.sha256)
+          rustc --version > dist/RUSTC_VERSION
+          ls -l dist
+          cat dist/rusty.sha256
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rusty-debian12
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish to the "latest" release
+    needs: build
+    # Manual runs can be started on any branch; only main may publish.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    # One publish at a time, so the uploads of two runs cannot interleave.
+    concurrency:
+      group: release-latest
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: rusty-debian12
+          path: dist
+
+      - name: Publish
+        working-directory: dist
+        run: |
+          set -euo pipefail
+
+          sha256sum -c rusty.sha256
+
+          # Never publish an older commit over a newer one (re-run of an old
+          # run, or a run that finished after the next push was published).
+          tip="$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq .object.sha)"
+          if [ "$tip" != "$GITHUB_SHA" ]; then
+            echo "::notice::$GITHUB_SHA is no longer the tip of main ($tip); not publishing."
+            exit 0
+          fi
+
+          commit_date="$(gh api "repos/$GH_REPO/commits/$GITHUB_SHA" --jq .commit.committer.date)"
+          {
+            echo "commit=$GITHUB_SHA"
+            echo "commit_date=$commit_date"
+            echo "run_url=$RUN_URL"
+            echo "sha256=$(cut -d' ' -f1 rusty.sha256)"
+            echo "rustc=$(cat RUSTC_VERSION)"
+          } > BUILD_INFO
+          cat BUILD_INFO
+
+          notes="Rolling build of main for the Debian 12 deployment container. Commit $GITHUB_SHA, built by $RUN_URL. Assets are replaced on every push to main."
+          if gh release view latest > /dev/null 2>&1; then
+            gh release edit latest --title "Latest main build" --notes "$notes"
+          else
+            gh release create latest --target "$GITHUB_SHA" --title "Latest main build" --notes "$notes"
+          fi
+          # Move the rolling tag to the commit that was built.
+          gh api --method PATCH "repos/$GH_REPO/git/refs/tags/latest" \
+            -f sha="$GITHUB_SHA" -F force=true > /dev/null
+
+          # Order matters: the container downloads rusty.sha256 first and only
+          # acts when it differs from what it runs. Uploading the checksum last
+          # means it never announces a binary that is not there yet; during the
+          # upload window the container sees the old checksum (nothing to do)
+          # or a mismatch (it retries on its next run).
+          gh release upload latest rusty --clobber
+          gh release upload latest BUILD_INFO --clobber
+          gh release upload latest rusty.sha256 --clobber

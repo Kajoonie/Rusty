@@ -1,0 +1,45 @@
+# Installed by hand as /etc/systemd/system/rusty-autodeploy.service
+# (see the "Deployment" section of README.md).
+
+[Unit]
+Description=Deploy the latest Rusty release build from GitHub
+Documentation=https://github.com/Kajoonie/Rusty#deployment
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/rusty-autodeploy.sh
+# Optional overrides of the RUSTY_AUTODEPLOY_* settings listed in the script.
+EnvironmentFile=-/etc/default/rusty-autodeploy
+Environment=HOME=/root
+StateDirectory=rusty-autodeploy
+SyslogIdentifier=rusty-autodeploy
+# Exit status 75 means "could not reach the release right now, the next run
+# retries"; that is not a failed unit.
+SuccessExitStatus=75
+TimeoutStartSec=15min
+Nice=10
+# The script logs at notice level or above, and so does anything a tool it
+# calls prints. Dropping info keeps the journal free of systemd's
+# "Starting/Finished" pair every five minutes.
+SyslogLevel=notice
+LogLevelMax=notice
+
+# Hardening. The script only needs the network, the bot's directory, its state
+# directory and permission to ask systemd to restart the bot.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+# The one writable place under /root. Must cover RUSTY_AUTODEPLOY_APP_DIR if
+# that setting is changed.
+ReadWritePaths=-/root/Rusty
+PrivateTmp=yes
+UMask=0022
+CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_FOWNER CAP_CHOWN
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
