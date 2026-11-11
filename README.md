@@ -37,6 +37,7 @@ Rusty offers a range of functionalities powered by different command modules:
     - Speak text in your voice channel with DECtalk, the voice from Moonbase Alpha (`/say`).
     - DECtalk's inline commands work, e.g. `[:nh]`, `[:rate 300]`, `[:t430,500]`, `[dah<600,20>]`.
     - Speech is mixed over playing music, which is turned down while it speaks.
+    - Ask Rusty a question and hear Claude's answer in the same voice (`/ask`). Rusty can also sing: asked for a song, it composes one in DECtalk's phoneme notation.
 - **Cryptocurrency Info (`coingecko` module):**
     - Fetch real-time cryptocurrency data from CoinGecko (`/coin price`).
 - **General Utilities (`general` module):**
@@ -47,7 +48,8 @@ Rusty offers a range of functionalities powered by different command modules:
 - **Rust:** Latest stable version recommended.
 - **FFmpeg:** Required for audio processing (music feature).
 - **yt-dlp:** Required for downloading audio from various sources (music feature).
-- **DECtalk:** Optional, for the `/say` command (tts feature). Linux only; needs `libpulse0`. The bot starts without it and `/say` then replies with an error.
+- **DECtalk:** Optional, for the `/say` and `/ask` commands (tts feature). Linux only; needs `libpulse0`. The bot starts without it and both commands then reply with an error.
+- **Anthropic API key:** Optional, for the `/ask` command (tts feature). The bot starts without it and `/ask` then replies with an error.
 
 ## Setup
 
@@ -108,6 +110,8 @@ Configure the bot by editing the `.env` file in the project root. Refer to `.env
     *   To get these, create an application on the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
 -   `DECTALK_PATH`: Path to the DECtalk `say` executable for the `/say` command (if `tts` feature is enabled). Defaults to `/opt/dectalk/say`. Its libraries are loaded from the `lib` directory beside it.
 -   `DECTALK_RUN_AS`: User that DECtalk runs as when the bot itself runs as root. Defaults to `nobody`. Ignored when the bot is not root. Setting it to `root` turns the privilege drop off (not recommended).
+-   `ANTHROPIC_API_KEY`: API key for the [Claude API](https://platform.claude.com/), required for the `/ask` command (if `tts` feature is enabled). Without it `/ask` replies that the key is not set. Every `/ask` is billed to this key.
+-   `ANTHROPIC_MODEL`: Claude model that answers `/ask`. Defaults to `claude-opus-5-5`. The request is written for that model: it sets `output_config.effort`, asks for server-side refusal fallbacks (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`), marks the system prompt for prompt caching and sends no `thinking` field. A model that does not accept those fields answers with an error, which `/ask` reports as a rejected request.
 
 ## Feature Flags
 
@@ -115,7 +119,7 @@ Control optional features using Cargo feature flags:
 
 -   `brave_search`: Enables the `/search` command (uses Brave Search API).
 -   `music`: Enables all music commands (uses yt-dlp, FFmpeg, Spotify API, SERP API).
--   `tts`: Enables the `/say` command (uses an external DECtalk install). Includes the `music` feature, whose voice connection it shares.
+-   `tts`: Enables the `/say` and `/ask` commands (uses an external DECtalk install; `/ask` also uses the Claude API). Includes the `music` feature, whose voice connection it shares.
 
 **Default:** `brave_search`, `music` and `tts` are enabled by default.
 
@@ -261,6 +265,7 @@ Here are the primary commands available, grouped by module:
 
 **Text-to-Speech:**
 -   `/say <text>`: Speak text in your voice channel with DECtalk. Up to 4,000 characters and 3 minutes of audio per message. The bot joins your channel if it is not in one; if it is in another channel it stays there and tells you. Messages are spoken one after another.
+-   `/ask <question>`: Ask Rusty a question. Claude writes a short answer, DECtalk speaks it in your voice channel, and the question and answer are posted as text. Ask for a song, a voice or a sound effect and Rusty uses DECtalk's commands and sung phonemes. Questions can be up to 500 characters; each one stands alone, with no memory of earlier ones. The same voice-channel rules and limits as `/say` apply, and answers share its queue.
 
 ## Contributing
 

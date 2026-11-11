@@ -1,12 +1,19 @@
-//! This module contains the `/say` command and its helpers.
+//! This module contains the `/say` and `/ask` commands and their helpers.
 //! Text is spoken in a voice channel with DECtalk, the synthesizer known from Moonbase Alpha.
-//! Requires the `tts` feature flag to be enabled. DECtalk itself is not part of the bot;
-//! it is an external program located through the `DECTALK_PATH` environment variable.
+//! `/ask` has Claude write the text first. Requires the `tts` feature flag to be enabled.
+//! DECtalk itself is not part of the bot; it is an external program located through the
+//! `DECTALK_PATH` environment variable.
 
+/// Submodule that makes Claude's answers safe to hand to DECtalk.
+pub(crate) mod answer;
+/// Submodule defining the `/ask` command.
+pub(crate) mod ask;
 /// Submodule that runs the external DECtalk program and builds playable clips.
 pub(crate) mod dectalk;
 /// Submodule handling voice channel checks, the per-guild clip queue and playback.
 pub(crate) mod playback;
+/// Submodule holding the system prompt for `/ask`.
+pub(crate) mod prompt;
 /// Submodule defining the `/say` command.
 pub(crate) mod speak;
 /// Submodule for cleaning user text and formatting the reply.

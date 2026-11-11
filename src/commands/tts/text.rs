@@ -1,4 +1,5 @@
-//! Cleans and validates the text given to `/say` and formats the public reply.
+//! Cleans and validates the text given to `/say` and formats the public replies of
+//! `/say` and `/ask`.
 
 use super::{TtsError, TtsResult, dectalk::MAX_AUDIO_SECONDS};
 
@@ -10,6 +11,13 @@ const DISCORD_MESSAGE_LIMIT: usize = 2_000;
 
 /// Longest display name Discord allows.
 const MAX_NAME_CHARS: usize = 32;
+
+/// The name shown in front of the bot's own answers.
+const BOT_NAME: &str = "Rusty";
+
+/// How much of a question (in UTF-16 code units) is always shown by `format_ask_reply`,
+/// however long the answer is.
+const MIN_QUESTION_UNITS: usize = 200;
 
 /// Characters that start or end Discord formatting, mentions, links and emoji.
 const MARKDOWN_SPECIALS: &[char] = &[
@@ -73,24 +81,31 @@ fn message_len(s: &str) -> usize {
     s.encode_utf16().count()
 }
 
-/// Builds the public reply showing who said what, e.g. `🗣️ **Name**: text`.
-///
-/// Name and text are escaped so they cannot add formatting, links or mentions, and
-/// the text is shortened with `…` if the message would exceed Discord's limit.
-/// When `cut_off` is set a note says the audio was capped.
-pub fn format_reply(display_name: &str, text: &str, cut_off: bool) -> String {
-    let name: String = display_name.chars().take(MAX_NAME_CHARS).collect();
-    let mut reply = format!("🗣️ **{}**: ", escape_markdown(&name));
+/// Length of a string once its formatting is escaped, as Discord counts it at worst.
+fn escaped_len(s: &str) -> usize {
+    s.chars().map(|c| message_len(&escape_char(c))).sum()
+}
 
-    let note = if cut_off {
+/// Starts a reply line, e.g. `🗣️ **Name**: `, with the name escaped and limited in length.
+fn speaker_prefix(icon: &str, display_name: &str) -> String {
+    let name: String = display_name.chars().take(MAX_NAME_CHARS).collect();
+    format!("{icon} **{}**: ", escape_markdown(&name))
+}
+
+/// The line added to a reply when the audio was capped; empty otherwise.
+fn cut_off_note(cut_off: bool) -> String {
+    if cut_off {
         format!("\n-# Cut off after {MAX_AUDIO_SECONDS} seconds.")
     } else {
         String::new()
-    };
+    }
+}
 
-    // Leave room for the note and for the ellipsis added when the text is shortened.
-    let budget = DISCORD_MESSAGE_LIMIT - message_len(&note) - 1;
-    let mut used = message_len(&reply);
+/// Appends `text` to `reply` with its formatting escaped, using at most `budget` UTF-16
+/// code units. Text that does not fit is shortened and marked with `…`, which is not
+/// counted in the budget. Returns the number of units used, the ellipsis included.
+fn push_shortened(reply: &mut String, text: &str, budget: usize) -> usize {
+    let mut used = 0;
 
     for c in text.chars() {
         let piece = escape_char(c);
@@ -98,12 +113,104 @@ pub fn format_reply(display_name: &str, text: &str, cut_off: bool) -> String {
 
         if used + piece_len > budget {
             reply.push('…');
-            break;
+            return used + 1;
         }
 
         reply.push_str(&piece);
         used += piece_len;
     }
+
+    used
+}
+
+/// Builds the public reply showing who said what, e.g. `🗣️ **Name**: text`.
+///
+/// Name and text are escaped so they cannot add formatting, links or mentions, and
+/// the text is shortened with `…` if the message would exceed Discord's limit.
+/// When `cut_off` is set a note says the audio was capped.
+pub fn format_reply(display_name: &str, text: &str, cut_off: bool) -> String {
+    let mut reply = speaker_prefix("🗣️", display_name);
+    let note = cut_off_note(cut_off);
+
+    // Leave room for the note and for the ellipsis added when the text is shortened.
+    let budget = DISCORD_MESSAGE_LIMIT - message_len(&note) - 1 - message_len(&reply);
+    push_shortened(&mut reply, text, budget);
+
+    reply.push_str(&note);
+    reply
+}
+
+/// Whether more than half of a text is DECtalk notation, i.e. inside square brackets.
+///
+/// Such text (a song, mostly) is unreadable, so when a reply has to be shortened it is
+/// the part to cut.
+pub fn is_mostly_notation(text: &str) -> bool {
+    let mut inside = false;
+    let mut notation = 0;
+    let mut total = 0;
+
+    for c in text.chars() {
+        total += 1;
+        match c {
+            '[' => {
+                inside = true;
+                notation += 1;
+            }
+            ']' => {
+                inside = false;
+                notation += 1;
+            }
+            _ if inside => notation += 1,
+            _ => {}
+        }
+    }
+
+    notation * 2 > total
+}
+
+/// Builds the public reply of `/ask`, showing the question and the answer:
+///
+/// ```text
+/// ❓ **Asker**: question
+/// 🗣️ **Rusty**: answer
+/// ```
+///
+/// Names and texts are escaped as in `format_reply`, and the whole reply fits in one
+/// Discord message. If it would not, a spoken answer is kept and the question is
+/// shortened first (down to `MIN_QUESTION_UNITS`), then the answer. An answer that is
+/// mostly DECtalk notation is shortened instead, and the question stays whole.
+/// When `cut_off` is set a note says the audio was capped.
+pub fn format_ask_reply(asker: &str, question: &str, answer: &str, cut_off: bool) -> String {
+    let mut reply = speaker_prefix("❓", asker);
+    let answer_prefix = format!("\n{}", speaker_prefix("🗣️", BOT_NAME));
+    let note = cut_off_note(cut_off);
+
+    // Room for both texts, less one unit each for the ellipsis of a shortened text.
+    let available = DISCORD_MESSAGE_LIMIT
+        - message_len(&reply)
+        - message_len(&answer_prefix)
+        - message_len(&note)
+        - 2;
+
+    let question_len = escaped_len(question);
+    let answer_len = escaped_len(answer);
+
+    let question_budget = if question_len + answer_len <= available {
+        question_len
+    } else if is_mostly_notation(answer) {
+        // Never more than half, so some of the answer is always shown.
+        question_len.min(available / 2)
+    } else {
+        available
+            .saturating_sub(answer_len)
+            .max(MIN_QUESTION_UNITS)
+            .min(question_len)
+    };
+
+    let question_used = push_shortened(&mut reply, question, question_budget);
+    reply.push_str(&answer_prefix);
+    // An unused ellipsis unit of the question is simply left over.
+    push_shortened(&mut reply, answer, available + 1 - question_used);
 
     reply.push_str(&note);
     reply
@@ -254,5 +361,120 @@ mod tests {
     fn test_format_reply_limits_name_length() {
         let reply = format_reply(&"n".repeat(500), "hi", false);
         assert_eq!(reply, format!("🗣️ **{}**: hi", "n".repeat(MAX_NAME_CHARS)));
+    }
+
+    #[test]
+    fn test_format_ask_reply_plain() {
+        assert_eq!(
+            format_ask_reply("Charles", "why is the sky blue?", "Because physics.", false),
+            "❓ **Charles**: why is the sky blue?\n🗣️ **Rusty**: Because physics."
+        );
+    }
+
+    #[test]
+    fn test_format_ask_reply_escapes_both_sides() {
+        let reply = format_ask_reply("**x**", "@everyone <@1> `q`", "[:nh] _hi_ @here", false);
+        assert_eq!(
+            reply,
+            "❓ **\\*\\*x\\*\\***: \\@everyone \\<\\@1\\> \\`q\\`\n🗣️ **Rusty**: \\[\\:nh\\] \\_hi\\_ \\@here"
+        );
+    }
+
+    #[test]
+    fn test_format_ask_reply_notes_cut_off_audio() {
+        assert_eq!(
+            format_ask_reply("Bob", "q", "a", true),
+            format!(
+                "❓ **Bob**: q\n🗣️ **Rusty**: a\n-# Cut off after {MAX_AUDIO_SECONDS} seconds."
+            )
+        );
+    }
+
+    #[test]
+    fn test_format_ask_reply_limits_name_length() {
+        let reply = format_ask_reply(&"n".repeat(500), "q", "a", false);
+        assert!(reply.starts_with(&format!("❓ **{}**: q", "n".repeat(MAX_NAME_CHARS))));
+    }
+
+    #[test]
+    fn test_format_ask_reply_shortens_the_question_before_a_spoken_answer() {
+        let question = "q".repeat(1_500);
+        let answer = "a".repeat(1_000);
+
+        for cut_off in [false, true] {
+            let reply = format_ask_reply("Bob", &question, &answer, cut_off);
+            assert!(message_len(&reply) <= DISCORD_MESSAGE_LIMIT);
+            // The question is shortened, the answer is whole.
+            assert!(reply.contains("q…\n"));
+            assert!(reply.contains(&answer));
+            assert!(!reply.contains("a…"));
+        }
+    }
+
+    #[test]
+    fn test_format_ask_reply_uses_the_whole_message() {
+        let question = "q".repeat(1_500);
+        let answer = "a".repeat(1_000);
+        let reply = format_ask_reply("Bob", &question, &answer, false);
+        assert_eq!(message_len(&reply), DISCORD_MESSAGE_LIMIT - 1);
+    }
+
+    #[test]
+    fn test_format_ask_reply_shortens_both_when_the_answer_alone_is_too_long() {
+        let question = "q".repeat(500);
+        let answer = "a".repeat(3_000);
+
+        for cut_off in [false, true] {
+            let reply = format_ask_reply("Bob", &question, &answer, cut_off);
+            assert!(message_len(&reply) <= DISCORD_MESSAGE_LIMIT);
+            // The question keeps its guaranteed share.
+            assert!(reply.contains(&format!("{}…\n", "q".repeat(MIN_QUESTION_UNITS))));
+            assert!(reply.contains("a…"));
+        }
+    }
+
+    #[test]
+    fn test_format_ask_reply_shortens_a_song_and_keeps_the_question() {
+        let question = "q".repeat(500);
+        let song = "[dah<600,20>]".repeat(300);
+        assert!(is_mostly_notation(&song));
+
+        for cut_off in [false, true] {
+            let reply = format_ask_reply("Bob", &question, &song, cut_off);
+            assert!(message_len(&reply) <= DISCORD_MESSAGE_LIMIT);
+            assert!(reply.contains(&format!("{question}\n")));
+            assert!(reply.contains('…'));
+            // The shortened text must not end in a lone backslash that would escape the ellipsis.
+            assert!(!reply.contains("\\…"));
+        }
+    }
+
+    #[test]
+    fn test_format_ask_reply_stays_within_the_limit_when_everything_is_escaped() {
+        // Every character needs escaping, doubling the length.
+        let name = "_".repeat(MAX_NAME_CHARS);
+        let question = "*".repeat(MAX_TEXT_CHARS);
+        let wide = "😀".repeat(MAX_TEXT_CHARS);
+
+        for answer in [question.as_str(), wide.as_str(), "[:nh]"] {
+            for cut_off in [false, true] {
+                let reply = format_ask_reply(&name, &question, answer, cut_off);
+                assert!(message_len(&reply) <= DISCORD_MESSAGE_LIMIT);
+                assert!(reply.contains("\n🗣️ **Rusty**: "));
+            }
+        }
+    }
+
+    #[test]
+    fn test_is_mostly_notation() {
+        assert!(!is_mostly_notation(""));
+        assert!(!is_mostly_notation("A plain spoken answer."));
+        assert!(!is_mostly_notation(
+            "[:nh] A deep voice, but mostly words. [:np]"
+        ));
+        assert!(is_mostly_notation("[dah<600,20>][dah<600,20>]"));
+        assert!(is_mostly_notation(
+            "Here goes. [dah<600,20>dah<600,20>dah<600,20>]"
+        ));
     }
 }
