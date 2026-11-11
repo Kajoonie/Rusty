@@ -22,7 +22,6 @@ use commands::{
     ai::{chat::*, get_model::*, list_models::*, set_model::*},
     coingecko::coin::*,
     general::ping::*,
-    music::remove::remove,
 };
 
 /// Custom error type for handling various errors across the bot.
@@ -155,10 +154,21 @@ async fn main() -> Result<(), Error> {
     {
         check_ytdlp();
 
-        use commands::music::{autoplay::*, play::*};
+        use commands::music::{autoplay::*, play::*, remove::remove};
 
         // Add music commands
         commands.extend(vec![autoplay(), play(), remove()]);
+    }
+
+    // Conditionally add the 'tts' command if the 'tts' feature is enabled.
+    #[cfg(feature = "tts")]
+    {
+        // Unlike yt-dlp, a missing DECtalk only logs a warning; `/say` then replies with an error.
+        commands::tts::check_dectalk();
+
+        use commands::tts::speak::say;
+
+        commands.extend(vec![say()]);
     }
 
     // Configure and build the poise framework.
