@@ -15,6 +15,7 @@ A versatile Discord bot built with Rust using the Poise framework. Rusty enhance
 - [Feature Flags](#feature-flags)
 - [Building](#building)
 - [Usage](#usage)
+- [Deployment](#deployment)
 - [Commands](#commands)
 - [Contributing](#contributing)
 - [License](#license)
@@ -146,6 +147,78 @@ Run the compiled bot:
     ```bash
     cargo run --release
     ```
+
+## Deployment
+
+The production bot runs under systemd (`rusty.service`) in a small Debian 12 container. It is not built there: every push to `main` is built by GitHub Actions and the container picks up the finished binary by itself.
+
+**How it works**
+
+1. `.github/workflows/release.yml` runs the tests and `cargo build --release --locked` inside a `debian:12` container, then replaces the assets of the rolling [`latest`](https://github.com/Kajoonie/Rusty/releases/tag/latest) release: `rusty` (the binary), `rusty.sha256` and `BUILD_INFO` (commit, commit date, link to the run).
+2. On the container, `rusty-autodeploy.timer` runs `rusty-autodeploy.sh` every 5 minutes. It downloads `rusty.sha256` and exits silently when that matches the deployed binary.
+3. Otherwise it downloads the binary, checks the checksum, that it is an x86_64 program and that every library it needs is installed, keeps the current binary as `target/release/rusty.prev`, moves the new one to `/root/Rusty/target/release/rusty` and restarts `rusty.service`. A restart stops whatever the bot is playing.
+4. If the bot is not running 20 seconds after the restart, the script puts `rusty.prev` back, restarts again and fails. That build is skipped from then on; the next build that is published is tried again.
+5. After a successful deploy the `/root/Rusty` checkout is fast-forwarded to the deployed commit, but only when it is on `main` and has no local changes. `.env` and `application_data.db` are never touched.
+
+If GitHub cannot be reached or a release is half uploaded, nothing changes and the next run tries again. If `rusty.service` was stopped by hand, the new binary is installed but the bot is not started.
+
+**One-time install**
+
+Run as root inside the container, after the first run of the `Release` workflow has finished:
+
+```bash
+cd /root/Rusty && git fetch origin main && \
+git show origin/main:deploy/rusty-autodeploy.sh      > /usr/local/sbin/rusty-autodeploy.sh && \
+git show origin/main:deploy/rusty-autodeploy.service > /etc/systemd/system/rusty-autodeploy.service && \
+git show origin/main:deploy/rusty-autodeploy.timer   > /etc/systemd/system/rusty-autodeploy.timer && \
+chmod 0755 /usr/local/sbin/rusty-autodeploy.sh && \
+systemctl daemon-reload && echo "rusty-autodeploy installed"
+```
+
+```bash
+systemctl start rusty-autodeploy.service            # first deploy: restarts the bot
+journalctl -u rusty-autodeploy -n 20 --no-pager     # expect a "deployed build ..." line
+systemctl enable --now rusty-autodeploy.timer
+```
+
+The binary that is there today was built by hand, so its checksum differs from the release and the first run replaces it with the release build. That is intended; the hand-built binary stays available as `rusty.prev`.
+
+If the first start fails with `status=226/NAMESPACE`, the container does not allow systemd's file system sandbox (an LXC container without nesting). The bot is untouched in that case. Turn that part of the hardening off and start again:
+
+```bash
+mkdir -p /etc/systemd/system/rusty-autodeploy.service.d
+printf '[Service]\nProtectSystem=no\nProtectHome=no\nPrivateTmp=no\nReadWritePaths=\n' \
+  > /etc/systemd/system/rusty-autodeploy.service.d/no-fs-sandbox.conf
+systemctl daemon-reload
+```
+
+The installed copies are what runs as root. Later changes to `deploy/` in the repository do nothing until the install commands are run again. Settings (paths, unit name, wait time) are at the top of the script and can be overridden in `/etc/default/rusty-autodeploy`.
+
+**Status and logs**
+
+```bash
+systemctl list-timers rusty-autodeploy.timer    # last and next check
+journalctl -u rusty-autodeploy                  # one line per action, nothing while up to date
+cat /var/lib/rusty-autodeploy/BUILD_INFO        # the build that is deployed
+```
+
+**Pause**
+
+```bash
+systemctl disable --now rusty-autodeploy.timer  # resume: systemctl enable --now rusty-autodeploy.timer
+```
+
+Pause it before running a binary you built yourself with `cargo build --release`: its checksum differs from the release, so the next check would replace it.
+
+**Roll back**
+
+```bash
+systemctl disable --now rusty-autodeploy.timer  # otherwise the release is deployed again within 5 minutes
+cd /root/Rusty/target/release && cp -p rusty.prev rusty.tmp && mv rusty.tmp rusty
+systemctl restart rusty.service
+```
+
+Enable the timer again once a fixed commit has been pushed to `main` and its `Release` run has finished. A build that was rolled back automatically is recorded in `/var/lib/rusty-autodeploy/hold`; delete that file to have it tried again.
 
 ## Commands
 
