@@ -44,11 +44,12 @@ pub enum AskError {
 
 /// Asks Rusty a question; Claude answers and DECtalk speaks it in your voice channel.
 ///
-/// Rusty answers out loud in the DECtalk voice from Moonbase Alpha and posts the answer
-/// as text. Ask for a song, a different voice or a sound effect and Rusty will try that
-/// too. Each question stands alone; Rusty does not remember earlier ones. The bot joins
-/// your voice channel if it is not connected yet, and answers are spoken one after
-/// another together with `/say` messages.
+/// Rusty answers out loud in the DECtalk voice from Moonbase Alpha, for everyone in the
+/// voice channel to hear; the question and the answer as text are visible only to you.
+/// Ask for a song, a different voice or a sound effect and Rusty will try that too. Each
+/// question stands alone; Rusty does not remember earlier ones. The bot joins your voice
+/// channel if it is not connected yet, and answers are spoken one after another together
+/// with `/say` messages.
 #[poise::command(slash_command, prefix_command, guild_only, category = "TTS")]
 pub async fn ask(
     ctx: Context<'_>,
@@ -62,8 +63,8 @@ pub async fn ask(
     let config = dectalk::config();
     let claude = anthropic_client::client();
 
-    // Checks that need no waiting come first, so their errors can be replied to
-    // ephemerally before a public response is started and before Claude is asked.
+    // Checks that need no waiting come first, so their errors are replied to at once
+    // and before Claude is asked.
     let question = match early_checks(ctx, guild_id, user_id, config, claude, &question).await {
         Ok(question) => question,
         Err(e) => {
@@ -80,20 +81,27 @@ pub async fn ask(
         guild_id
     );
 
-    // Claude takes longer than Discord's reply window.
-    ctx.defer().await?;
+    // Claude takes longer than Discord's reply window. The defer is ephemeral, so only
+    // the asker sees the reply; the prefix form has no ephemeral messages and replies in
+    // the channel.
+    ctx.defer_ephemeral().await?;
 
     let asker = speak::display_name(ctx).await;
 
     match answer_and_speak(ctx, guild_id, user_id, config, claude, &asker, &question).await {
         Ok((answer, cut_off)) => {
-            // Show both sides. Mentions are disabled so the text cannot ping anyone.
+            // Show the asker both sides. Mentions are disabled so the text cannot ping
+            // anyone where the reply is public (the prefix form).
             let reply = CreateReply::default()
                 .content(text::format_ask_reply(&asker, &question, &answer, cut_off))
-                .allowed_mentions(serenity::CreateAllowedMentions::new());
+                .allowed_mentions(serenity::CreateAllowedMentions::new())
+                .ephemeral(true);
             ctx.send(reply).await?;
         }
-        Err(e) => speak::report_late_error(ctx, &e.to_string()).await?,
+        Err(e) => {
+            ctx.send(embedded_messages::generic_error(&e.to_string()))
+                .await?;
+        }
     }
 
     Ok(())

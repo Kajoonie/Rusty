@@ -264,8 +264,9 @@ Here are the primary commands available, grouped by module:
 -   `/remove <position>`: Remove a song from the queue by its position number.
 
 **Text-to-Speech:**
--   `/say <text>`: Speak text in your voice channel with DECtalk. Up to 4,000 characters and 3 minutes of audio per message. The bot joins your channel if it is not in one; if it is in another channel it stays there and tells you. Messages are spoken one after another.
--   `/ask <question>`: Ask Rusty a question. Claude writes a short answer, DECtalk speaks it in your voice channel, and the question and answer are posted as text. Ask for a song, a voice or a sound effect and Rusty uses DECtalk's commands and sung phonemes. Questions can be up to 500 characters; each one stands alone, with no memory of earlier ones. The same voice-channel rules and limits as `/say` apply, and answers share its queue.
+-   `/say <text>`: Speak text in your voice channel with DECtalk. Up to 4,000 characters and 3 minutes of audio per message. The bot joins your channel if it is not in one; if it is in another channel it stays there and tells you. Messages are spoken one after another. Everyone in the voice channel hears the text; the reply that shows it is visible only to you.
+-   `/ask <question>`: Ask Rusty a question. Claude writes a short answer, DECtalk speaks it in your voice channel, and the question and answer are shown as text to you alone. Ask for a song, a voice or a sound effect and Rusty uses DECtalk's commands and sung phonemes. Questions can be up to 500 characters; each one stands alone, with no memory of earlier ones. The same voice-channel rules and limits as `/say` apply, and answers share its queue.
+-   Both also work as prefix commands (`~say`, `~ask`). Discord can only hide replies to slash commands, so the prefix forms reply in the channel for everyone to see.
 
 ## Contributing
 

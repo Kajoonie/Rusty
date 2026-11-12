@@ -4,14 +4,15 @@ use super::playback::QueuedClip;
 use super::*;
 use crate::commands::music::utils::embedded_messages;
 use poise::{CreateReply, serenity_prelude as serenity};
-use tracing::{debug, info};
+use tracing::info;
 
 /// Speaks text in your voice channel with the DECtalk voice from Moonbase Alpha.
 ///
 /// DECtalk's inline commands work: voices like `[:nh]` and `[:np]`, `[:dv ap 200]`,
 /// `[:rate 300]`, tones like `[:t430,500]` and sung phonemes like `[dah<600,20>]`.
 /// The bot joins your voice channel if it is not connected yet, and speaks over any
-/// music that is playing. Requests are spoken one after another.
+/// music that is playing. Requests are spoken one after another. Everyone in the voice
+/// channel hears the text; the reply that shows it is visible only to you.
 #[poise::command(slash_command, prefix_command, guild_only, category = "TTS")]
 pub async fn say(
     ctx: Context<'_>,
@@ -24,8 +25,7 @@ pub async fn say(
     let user_id = ctx.author().id;
     let config = dectalk::config();
 
-    // Checks that need no waiting come first, so their errors can be replied to
-    // ephemerally before a public response is started.
+    // Checks that need no waiting come first, so their errors are replied to at once.
     let text = match early_checks(ctx, guild_id, user_id, config, &text).await {
         Ok(text) => text,
         Err(e) => {
@@ -42,10 +42,12 @@ pub async fn say(
         guild_id
     );
 
-    // Take a place in line right away, while the public response is being deferred
-    // (synthesis and joining a channel can take longer than Discord's reply window).
+    // Take a place in line right away, while the response is being deferred (synthesis
+    // and joining a channel can take longer than Discord's reply window). The defer is
+    // ephemeral, so only the caller sees the reply; the prefix form has no ephemeral
+    // messages and replies in the channel.
     let queue = playback::guild_queue(guild_id);
-    let (deferred, turn) = tokio::join!(ctx.defer(), queue.wait_turn());
+    let (deferred, turn) = tokio::join!(ctx.defer_ephemeral(), queue.wait_turn());
     deferred?;
 
     // Synthesize, connect and queue while holding this guild's turn, so clips are
@@ -55,14 +57,19 @@ pub async fn say(
 
     match queued {
         Ok(cut_off) => {
-            // Show who said what. Mentions are disabled so the text cannot ping anyone.
+            // Show the caller what was spoken. Mentions are disabled so the text cannot
+            // ping anyone where the reply is public (the prefix form).
             let name = display_name(ctx).await;
             let reply = CreateReply::default()
                 .content(text::format_reply(&name, &text, cut_off))
-                .allowed_mentions(serenity::CreateAllowedMentions::new());
+                .allowed_mentions(serenity::CreateAllowedMentions::new())
+                .ephemeral(true);
             ctx.send(reply).await?;
         }
-        Err(e) => report_late_error(ctx, &e.to_string()).await?,
+        Err(e) => {
+            ctx.send(embedded_messages::generic_error(&e.to_string()))
+                .await?;
+        }
     }
 
     Ok(())
@@ -90,26 +97,6 @@ pub(super) async fn queue_speech(
     slot.fill(QueuedClip { call, clip });
 
     Ok(cut_off)
-}
-
-/// Reports an error that happened after the public response was deferred.
-///
-/// The deferred response is public and cannot be turned into an ephemeral one, so it is
-/// removed and the error is sent as a follow-up instead.
-pub(super) async fn report_late_error(ctx: Context<'_>, message: &str) -> CommandResult {
-    if let Context::Application(app_ctx) = ctx {
-        let deleted = app_ctx.interaction.delete_response(ctx.http()).await;
-        if let Err(delete_error) = deleted {
-            debug!(
-                "Failed to delete deferred /{} response: {}",
-                ctx.command().name,
-                delete_error
-            );
-        }
-    }
-    ctx.send(embedded_messages::generic_error(message)).await?;
-
-    Ok(())
 }
 
 /// Runs the checks that are answered instantly: the text, DECtalk being installed,

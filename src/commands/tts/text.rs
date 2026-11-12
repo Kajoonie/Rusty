@@ -1,5 +1,5 @@
-//! Cleans and validates the text given to `/say` and formats the public replies of
-//! `/say` and `/ask`.
+//! Cleans and validates the text given to `/say` and formats the replies of `/say` and
+//! `/ask`.
 
 use super::{TtsError, TtsResult, dectalk::MAX_AUDIO_SECONDS};
 
@@ -123,7 +123,7 @@ fn push_shortened(reply: &mut String, text: &str, budget: usize) -> usize {
     used
 }
 
-/// Builds the public reply showing who said what, e.g. `🗣️ **Name**: text`.
+/// Builds the reply of `/say`, showing who said what, e.g. `🗣️ **Name**: text`.
 ///
 /// Name and text are escaped so they cannot add formatting, links or mentions, and
 /// the text is shortened with `…` if the message would exceed Discord's limit.
@@ -168,7 +168,7 @@ pub fn is_mostly_notation(text: &str) -> bool {
     notation * 2 > total
 }
 
-/// Builds the public reply of `/ask`, showing the question and the answer:
+/// Builds the reply of `/ask`, showing the question and the answer:
 ///
 /// ```text
 /// ❓ **Asker**: question
